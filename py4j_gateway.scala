@@ -4,7 +4,7 @@
 py4j's gateway server for connecting python with Isabelle/Scala's JVM
 
 NOTE: Need to add py4j's jar file to the classpath
-./bin/isabelle scala -cp /Users/jonathan/anaconda3/envs/DeepIsaHOL/share/py4j/py4j0.10.9.7.jar
+isabelle scala -cp /Users/jonathan/anaconda3/envs/DeepIsaHOL/share/py4j/py4j0.10.9.7.jar
 */
 
 import py4j.GatewayServer
