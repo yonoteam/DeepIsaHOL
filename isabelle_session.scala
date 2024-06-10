@@ -87,7 +87,7 @@ object Isabelle_Session {
 
       progress.echo("Starting session " + logic + " ...")
 
-      Isabelle_Process.start(
+      val process = Isabelle_Process.start(
         store.options, session, session_background, session_heaps)//.await_startup()
     } catch {
         case exn: Throwable =>
