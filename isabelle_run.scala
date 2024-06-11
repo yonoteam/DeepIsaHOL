@@ -10,8 +10,8 @@ import isabelle._
 import scala.collection.mutable
 import scala.compiletime.ops.boolean
 
-object Isabelle_Session {
-  def make_options(build: Boolean): Options = {
+object Isabelle_Run {
+  private def make_options(build: Boolean): Options = {
     val options0 = Options.init0()
 
     val options1 = 
@@ -33,7 +33,7 @@ object Isabelle_Session {
     options3
   }
 
-  def make_store(build: Boolean): Store = {
+  private def make_store(build: Boolean): Store = {
     if (build) {
       val options = make_options(build)
       val build_engine = Build.Engine(Build.engine_name(options))
@@ -44,7 +44,7 @@ object Isabelle_Session {
     else Store(options = make_options(build))
   }
 
-  def make_background(logic:String, store: Store, progress: Progress): Sessions.Background = {
+  private def make_background(logic:String, store: Store, progress: Progress): Sessions.Background = {
     try {
       val afp_root = Some(AFP.BASE) // FIXME: requires AFP installed as component
 
@@ -65,7 +65,7 @@ object Isabelle_Session {
     }
   }
 
-  def start(logic: String): Unit = {
+  def apply(logic: String): Isabelle_Run = {
     try {
       Isabelle_System.init()
       
@@ -89,11 +89,21 @@ object Isabelle_Session {
 
       val process = Isabelle_Process.start(
         store.options, session, session_background, session_heaps)//.await_startup()
+
+      new Isabelle_Run(process, progress)
     } catch {
         case exn: Throwable =>
-          error("Throwable error: Failed to execute Isabelle session.")
+          error("Throwable error: Failed to launch Isabelle process.")
           sys.exit(Process_Result.RC.failure)
     }
   }
   // start("Main")
+}
+
+class Isabelle_Run(process: Isabelle_Process, progress: Progress) {
+
+  def stop(): Unit = {
+    val result = process.await_shutdown()
+    process.terminate()
+  }
 }
