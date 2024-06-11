@@ -90,7 +90,7 @@ object Isabelle_Run {
       val process = Isabelle_Process.start(
         store.options, session, session_background, session_heaps)//.await_startup()
 
-      new Isabelle_Run(process, progress)
+      new Isabelle_Run(session, process, progress)
     } catch {
         case exn: Throwable =>
           error("Throwable error: Failed to launch Isabelle process.")
@@ -100,10 +100,10 @@ object Isabelle_Run {
   // start("Main")
 }
 
-class Isabelle_Run(process: Isabelle_Process, progress: Progress) {
+class Isabelle_Run(val session: Session, val process: Isabelle_Process, val progress: Progress) {
 
   def stop(): Unit = {
-    val result = process.await_shutdown()
+    session.stop()
     process.terminate()
   }
 }
