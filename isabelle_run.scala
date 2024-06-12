@@ -1,5 +1,4 @@
 /*  Maintainer: Jonathan Julián Huerta y Munive
-    Email: jonjulian23@gmail.com
 
 Isabelle session initialisation.
 */

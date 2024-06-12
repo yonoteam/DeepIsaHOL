@@ -1,5 +1,4 @@
 /*  Maintainer: Jonathan Julián Huerta y Munive
-    Email: jonjulian23@gmail.com
 
 py4j's gateway server for connecting python with Isabelle/Scala's JVM
 
