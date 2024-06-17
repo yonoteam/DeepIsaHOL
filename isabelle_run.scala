@@ -96,7 +96,20 @@ object Isabelle_Run {
           sys.exit(Process_Result.RC.failure)
     }
   }
-  // start("Main")
+  
+  def test_message(): Unit = {
+    val test_blobs = Document.Blobs.make(List())
+    val node_name = Document.Node.Name("Draft.Isa_Scala_Basics","Draft.Isa_Scala_Basics")
+    val test_edits = List()
+  }
+  
+  val test_str = """
+theory Isa_Scala_Basics
+  imports HOL.HOL
+begin
+lemma my_lemma: "True"
+  by simp
+end"""
 }
 
 class Isabelle_Run(val session: Session, val process: Isabelle_Process, val progress: Progress) {
