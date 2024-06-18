@@ -8,6 +8,8 @@ Isabelle session initialisation.
 import isabelle._
 import scala.collection.mutable
 import scala.compiletime.ops.boolean
+import javax.print.Doc
+import javax.swing.text.Document
 
 object Isabelle_Run {
   private def make_options(build: Boolean): Options = {
@@ -97,22 +99,34 @@ object Isabelle_Run {
     }
   }
   
-  def test_message(): Unit = {
-    val test_blobs = Document.Blobs.make(List())
-    val node_name = Document.Node.Name("Draft.Isa_Scala_Basics","Draft.Isa_Scala_Basics")
-    val test_edits = List()
-  }
-  
-  val test_str = """
+  def test_edits(): Session.Raw_Edits = {
+    val test_blobs = isabelle.Document.Blobs.make(List())
+    val node_name = isabelle.Document.Node.Name("Draft.Isa_Scala_Basics","Draft.Isa_Scala_Basics")
+    val header_name = isabelle.Document.Node.Name("Draft.Isa_Scala_Basics","HOL.HOL")
+    val header1 = isabelle.Document.Node.Header(List((header_name, List(("offset","35"), ("end_offset","42"), ("id","command")))))
+    val deps1: isabelle.Document.Node.Deps[isabelle.Text.Edit, isabelle.Text.Perspective] = isabelle.Document.Node.Deps(header1)
+    val edit1 = (node_name, deps1)
+    val test_str = """
 theory Isa_Scala_Basics
   imports HOL.HOL
 begin
 lemma my_lemma: "True"
   by simp
 end"""
+    val text_edit2: isabelle.Document.Node.Edits[isabelle.Text.Edit, isabelle.Text.Perspective] = isabelle.Document.Node.Edits(List(Text.Edit.insert(0,test_str)))
+    val edit2 = (node_name, text_edit2)
+    val perspective3: isabelle.Document.Node.Perspective[isabelle.Text.Edit, isabelle.Text.Perspective] = isabelle.Document.Node.Perspective(false, Text.Perspective(List(Text.Range(0,197))), isabelle.Document.Node.Overlays.empty)
+    val edit3 = (node_name, perspective3)
+    val raw_edits = new Session.Raw_Edits(test_blobs, List(edit1, edit2, edit3))
+    raw_edits
+  }
 }
 
 class Isabelle_Run(val session: Session, val process: Isabelle_Process, val progress: Progress) {
+  def send_edits: Unit = {
+    val raw_edits = Isabelle_Run.test_edits()
+    session.manager.send(raw_edits)
+  }
 
   def stop(): Unit = {
     session.stop()
