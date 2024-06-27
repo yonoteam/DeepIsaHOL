@@ -10,6 +10,7 @@ sig
   val get_global_fact_names: Proof.context -> string list
   val list_thms: (string * thm list -> bool) list -> Proof.context -> (string * thm list) list
   val get_thms: Proof.context -> string -> thm list
+  val get_deps: theory -> thm list -> (string * thm) list
 end;
 
 
@@ -72,5 +73,28 @@ fun get_thms ctxt name =
     val refs_toks = (fst o Parse.thms1) toks;
     val thms = Attrib.eval_thms ctxt refs_toks
   in thms end;
+
+(*  theory -> thm list -> (string * thm) list *)
+fun get_deps thy =
+  let
+    val lookup = Global_Theory.lookup_thm_id thy;
+    fun thm_of_name thm_name = Global_Theory.get_thm_name thy (thm_name, \<^here>);
+    fun make_name_thm id_name = (fst (snd id_name), thm_of_name (snd id_name));
+    fun deps (i, thm_node) res =
+      if Inttab.defined res i then res
+      else
+        let val thm_id = Proofterm.thm_id (i, thm_node) in
+          (case lookup thm_id of
+            SOME thm_name =>
+              Inttab.update (i, SOME (thm_id, thm_name)) res
+          | NONE =>
+              Inttab.update (i, NONE) res
+              |> fold deps (Proofterm.thm_node_thms thm_node))
+        end;
+  in
+    fn thms =>
+      (Inttab.build (fold (fold deps o Thm.thm_deps o Thm.transfer thy) thms), [])
+      |-> Inttab.fold_rev (fn (_, SOME entry) => cons (make_name_thm entry) | _ => I)
+  end;
 
 end;
