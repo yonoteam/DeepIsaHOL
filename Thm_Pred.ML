@@ -1,6 +1,7 @@
 
 signature THM_PRED =
 sig
+  val neg: ('a -> bool) -> 'a -> bool
   val has_many: string * thm list -> bool
   val nth_letter_is: int -> string -> string * thm list -> bool
   val starts_with: string -> string * thm list -> bool
@@ -12,6 +13,8 @@ end;
 
 structure Thm_Pred: THM_PRED =
 struct
+
+fun neg P x = not (P x)
 
 fun has_many (_:string, thms: thm list) = length thms > 1;
 
@@ -27,7 +30,7 @@ fun is_dynamic ctxt (name:string, _: thm list)
 fun passes_fact_check ctxt name =
 let
   val generic = Context.Proof ctxt
-  val facts = #local_f (Printing.get_facts ctxt);
+  val facts = #local_f (Data_Ops.get_facts ctxt);
   val checks 
     = (case (Facts.check generic facts (name, Position.none)) 
       of _ => true)

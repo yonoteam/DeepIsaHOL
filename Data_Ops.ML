@@ -1,5 +1,5 @@
 
-signature PRINTING =
+signature DATA_OPS =
 sig
   val enumerate: 'a list -> (int * 'a) list (* TODO: move *)
   val mk_default_tokens: Proof.context -> string -> Token.T list (* TODO: move *)
@@ -13,7 +13,7 @@ sig
 end;
 
 
-structure Printing: PRINTING =
+structure Data_Ops: DATA_OPS =
 struct
 
 fun enumerate xs =
