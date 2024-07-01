@@ -5,7 +5,7 @@ sig
   val mk_default_tokens: Proof.context -> string -> Token.T list (* TODO: move *)
   val split_by: string -> string -> string list
   val get_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T}
-  val get_method_names: Proof.context -> string list
+  val get_methods: Proof.context -> string list
   val get_global_fact_names: Proof.context -> string list
   val list_thms: (string * thm list -> bool) list -> Proof.context -> (string * thm list) list
   val get_thms: Proof.context -> string -> thm list
@@ -27,7 +27,7 @@ fun mk_default_tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Posit
 
 fun split_by splitter target = space_explode splitter target;
 
-fun get_method_names ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
+fun get_methods ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
 
 (* context -> string list *)
 fun get_global_fact_names ctxt = Name_Space.get_names (Facts.space_of (Global_Theory.facts_of (Proof_Context.theory_of ctxt)));

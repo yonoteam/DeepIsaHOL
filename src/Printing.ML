@@ -17,7 +17,7 @@ datatype format = YXML of int | TRM | AST | GOAL;
 
 val yx_string_of = Syntax.string_of_term
 
-(* Proof.context -> printing_format -> thm -> string *)
+(* Proof.context -> format -> thm -> string *)
 fun to_string ctxt format thm =
   let 
     val main_term = Thm.prop_of thm;
@@ -30,7 +30,7 @@ fun to_string ctxt format thm =
   in result
   end;
 
-(* printing_mode -> string -> unit *)
+(* mode -> string -> unit *)
 fun print_str mode str =
   let 
     val _ = (case mode of
