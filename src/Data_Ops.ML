@@ -1,8 +1,8 @@
 
 signature DATA_OPS =
 sig
-  val enumerate: 'a list -> (int * 'a) list (* TODO: move *)
-  val mk_default_tokens: Proof.context -> string -> Token.T list (* TODO: move *)
+  val enumerate: 'a list -> (int * 'a) list
+  val mk_default_tokens: Proof.context -> string -> Token.T list
   val split_by: string -> string -> string list
   val get_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T}
   val get_methods: Proof.context -> string list
@@ -10,6 +10,7 @@ sig
   val list_thms: (string * thm list -> bool) list -> Proof.context -> (string * thm list) list
   val get_thms: Proof.context -> string -> thm list
   val get_deps: theory -> thm list -> (string * thm) list
+  val get_vars: term -> term list
 end;
 
 
@@ -93,5 +94,13 @@ fun get_deps thy =
       (Inttab.build (fold (fold deps o Thm.thm_deps o Thm.transfer thy) thms), [])
       |-> Inttab.fold_rev (fn (_, SOME entry) => cons (make_name_thm entry) | _ => I)
   end;
+
+(* term -> term list -> term list *)
+fun cons_var (t as Term.Free _) ts = t :: ts
+  | cons_var (t as Term.Var _) ts = t :: ts
+  | cons_var _ ts = ts;
+
+(* term -> term list *)
+fun get_vars t = Term.fold_aterms (fn t => fn ts => if member (op =) ts t then ts else cons_var t ts) t [];
 
 end;
