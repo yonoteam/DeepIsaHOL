@@ -55,4 +55,25 @@ fun print_str mode str =
   in () 
   end;
 
+(* Toplevel.state -> {consts: Pretty.T list, goal: Pretty.T, hyps: Pretty.T list, tvars: Pretty.T list, vars: Pretty.T list} *)
+fun get_goal_data state = 
+  let
+    val proof_state = Toplevel.proof_of state;
+    val ctxt = ((Proof.context_of proof_state) 
+      |> Config.put show_sorts false 
+      |> Config.put show_types false);
+    val prop = Proof.goal (Toplevel.proof_of state);
+    val goal = #goal prop;
+    val hyps = map Thm.prop_of (#facts prop);
+    val goal_term = Thm.prop_of goal;
+    val (Phis, Phi) = Logic.strip_horn (goal_term);
+    val xs = Data_Ops.get_vars goal_term;
+    val cs = Data_Ops.get_consts goal_term;
+    val Ts = Data_Ops.get_atomic_types goal_term;
+  in {goal = Syntax.pretty_term ctxt goal_term, 
+   consts = map (Syntax.pretty_term ctxt) cs, 
+   vars = map (Syntax.pretty_term ctxt) xs, 
+   tvars = map (Syntax.pretty_typ ctxt) Ts, 
+   hyps = map (Syntax.pretty_term ctxt) hyps} end;
+
 end;
