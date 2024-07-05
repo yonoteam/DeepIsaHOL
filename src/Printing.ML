@@ -63,17 +63,16 @@ fun get_goal_data state =
       |> Config.put show_sorts false 
       |> Config.put show_types false);
     val prop = Proof.goal (Toplevel.proof_of state);
-    val goal = #goal prop;
-    val hyps = map Thm.prop_of (#facts prop);
-    val goal_term = Thm.prop_of goal;
-    val (Phis, Phi) = Logic.strip_horn (goal_term);
-    val xs = Data_Ops.get_vars goal_term;
-    val cs = Data_Ops.get_consts goal_term;
-    val Ts = Data_Ops.get_atomic_types goal_term;
+    val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
+    val goal_term = hd goal_hyps;
+    val (Phis, Phi) = Logic.strip_horn goal_term;
+    val xs = Data_Ops.get_vars goal_hyps;
+    val cs = Data_Ops.get_consts goal_hyps;
+    val Ts = Data_Ops.get_atomic_types goal_hyps;
   in {goal = Syntax.pretty_term ctxt goal_term, 
    consts = map (Syntax.pretty_term ctxt) cs, 
-   vars = map (Syntax.pretty_term ctxt) xs, 
+   vars = map (Syntax.pretty_term (Config.put show_types true ctxt)) xs, 
    tvars = map (Syntax.pretty_typ ctxt) Ts, 
-   hyps = map (Syntax.pretty_term ctxt) hyps} end;
+   hyps = map (Syntax.pretty_term ctxt) (tl goal_hyps)} end;
 
 end;

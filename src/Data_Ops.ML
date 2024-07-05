@@ -12,9 +12,9 @@ sig
   val get_filtered_thms: (string * thm list -> bool) list -> Proof.context -> (string * thm list) list
   val get_thms: Proof.context -> string -> thm list
   val get_deps: theory -> thm list -> (string * thm) list
-  val get_vars: term -> term list
-  val get_consts: term -> term list
-  val get_atomic_types: term -> typ list
+  val get_vars: term list -> term list
+  val get_consts: term list -> term list
+  val get_atomic_types: term list -> typ list
 end;
 
 
@@ -127,19 +127,21 @@ fun is_gen_var (Term.Free _) = true
   | is_gen_var (Term.Var _) = true
   | is_gen_var _ = false;
 
-(* term -> term list *)
-fun get_vars t = 
+fun not_member_of ts t = Pred.neg (member (op =) ts) t;
+
+(* term list -> term list *)
+fun get_vars terms = 
   let
-    fun not_member_of ts t = Pred.neg (member (op =) ts) t;
     fun cond_add t ts = insert_if (is_gen_var andf not_member_of ts) t ts;
-  in Term.fold_aterms cond_add t [] end;
+    fun cond_add_vars t vs = fold (fn var => cond_add var) vs (Term.fold_aterms cond_add t []);
+  in fold cond_add_vars terms [] end;
 
 (* term -> term list *)
-fun get_consts t = 
+fun get_consts terms = 
   let
-    fun not_member_of ts t = Pred.neg (member (op =) ts) t;
     fun cond_add t ts = insert_if (is_Const andf not_member_of ts) t ts;
-  in Term.fold_aterms cond_add t [] end;
+    fun cond_add_consts t cs = fold (fn c => cond_add c) cs (Term.fold_aterms cond_add t []);
+  in fold cond_add_consts terms [] end;
 
 (* typ -> bool *)
 fun is_gen_type_var (Term.TFree _) = true
@@ -147,10 +149,11 @@ fun is_gen_type_var (Term.TFree _) = true
   | is_gen_type_var _ = false;
 
 (* term -> typ list *)
-fun get_atomic_types t =
+fun get_atomic_types terms =
   let
-    fun add_type T Ts = insert_if (is_gen_type_var andf Pred.neg (member (op =) Ts)) T Ts;
-    fun add_subtypes T Ts = Term.fold_atyps add_type T Ts;
-  in Term.fold_types add_subtypes t []  end;
+    fun cond_add T Ts = insert_if (is_gen_type_var andf not_member_of Ts) T Ts;
+    fun add_subtypes T Ts = Term.fold_atyps cond_add T Ts;
+    fun cond_add_typs t Ts = fold (fn T => cond_add T) Ts (Term.fold_types add_subtypes t []);
+  in fold cond_add_typs terms []  end;
 
 end;
