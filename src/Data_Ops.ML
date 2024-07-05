@@ -12,6 +12,9 @@ sig
   val get_filtered_thms: (string * thm list -> bool) list -> Proof.context -> (string * thm list) list
   val get_thms: Proof.context -> string -> thm list
   val get_deps: theory -> thm list -> (string * thm) list
+  val vars_of: term -> term list
+  val consts_of: term -> term list
+  val atomic_types_of: term -> typ list
   val get_vars: term list -> term list
   val get_consts: term list -> term list
   val get_atomic_types: term list -> typ list
@@ -122,38 +125,100 @@ fun get_deps thy =
 
 (* THM INFORMATION *)
 
+local
+
+(* 'a * 'b -> ('a * 'b list) list -> ('a * 'b list) list *)
+fun ins_entry (x, y) =
+  AList.default (op =) (x, []) #>
+  AList.map_entry (op =) x (insert (op =) y);
+
+(* term -> (typ * (string * typ) list) list -> (typ * (string * typ) list) list *)
+val add_consts = Term.fold_aterms
+  (fn Const (c, T) => ins_entry (T, (c, T))
+    | _ => I);
+
+(* term -> (typ * (string * int) list) list -> (typ * (string * int) list) list *)
+val add_vars = Term.fold_aterms
+  (fn Free (x, T) => ins_entry (T, (x, ~1))
+    | Var (xi, T) => ins_entry (T, xi)
+    | _ => I);
+
+(* typ -> (sort * (string * int) list) list -> (sort * (string * int) list) list *)
+val add_varsT = Term.fold_atyps
+  (fn TFree (x, S) => ins_entry (S, (x, ~1))
+    | TVar (xi, S) => ins_entry (S, xi)
+    | _ => I);
+
+fun sort_idxs vs = map (apsnd (sort (prod_ord string_ord int_ord))) vs;
+fun sort_cnsts cs = map (apsnd (sort_by fst)) cs;
+
+fun not_member_of xs x = Pred.neg (member (op =) xs) x;
+fun not_member_cons_if P x xs = insert_if (P andf not_member_of xs) x xs;
+
 (* term -> bool *)
 fun is_gen_var (Term.Free _) = true
   | is_gen_var (Term.Var _) = true
   | is_gen_var _ = false;
-
-fun not_member_of ts t = Pred.neg (member (op =) ts) t;
-
-(* term list -> term list *)
-fun get_vars terms = 
-  let
-    fun cond_add t ts = insert_if (is_gen_var andf not_member_of ts) t ts;
-    fun cond_add_vars t vs = fold (fn var => cond_add var) vs (Term.fold_aterms cond_add t []);
-  in fold cond_add_vars terms [] end;
-
-(* term -> term list *)
-fun get_consts terms = 
-  let
-    fun cond_add t ts = insert_if (is_Const andf not_member_of ts) t ts;
-    fun cond_add_consts t cs = fold (fn c => cond_add c) cs (Term.fold_aterms cond_add t []);
-  in fold cond_add_consts terms [] end;
 
 (* typ -> bool *)
 fun is_gen_type_var (Term.TFree _) = true
   | is_gen_type_var (Term.TVar _) = true
   | is_gen_type_var _ = false;
 
-(* term -> typ list *)
-fun get_atomic_types terms =
+(* typ -> typ list *) 
+fun add_atomic_types T Ts = Term.fold_atyps (not_member_cons_if is_gen_type_var) T Ts;
+
+(* (term -> ''a list) -> term list -> ''a list *)
+fun get_uniques f (terms: term list) =
   let
-    fun cond_add T Ts = insert_if (is_gen_type_var andf not_member_of Ts) T Ts;
-    fun add_subtypes T Ts = Term.fold_atyps cond_add T Ts;
-    fun cond_add_typs t Ts = fold (fn T => cond_add T) Ts (Term.fold_types add_subtypes t []);
-  in fold cond_add_typs terms []  end;
+    fun cond_add t ts = fold (not_member_cons_if (fn _ => true)) ts (f t);
+  in fold cond_add terms [] end;
+
+(* (term -> (typ * (string * int) list) list) -> term list -> (typ * (string * int) list) list *)
+fun get_flats f (terms: term list) =
+  let
+    fun cond_add_vars (key, vals) kvss = fold (fn v => fn kvs => ins_entry (key,v) kvs) vals kvss;
+    fun add_vars_of_not_in t kvss = fold cond_add_vars kvss (f t);
+  in fold add_vars_of_not_in terms [] end;
+
+(* term -> (typ * (string * int) list) list *)
+fun pseudo_vars_of t = sort_idxs (add_vars t []);
+
+(* term -> (typ * (string * typ) list) list *)
+fun pseudo_consts_of t = sort_cnsts (add_consts t []);
+
+(* term -> (sort * (string * int) list) list *)
+fun pseudo_types_of t = rev (sort_idxs (Term.fold_types add_varsT t []));
+
+in
+
+(* term -> term list *)
+fun vars_of t = Term.fold_aterms (not_member_cons_if is_gen_var) t [];
+
+(* term -> term list *)
+fun consts_of t = Term.fold_aterms (not_member_cons_if Term.is_Const) t [];
+
+(* term -> typ list *)
+fun atomic_types_of t = Term.fold_types add_atomic_types t [];
+
+(* term list -> term list *)
+val get_vars = get_uniques (vars_of)
+
+(* term list -> (typ * (string * int) list) list *)
+val get_flat_vars = get_flats (pseudo_vars_of);
+
+(* term list -> term list *)
+val get_consts = get_uniques (consts_of)
+
+(* term list -> (typ * (string * typ) list) list *)
+val get_flat_consts = get_flats (pseudo_consts_of);
+
+(* term list -> typ list *)
+val get_atomic_types = get_uniques (atomic_types_of);
+
+(* term list -> (sort * (string * int) list) list *)
+val get_flat_types = get_flats (pseudo_types_of);
+
+end;
 
 end;
