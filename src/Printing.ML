@@ -55,6 +55,18 @@ fun print_str mode str =
   in () 
   end;
 
+(* Proof.context -> term list -> Pretty.T *)
+fun pretty_consts ctxt consts = 
+  let
+    val ctxt' = ctxt
+      |> Config.put show_sorts false 
+      |> Config.put show_types false
+    val pretty_c = Syntax.pretty_term ctxt';
+    val pretty_T = Syntax.pretty_typ ctxt';
+    val constantsP = Pretty.quote (Pretty.str "constants")
+    fun pretty_const c = Pretty.block [pretty_c c, Pretty.str " :: ", pretty_T (Term.type_of c)]
+  in Pretty.block (Pretty.commas (map pretty_const consts)) end;
+
 (* Toplevel.state -> {consts: Pretty.T list, goal: Pretty.T, hyps: Pretty.T list, tvars: Pretty.T list, vars: Pretty.T list} *)
 fun get_goal_data state = 
   let
