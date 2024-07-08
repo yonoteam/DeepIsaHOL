@@ -5,11 +5,13 @@ sig
   val enumerate: 'a list -> (int * 'a) list
   val mk_default_tokens: Proof.context -> string -> Token.T list
   val split_by: string -> string -> string list
+  val flatten: ('a -> ''b * ''c) -> 'a list -> (''c * ''b list) list
   val get_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T}
   val passes_fact_check: Proof.context -> string -> bool
   val get_methods: Proof.context -> string list
   val get_global_fact_names: Proof.context -> string list
-  val get_filtered_thms: (string * thm list -> bool) list -> Proof.context -> (string * thm list) list
+  val get_filtered_thms: (string * thm list -> bool) list 
+    -> Proof.context -> (string * thm list) list
   val get_thms: Proof.context -> string -> thm list
   val get_deps: theory -> thm list -> (string * thm) list
   val vars_of: term -> term list
@@ -18,6 +20,8 @@ sig
   val get_vars: term list -> term list
   val get_consts: term list -> term list
   val get_atomic_types: term list -> typ list
+  val get_goal_data: Toplevel.state 
+    -> {consts: term list, goal: term, hyps: term list, tvars: typ list, vars: term list}
 end;
 
 
@@ -127,7 +131,7 @@ fun get_deps thy =
 
 local
 
-(* 'a * 'b -> ('a * 'b list) list -> ('a * 'b list) list *)
+(* 'key * 'val -> ('key * 'val list) list -> ('key * 'val list) list *)
 fun ins_entry (x, y) =
   AList.default (op =) (x, []) #>
   AList.map_entry (op =) x (insert (op =) y);
@@ -168,29 +172,28 @@ fun is_gen_type_var (Term.TFree _) = true
 (* typ -> typ list *) 
 fun add_atomic_types T Ts = Term.fold_atyps (not_member_cons_if is_gen_type_var) T Ts;
 
-(* (term -> ''a list) -> term list -> ''a list *)
+(* (term -> 'a list) -> term list -> 'a list *)
 fun get_uniques f (terms: term list) =
   let
     fun cond_add t ts = fold (not_member_cons_if (fn _ => true)) ts (f t);
   in fold cond_add terms [] end;
 
-(* (term -> (typ * (string * int) list) list) -> term list -> (typ * (string * int) list) list *)
-fun get_flats f (terms: term list) =
-  let
-    fun cond_add_vars (key, vals) kvss = fold (fn v => fn kvs => ins_entry (key,v) kvs) vals kvss;
-    fun add_vars_of_not_in t kvss = fold cond_add_vars kvss (f t);
-  in fold add_vars_of_not_in terms [] end;
-
-(* term -> (typ * (string * int) list) list *)
-fun pseudo_vars_of t = sort_idxs (add_vars t []);
-
-(* term -> (typ * (string * typ) list) list *)
-fun pseudo_consts_of t = sort_cnsts (add_consts t []);
-
-(* term -> (sort * (string * int) list) list *)
-fun pseudo_types_of t = rev (sort_idxs (Term.fold_types add_varsT t []));
-
 in
+
+(* ('a -> ('val, 'key)) -> 'a list -> ('key * 'val list) list *)
+fun flatten extract_info xs =
+let
+  fun register x [] = 
+      let
+        val (name, key) = extract_info x;
+      in [(key, [name])] end
+    | register x ((key', names) :: kns) =
+      let
+        val (name, key) = extract_info x;
+      in if key' = key 
+        then (key', not_member_cons_if (fn _ => true) name names) :: kns  
+        else (key', names) :: register x kns end;
+in fold register xs [] end;
 
 (* term -> term list *)
 fun vars_of t = Term.fold_aterms (not_member_cons_if is_gen_var) t [];
@@ -204,20 +207,21 @@ fun atomic_types_of t = Term.fold_types add_atomic_types t [];
 (* term list -> term list *)
 val get_vars = get_uniques (vars_of)
 
-(* term list -> (typ * (string * int) list) list *)
-val get_flat_vars = get_flats (pseudo_vars_of);
-
 (* term list -> term list *)
 val get_consts = get_uniques (consts_of)
-
-(* term list -> (typ * (string * typ) list) list *)
-val get_flat_consts = get_flats (pseudo_consts_of);
 
 (* term list -> typ list *)
 val get_atomic_types = get_uniques (atomic_types_of);
 
-(* term list -> (sort * (string * int) list) list *)
-val get_flat_types = get_flats (pseudo_types_of);
+(* Toplevel.state -> {consts: term list, goal: term, hyps: term list, tvars: typ list, vars: term list} *)
+fun get_goal_data state = 
+  let
+    val prop = Proof.goal (Toplevel.proof_of state);
+    val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
+    val xs = get_vars goal_hyps;
+    val cs = get_consts goal_hyps;
+    val Ts = get_atomic_types goal_hyps;
+  in {goal = hd goal_hyps, consts = cs, vars = xs, tvars = Ts, hyps = tl goal_hyps} end;
 
 end;
 
