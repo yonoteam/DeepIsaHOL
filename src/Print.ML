@@ -72,19 +72,13 @@ let
         else (key', names) :: register x kns end;
 in fold register xs [] end;
 
-(* Proof.context -> {show_sorts: bool, show_types: bool} 
-  -> (Proof.context -> 'key -> Pretty.T) -> (Proof.context -> 'val -> Pretty.T) 
+(* Proof.context -> (Proof.context -> 'key -> Pretty.T) -> (Proof.context -> 'val -> Pretty.T) 
   -> ('key * 'val list) list -> Pretty.T list *)
-(* TODO: Do we need the option to change show_types and show_sorts *)
-fun pretty_alist ctxt config pretty_key pretty_val alist = 
+fun pretty_alist ctxt pretty_key pretty_val alist = 
   let
-    val {show_types = showT, show_sorts = showS} = config;
-    val ctxt' = ctxt
-      |> Config.put show_sorts showS
-      |> Config.put show_types showT
     fun pretty_entry (k, vs) = Pretty.block 
-      (Pretty.commas (map (pretty_val ctxt') vs) 
-      @ [Pretty.str " ::", Pretty.brk 1, (pretty_key ctxt') k]);
+      (Pretty.commas (map (pretty_val ctxt) vs) 
+      @ [Pretty.str " ::", Pretty.brk 1, (pretty_key ctxt) k]);
   in map pretty_entry alist end;
 
 (* term -> term * typ *)
@@ -105,15 +99,15 @@ fun types_info T = (case T of
   | _ => raise TYPE("not a type variable", [T], []));
 
 (* Proof.context -> term list -> Pretty.T *)
-fun pretty_consts ctxt consts = pretty_alist ctxt {show_types = true, show_sorts = false} 
+fun pretty_consts ctxt consts = pretty_alist ctxt
   Syntax.pretty_typ Syntax.pretty_term (alist_by const_info consts);
 
 (* Proof.context -> term list -> Pretty.T *)
-fun pretty_vars ctxt vars = pretty_alist ctxt {show_types = false, show_sorts = false} 
+fun pretty_vars ctxt vars = pretty_alist ctxt
   Syntax.pretty_typ Syntax.pretty_term (alist_by vars_info vars);
 
 (* Proof.context -> typ list -> Pretty.T list *)
-fun pretty_types ctxt typs = pretty_alist ctxt {show_types = false, show_sorts = false} 
+fun pretty_types ctxt typs = pretty_alist ctxt
   Syntax.pretty_sort Syntax.pretty_typ (alist_by types_info typs)
 
 (* bool -> int -> Pretty.T list -> Pretty.T *)
@@ -136,7 +130,9 @@ in
 fun pretty_state debug state = 
   let
     val state_data = Data_Ops.get_goal_data state;
-    val ctxt = Proof.context_of (Toplevel.proof_of state);
+    val ctxt = Proof.context_of (Toplevel.proof_of state)
+      |> Config.put show_sorts false
+      |> Config.put show_types false
     fun jpair name prt_attribs = 
       Pretty.block (Pretty.quote (Pretty.str name) :: (Pretty.str ":") :: [Pretty.brk 1, prt_attribs]);
     fun Ts lvl = jpair "type variables" (make_jattrib debug lvl (pretty_types ctxt (#types state_data)));
