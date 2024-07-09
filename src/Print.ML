@@ -2,11 +2,11 @@
 signature PRINT =
 sig
   datatype mode = FILE of string | OUT;
-  datatype format = XML of int | XY | AST;
+  datatype format = XML of int | YX | AST;
   val string_of: Pretty.T -> string
   val term_string: Proof.context -> format -> term -> string
   val write_to: mode -> string -> unit
-  val proof_state: bool -> Proof.context -> Toplevel.state -> string
+  val proof_state: mode -> bool -> Toplevel.state -> unit
 end;
 
 
@@ -15,10 +15,11 @@ struct
 
 datatype mode = FILE of string | OUT;
 
-datatype format = XML of int | XY | AST;
+datatype format = XML of int | YX | AST;
 
 exception FORMAT of string
 
+(* Pretty.T -> string *)
 val yx_string_of = Pretty.string_of
 
 (* Pretty.T -> string *)
@@ -32,7 +33,7 @@ fun term_string ctxt format t =
   let 
     val result = (case format of
         XML depth => Pretty.string_of (XML.pretty depth (YXML.parse (term_yx_string ctxt t)))
-      | XY => (YXML.content_of (term_yx_string ctxt t))
+      | YX => (YXML.content_of (term_yx_string ctxt t))
       | AST => (ML_Syntax.print_term t)
     )
   in result
@@ -131,17 +132,21 @@ in make_jblock end;
 
 in
 
-(* bool -> Proof.context -> Toplevel.state -> string *)
-fun proof_state debug ctxt state = 
+(* bool -> Toplevel.state -> Pretty.T *)
+fun pretty_state debug state = 
   let
     val state_data = Data_Ops.get_goal_data state;
+    val ctxt = Proof.context_of (Toplevel.proof_of state);
     fun jpair name prt_attribs = 
       Pretty.block (Pretty.quote (Pretty.str name) :: (Pretty.str ":") :: [Pretty.brk 1, prt_attribs]);
     fun Ts lvl = jpair "type variables" (make_jattrib debug lvl (pretty_types ctxt (#types state_data)));
     fun cs lvl = jpair "constants" (make_jattrib debug lvl (pretty_consts ctxt (#consts state_data)));
     fun vs lvl = jpair "variables" (make_jattrib debug lvl (pretty_vars ctxt (#vars state_data)));
     val goal = jpair "term" (Syntax.pretty_term ctxt (#goal state_data));
-  in string_of (jpair "state" (make_jattrib debug 0 [goal, vs 2, cs 2, Ts 2])) end;
+  in jpair "state" (make_jattrib debug 0 [goal, vs 2, cs 2, Ts 2]) end;
+
+(* mode -> bool -> Toplevel.state -> unit *)
+fun proof_state mode debug state = write_to mode (string_of (pretty_state debug state));
 
 end;
 
