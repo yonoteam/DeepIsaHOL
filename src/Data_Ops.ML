@@ -2,10 +2,10 @@
 signature DATA_OPS =
 sig
   val insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list
+  val intersp: 'a list -> 'a list -> 'a list
   val enumerate: 'a list -> (int * 'a) list
   val mk_default_tokens: Proof.context -> string -> Token.T list
   val split_by: string -> string -> string list
-  val flatten: ('a -> ''b * ''c) -> 'a list -> (''c * ''b list) list
   val get_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T}
   val passes_fact_check: Proof.context -> string -> bool
   val get_methods: Proof.context -> string list
@@ -21,7 +21,7 @@ sig
   val get_consts: term list -> term list
   val get_atomic_types: term list -> typ list
   val get_goal_data: Toplevel.state 
-    -> {consts: term list, goal: term, hyps: term list, tvars: typ list, vars: term list}
+    -> {consts: term list, goal: term, hyps: term list, types: typ list, vars: term list}
 end;
 
 
@@ -32,6 +32,10 @@ struct
 
 (* ('a -> bool) -> 'a -> 'a list -> 'a list *)
 fun insert_if P x xs = if P x then x :: xs else xs;
+
+(* 'a list -> 'a list -> 'a list *)
+fun intersp seps (x :: (xs as  _ :: _)) = (x :: seps) @ (intersp seps xs)
+  | intersp _ xs = xs;
 
 (* 'a list -> (int * 'a) list *)
 fun enumerate xs =
@@ -52,7 +56,8 @@ fun mk_default_tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Posit
 fun get_methods ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
 
 (* context -> string list *)
-fun get_global_fact_names ctxt = Name_Space.get_names (Facts.space_of (Global_Theory.facts_of (Proof_Context.theory_of ctxt)));
+fun get_global_fact_names ctxt = Name_Space.get_names 
+  (Facts.space_of (Global_Theory.facts_of (Proof_Context.theory_of ctxt)));
 
 (* Proof.context -> {global_f: Facts.T, local_f: Facts.T} *)
 fun get_facts ctxt =
@@ -64,16 +69,14 @@ fun get_facts ctxt =
 
 (* Proof.context -> string -> bool *)
 fun passes_fact_check ctxt thm_name =
-let
-  val generic = Context.Proof ctxt
-  val facts = #local_f (get_facts ctxt);
-  val checks 
-    = (case (Facts.check generic facts (thm_name, Position.none)) 
-      of _ => true)
-    handle ERROR _ => false
-in
-  checks
-end;
+  let
+    val generic = Context.Proof ctxt
+    val facts = #local_f (get_facts ctxt);
+    val checks 
+      = (case (Facts.check generic facts (thm_name, Position.none)) 
+        of _ => true)
+      handle ERROR _ => false
+  in checks end;
 
 (* Proof.context -> (string * thm list) list *)
 fun get_all_thms ctxt =
@@ -131,33 +134,7 @@ fun get_deps thy =
 
 local
 
-(* 'key * 'val -> ('key * 'val list) list -> ('key * 'val list) list *)
-fun ins_entry (x, y) =
-  AList.default (op =) (x, []) #>
-  AList.map_entry (op =) x (insert (op =) y);
-
-(* term -> (typ * (string * typ) list) list -> (typ * (string * typ) list) list *)
-val add_consts = Term.fold_aterms
-  (fn Const (c, T) => ins_entry (T, (c, T))
-    | _ => I);
-
-(* term -> (typ * (string * int) list) list -> (typ * (string * int) list) list *)
-val add_vars = Term.fold_aterms
-  (fn Free (x, T) => ins_entry (T, (x, ~1))
-    | Var (xi, T) => ins_entry (T, xi)
-    | _ => I);
-
-(* typ -> (sort * (string * int) list) list -> (sort * (string * int) list) list *)
-val add_varsT = Term.fold_atyps
-  (fn TFree (x, S) => ins_entry (S, (x, ~1))
-    | TVar (xi, S) => ins_entry (S, xi)
-    | _ => I);
-
-fun sort_idxs vs = map (apsnd (sort (prod_ord string_ord int_ord))) vs;
-fun sort_cnsts cs = map (apsnd (sort_by fst)) cs;
-
-fun not_member_of xs x = Pred.neg (member (op =) xs) x;
-fun not_member_cons_if P x xs = insert_if (P andf not_member_of xs) x xs;
+fun not_member_cons_if P x xs = insert_if (P andf (Pred.neg (member (op =) xs))) x xs;
 
 (* term -> bool *)
 fun is_gen_var (Term.Free _) = true
@@ -180,21 +157,6 @@ fun get_uniques f (terms: term list) =
 
 in
 
-(* ('a -> ('val, 'key)) -> 'a list -> ('key * 'val list) list *)
-fun flatten extract_info xs =
-let
-  fun register x [] = 
-      let
-        val (name, key) = extract_info x;
-      in [(key, [name])] end
-    | register x ((key', names) :: kns) =
-      let
-        val (name, key) = extract_info x;
-      in if key' = key 
-        then (key', not_member_cons_if (fn _ => true) name names) :: kns  
-        else (key', names) :: register x kns end;
-in fold register xs [] end;
-
 (* term -> term list *)
 fun vars_of t = Term.fold_aterms (not_member_cons_if is_gen_var) t [];
 
@@ -213,7 +175,8 @@ val get_consts = get_uniques (consts_of)
 (* term list -> typ list *)
 val get_atomic_types = get_uniques (atomic_types_of);
 
-(* Toplevel.state -> {consts: term list, goal: term, hyps: term list, tvars: typ list, vars: term list} *)
+(* Toplevel.state 
+  -> {consts: term list, goal: term, hyps: term list, tvars: typ list, vars: term list} *)
 fun get_goal_data state = 
   let
     val prop = Proof.goal (Toplevel.proof_of state);
@@ -221,7 +184,7 @@ fun get_goal_data state =
     val xs = get_vars goal_hyps;
     val cs = get_consts goal_hyps;
     val Ts = get_atomic_types goal_hyps;
-  in {goal = hd goal_hyps, consts = cs, vars = xs, tvars = Ts, hyps = tl goal_hyps} end;
+  in {goal = hd goal_hyps, consts = cs, vars = xs, types = Ts, hyps = tl goal_hyps} end;
 
 end;
 
