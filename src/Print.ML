@@ -116,18 +116,18 @@ fun pretty_vars ctxt vars = pretty_alist ctxt
 fun pretty_types ctxt typs = pretty_alist ctxt
   Syntax.pretty_sort Syntax.pretty_typ "Sort" (alist_by types_info typs)
 
-(* bool -> int -> Pretty.T list -> Pretty.T *)
-fun jattribs debug lvl prts = 
+(* bool -> int -> string -> string -> Pretty.T list -> Pretty.T *)
+fun jattribs debug encl1 encl2 lvl prts = 
 let
   val jblock = if debug
     then let
       fun prt_sep s lvl = [Pretty.str s, Pretty.fbrk, Pretty.brk (lvl+2)];
-      val left_prt = [Pretty.str "{", Pretty.fbrk, Pretty.brk (lvl+2)];
-      val right_prt = [Pretty.fbrk, Pretty.brk lvl, Pretty.str "}"];
+      val left_prt = [Pretty.str encl1, Pretty.fbrk, Pretty.brk (lvl+2)];
+      val right_prt = [Pretty.fbrk, Pretty.brk lvl, Pretty.str encl2];
       val middle_prt = Data_Ops.intersp (prt_sep "," lvl) prts;
       in Pretty.block (left_prt @ middle_prt @ right_prt) end
-    else Pretty.block (Pretty.str "{" :: 
-      (Data_Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str "}"])
+    else Pretty.block (Pretty.str encl1 :: 
+      (Data_Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str encl2])
 in jblock end;
 
 in
@@ -139,11 +139,11 @@ fun pretty_state debug state =
     val ctxt = Proof.context_of (Toplevel.proof_of state)
       |> Config.put show_sorts false
       |> Config.put show_types false 
-    val Ts = jpair "type variables" (jattribs debug 4 (pretty_types ctxt (#types state_data)));
-    val cs = jpair "constants" (jattribs debug 4 (pretty_consts ctxt (#consts state_data)));
-    val vs = jpair "variables" (jattribs debug 4 (pretty_vars ctxt (#vars state_data)));
+    val Ts = jpair "type variables" (jattribs debug "[" "]" 4 (pretty_types ctxt (#types state_data)));
+    val cs = jpair "constants" (jattribs debug "[" "]" 4 (pretty_consts ctxt (#consts state_data)));
+    val vs = jpair "variables" (jattribs debug "[" "]" 4 (pretty_vars ctxt (#vars state_data)));
     val goal = jpair "term" (Pretty.quote (Syntax.pretty_term ctxt (#goal state_data)));
-  in jattribs debug 0 [jpair "state" (jattribs debug 2 [goal, vs, cs, Ts])] end;
+  in jattribs debug "{" "}" 0 [jpair "state" (jattribs debug "{" "}" 2 [goal, vs, cs, Ts])] end;
 
 (* mode -> bool -> Toplevel.state -> unit *)
 fun proof_state mode debug state = write_to mode (string_of (pretty_state debug state));
