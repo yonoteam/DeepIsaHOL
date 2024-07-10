@@ -72,14 +72,20 @@ let
         else (key', names) :: register x kns end;
 in fold register xs [] end;
 
+(* string -> Pretty.T -> Pretty.T *)
+fun jpair name prt_attribs = 
+  Pretty.block [Pretty.quote (Pretty.str name), (Pretty.str ":"), Pretty.brk 1, prt_attribs];
+
 (* Proof.context -> (Proof.context -> 'key -> Pretty.T) -> (Proof.context -> 'val -> Pretty.T) 
   -> ('key * 'val list) list -> Pretty.T list *)
-fun pretty_alist ctxt pretty_key pretty_val alist = 
+fun pretty_alist ctxt pretty_key pretty_val str alist = 
   let
-    fun pretty_entry (k, vs) = Pretty.block 
-      (Pretty.commas (map (pretty_val ctxt) vs) 
-      @ [Pretty.str " ::", Pretty.brk 1, (pretty_key ctxt) k]);
-  in map pretty_entry alist end;
+    fun pretty_right k vs = Pretty.block (
+      Pretty.str "\"" :: Pretty.commas (map (pretty_val ctxt) vs) 
+      @ [Pretty.brk 1, Pretty.str "::", Pretty.brk 1, (pretty_key ctxt) k, Pretty.str "\""]
+    );
+    fun pretty_entry (n, (k, vs)) = jpair (str^(Value.print_int n)) (pretty_right k vs)
+  in map pretty_entry (Data_Ops.enumerate alist) end;
 
 (* term -> term * typ *)
 fun const_info t = (case t of 
@@ -100,29 +106,29 @@ fun types_info T = (case T of
 
 (* Proof.context -> term list -> Pretty.T *)
 fun pretty_consts ctxt consts = pretty_alist ctxt
-  Syntax.pretty_typ Syntax.pretty_term (alist_by const_info consts);
+  Syntax.pretty_typ Syntax.pretty_term "Type" (alist_by const_info consts);
 
 (* Proof.context -> term list -> Pretty.T *)
 fun pretty_vars ctxt vars = pretty_alist ctxt
-  Syntax.pretty_typ Syntax.pretty_term (alist_by vars_info vars);
+  Syntax.pretty_typ Syntax.pretty_term "Type" (alist_by vars_info vars);
 
 (* Proof.context -> typ list -> Pretty.T list *)
 fun pretty_types ctxt typs = pretty_alist ctxt
-  Syntax.pretty_sort Syntax.pretty_typ (alist_by types_info typs)
+  Syntax.pretty_sort Syntax.pretty_typ "Sort" (alist_by types_info typs)
 
 (* bool -> int -> Pretty.T list -> Pretty.T *)
-fun make_jattrib debug lvl prts = 
+fun jattribs debug lvl prts = 
 let
-  val make_jblock = if debug
+  val jblock = if debug
     then let
       fun prt_sep s lvl = [Pretty.str s, Pretty.fbrk, Pretty.brk (lvl+2)];
       val left_prt = [Pretty.str "{", Pretty.fbrk, Pretty.brk (lvl+2)];
       val right_prt = [Pretty.fbrk, Pretty.brk lvl, Pretty.str "}"];
-      fun middle_prt lvl = Data_Ops.intersp (prt_sep "," lvl);
-      in Pretty.block (left_prt @ middle_prt lvl prts @ right_prt) end
+      val middle_prt = Data_Ops.intersp (prt_sep "," lvl) prts;
+      in Pretty.block (left_prt @ middle_prt @ right_prt) end
     else Pretty.block (Pretty.str "{" :: 
       (Data_Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str "}"])
-in make_jblock end;
+in jblock end;
 
 in
 
@@ -132,14 +138,12 @@ fun pretty_state debug state =
     val state_data = Data_Ops.get_goal_data state;
     val ctxt = Proof.context_of (Toplevel.proof_of state)
       |> Config.put show_sorts false
-      |> Config.put show_types false
-    fun jpair name prt_attribs = 
-      Pretty.block (Pretty.quote (Pretty.str name) :: (Pretty.str ":") :: [Pretty.brk 1, prt_attribs]);
-    fun Ts lvl = jpair "type variables" (make_jattrib debug lvl (pretty_types ctxt (#types state_data)));
-    fun cs lvl = jpair "constants" (make_jattrib debug lvl (pretty_consts ctxt (#consts state_data)));
-    fun vs lvl = jpair "variables" (make_jattrib debug lvl (pretty_vars ctxt (#vars state_data)));
-    val goal = jpair "term" (Syntax.pretty_term ctxt (#goal state_data));
-  in jpair "state" (make_jattrib debug 0 [goal, vs 2, cs 2, Ts 2]) end;
+      |> Config.put show_types false 
+    val Ts = jpair "type variables" (jattribs debug 4 (pretty_types ctxt (#types state_data)));
+    val cs = jpair "constants" (jattribs debug 4 (pretty_consts ctxt (#consts state_data)));
+    val vs = jpair "variables" (jattribs debug 4 (pretty_vars ctxt (#vars state_data)));
+    val goal = jpair "term" (Pretty.quote (Syntax.pretty_term ctxt (#goal state_data)));
+  in jattribs debug 0 [jpair "state" (jattribs debug 2 [goal, vs, cs, Ts])] end;
 
 (* mode -> bool -> Toplevel.state -> unit *)
 fun proof_state mode debug state = write_to mode (string_of (pretty_state debug state));
