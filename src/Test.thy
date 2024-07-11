@@ -1,9 +1,15 @@
-(* Author: Tobias Nipkow *)
-(* Todo: minimal ipl of almost complete trees *)
+(* this is a comment (* this is a comment inside a comment with the string theory *) *)
+(* this is a comment with a new line,
+ (* and a three nested comment (* see! *) *) therefore it should be covered up to below
+ *)
+(* comment with the string theory *)
+(* another comment with the string theory *)
+\<comment> \<open> another comment with string theory \<close>
+section \<open>A section with string theory\<close>
 
-section \<open>Binary Tree\<close>
-
-theory Test
+theory  (* another comment with theory *)
+  \<comment> \<open>and this comment with theory \<close>
+ Test
 imports Main
 begin
 
