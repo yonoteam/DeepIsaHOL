@@ -6,14 +6,22 @@ sig
   val enumerate: 'a list -> (int * 'a) list
   val mk_default_tokens: Proof.context -> string -> Token.T list
   val split_by: string -> string -> string list
+  val uniques: ''a list -> ''a list
+  val read_file: string -> string
   val get_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T}
   val passes_fact_check: Proof.context -> string -> bool
   val get_methods: Proof.context -> string list
+  val get_keywords_minor: theory -> string list
+  val get_keywords_major: theory -> string list
+  val get_keywords_commands: theory -> string list
+  val get_keywords_commands_grouped: theory -> (string * string list) list
   val get_global_fact_names: Proof.context -> string list
   val get_filtered_thms: (string * thm list -> bool) list 
     -> Proof.context -> (string * thm list) list
   val get_thms: Proof.context -> string -> thm list
   val get_deps: theory -> thm list -> (string * thm) list
+  val transitions_of: Proof.context -> string -> (Toplevel.transition * string) list
+  val make_transition: Proof.context -> string -> Toplevel.transition
   val vars_of: term -> term list
   val consts_of: term -> term list
   val atomic_types_of: term -> typ list
@@ -47,13 +55,45 @@ fun enumerate xs =
 (* string -> string -> string list *)
 fun split_by split_str target = space_explode split_str target;
 
+(* 'a list -> 'a list *)
+fun uniques xs = Library.distinct (op =) xs;
+
+(* string -> string *)
+fun read_file fname = 
+  let 
+    val IO_instream = TextIO.openIn fname;
+    val content = TextIO.inputAll IO_instream;
+    val _ = TextIO.closeIn IO_instream;
+  in content end;
+
 
 (* CONTEXT RETRIEVAL INFORMATION *)
 
 (* context -> string -> Token.T list *)
 fun mk_default_tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
 
+(* Proof.context -> string list *)
 fun get_methods ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
+
+(* theory -> string list *)
+fun get_keywords_minor thy = Scan.dest_lexicon (Keyword.minor_keywords (Thy_Header.get_keywords thy));
+
+(* theory -> string list *)
+fun get_keywords_major thy = Scan.dest_lexicon (Keyword.major_keywords (Thy_Header.get_keywords thy));
+
+(* theory -> string list *)
+fun get_keywords_commands thy = Keyword.dest_commands (Thy_Header.get_keywords thy);
+
+(* theory -> (string * string list) list *)
+fun get_keywords_commands_grouped thy =
+  let
+    val kwrds = Thy_Header.get_keywords thy;
+    fun get_kind name = the (Keyword.command_kind kwrds name);
+    fun add_command cmnd [] = [(get_kind cmnd, [cmnd])]
+      | add_command cmnd ((kind, cmnds) :: kcmndss) =
+            if kind = get_kind cmnd then (kind, cmnd :: cmnds) :: kcmndss
+            else (kind, cmnds) :: add_command cmnd kcmndss;
+  in fold add_command (Keyword.dest_commands kwrds) [] end;
 
 (* context -> string list *)
 fun get_global_fact_names ctxt = Name_Space.get_names 
@@ -129,6 +169,32 @@ fun get_deps thy =
       |-> Inttab.fold_rev (fn (_, SOME entry) => cons (make_name_thm entry) | _ => I)
   end;
 
+
+(* THEORY FILE INFORMATION *)
+
+(* theory -> Position.T -> string -> Toplevel.transition list *)
+fun make_transitions thy pos0 str = Outer_Syntax.parse_text thy (K thy) pos0 str;
+
+(* Proof.context -> string -> (Toplevel.transition * string) list *)
+fun transitions_of ctxt fname =
+  let
+    val thy = Proof_Context.theory_of ctxt;
+    val content = read_file fname;
+    val transitions = make_transitions thy Position.start content;
+    fun dist tr1 tr2 = Option.valOf (Position.distance_of (Toplevel.pos_of tr1, Toplevel.pos_of tr2));
+    fun add_text syms [tr] = [(tr, implode syms)]
+      | add_text _ [] = []
+      | add_text syms (tr1 :: tr2 :: trs) = 
+          let 
+            val (syms1, syms2) = Library.chop (dist tr1 tr2) syms
+          in (tr1, implode syms1) :: add_text syms2 (tr2 :: trs) end
+  in add_text (Symbol.explode content) transitions end;
+
+(* Proof.context -> string -> Toplevel.transition *)
+fun make_transition ctxt str =
+  let
+    val thy = Proof_Context.theory_of ctxt;
+  in hd (make_transitions thy \<^here> str) end;
 
 (* THM INFORMATION *)
 
