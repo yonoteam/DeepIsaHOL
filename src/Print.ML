@@ -136,7 +136,7 @@ in
 (* bool -> Toplevel.state -> Pretty.T *)
 fun pretty_state debug state = 
   let
-    val state_data = Data_Ops.get_goal_data state;
+    val state_data = Get.goal_data state;
     val ctxt = Proof.context_of (Toplevel.proof_of state)
       |> Config.put show_sorts false
       |> Config.put show_types false 
@@ -154,7 +154,7 @@ end;
 (* Toplevel.state -> theory -> string -> unit *)
 fun steps_pr_states st0 thy0 thy_text =
   let
-    val info = hd (Data_Ops.get_transitions_info st0 thy0 thy_text);
+    val info = hd (Get.transitions_info st0 thy0 thy_text);
   in proof_state (OUT) true (#state info) end;
 
 end;
