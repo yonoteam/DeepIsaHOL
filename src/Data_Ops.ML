@@ -20,8 +20,8 @@ sig
     -> Proof.context -> (string * thm list) list
   val get_thms: Proof.context -> string -> thm list
   val get_deps: theory -> thm list -> (string * thm) list
-  val transitions_of: Proof.context -> string -> (Toplevel.transition * string) list
-  val make_transition: Proof.context -> string -> Toplevel.transition
+  val get_transitions_info: Toplevel.state -> theory -> string 
+  -> {kind: string, pos: Position.T, state: Toplevel.state, text: string, warn: (exn * string) option} list
   val vars_of: term -> term list
   val consts_of: term -> term list
   val atomic_types_of: term -> typ list
@@ -175,26 +175,31 @@ fun get_deps thy =
 (* theory -> Position.T -> string -> Toplevel.transition list *)
 fun make_transitions thy pos0 str = Outer_Syntax.parse_text thy (K thy) pos0 str;
 
-(* Proof.context -> string -> (Toplevel.transition * string) list *)
-fun transitions_of ctxt fname =
+(* Toplevel.state -> string list -> Toplevel.transition 
+  -> {kind: string, pos: Position.T, state: Toplevel.state, text: string, warn: (exn * string) option} *)
+fun make_transition_info state syms tr =
   let
-    val thy = Proof_Context.theory_of ctxt;
-    val content = read_file fname;
-    val transitions = make_transitions thy Position.start content;
-    fun dist tr1 tr2 = Option.valOf (Position.distance_of (Toplevel.pos_of tr1, Toplevel.pos_of tr2));
-    fun add_text syms [tr] = [(tr, implode syms)]
-      | add_text _ [] = []
-      | add_text syms (tr1 :: tr2 :: trs) = 
-          let 
-            val (syms1, syms2) = Library.chop (dist tr1 tr2) syms
-          in (tr1, implode syms1) :: add_text syms2 (tr2 :: trs) end
-  in add_text (Symbol.explode content) transitions end;
+    val (s, err) = Toplevel.transition true tr state;
+    val k = Toplevel.name_of tr;
+    val p = Toplevel.pos_of tr;
+    val t = implode syms;
+  in {kind = k, pos = p, state = s, text  = t, warn  = err} end;
 
-(* Proof.context -> string -> Toplevel.transition *)
-fun make_transition ctxt str =
+(* Toplevel.state -> theory -> string 
+  -> {kind: string, pos: Position.T, state: Toplevel.state, text: string, warn: (exn * string) option} list *)
+fun get_transitions_info st0 thy0 thy_text =
   let
-    val thy = Proof_Context.theory_of ctxt;
-  in hd (make_transitions thy \<^here> str) end;
+    val transitions = make_transitions thy0 Position.start thy_text;
+    fun dist tr1 tr2 = Option.valOf (Position.distance_of (Toplevel.pos_of tr1, Toplevel.pos_of tr2));
+    fun record_info st syms [tr] = [make_transition_info st syms tr]
+      | record_info _ _ [] = []
+      | record_info st syms (tr1 :: tr2 :: trs) = 
+          let 
+            val (syms1, syms2) = Library.chop (dist tr1 tr2) syms;
+            val info = make_transition_info st syms1 tr1;
+          in info :: record_info (#state info) syms2 (tr2 :: trs) end
+  in record_info st0 (Symbol.explode thy_text) transitions end;
+
 
 (* THM INFORMATION *)
 
