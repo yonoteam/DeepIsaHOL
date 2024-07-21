@@ -4,10 +4,13 @@ sig
   val insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list
   val intersp: 'a list -> 'a list -> 'a list
   val enumerate: 'a list -> (int * 'a) list
-  val mk_default_tokens: Proof.context -> string -> Token.T list
-  val split_by: string -> string -> string list
   val uniques: ''a list -> ''a list
+  val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> ('a * 'b) list
+  val chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
+    -> 'a list -> (string * 'a list) list
+  val split_by: string -> string -> string list
   val read_file: string -> string
+  val mk_default_tokens: Proof.context -> string -> Token.T list (* TODO: move and refine *)
 end;
 
 
@@ -30,11 +33,43 @@ fun enumerate xs =
       | iter_enum n (y::ys) = (n, y) :: (iter_enum (n+1) ys)
   in iter_enum 0 xs end;
 
-(* string -> string -> string list *)
-fun split_by split_str target_str = space_explode split_str target_str;
-
 (* 'a list -> 'a list *)
 fun uniques xs = Library.distinct (op =) xs;
+
+(* ('a -> 'b -> 'b) -> 'b -> 'a list -> ('a * 'b) list *)
+fun log_fold _ _ [] = []
+  | log_fold f s (x :: xs) = (x, f x s) :: log_fold f (f x s) xs;
+
+(* string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) -> 'a list -> (string * 'a list) list *)
+fun chop_and_tag tag get_text is_start is_end xs =
+  let
+    fun add_one x =
+      if is_start x then ([()], [(tag, [x])])
+      else ([], [("other", [x])]);
+    (* lhs is unit stack indicating whether a block is still open *)
+    fun add_new x (_, []) = add_one x
+      | add_new x (buf, (name, chunks) :: rest) =
+        if not (null buf) then
+          if is_start x then
+            (() :: buf, (name, x :: chunks) :: rest)
+          else if is_end x then
+            (tl buf, (name, x :: chunks) :: rest)
+          else
+            (buf, (name, x :: chunks) :: rest)
+        else 
+          if is_start x then
+            (() :: buf, (tag, [x]) :: (name, chunks) :: rest)
+          else if is_end x then
+            raise Fail ("unopened "^ tag ^" for: " ^ (get_text x))
+          else if name = "other" then
+            (buf, (name, x :: chunks) :: rest)
+          else ([], ("other", [x]) :: (name, chunks) :: rest);
+     val rev_result = fold add_new xs ([], []);
+     val _ = if not (null (fst rev_result)) then raise Fail ("unbalanced" ^ tag) else ();
+   in rev (map (fn (name, chunk) => (name, rev chunk)) (snd rev_result)) end;
+
+(* string -> string -> string list *)
+fun split_by split_str target_str = space_explode split_str target_str;
 
 (* string -> string *)
 fun read_file fname = 

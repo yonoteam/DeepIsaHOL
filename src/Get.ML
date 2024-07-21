@@ -5,19 +5,24 @@ sig
   val transitions: theory -> Position.T -> string -> Toplevel.transition list
   val transitions_info: Toplevel.state -> theory -> string 
     -> {kind: string, pos: Position.T, state: Toplevel.state, text: string, warn: (exn * string) option} list
+
   (* THEORY INFORMATION *)
-  val keywords_minor: theory -> string list
-  val keywords_major: theory -> string list
-  val keywords_commands: theory -> string list
-  val keywords_commands_grouped: theory -> (string * string list) list
+  val minor_keywords: theory -> string list
+  val major_keywords: theory -> string list
+  val command_keywords: theory -> string list
+  val grouped_commands: theory -> (string * string list) list
+  val start_proof_keywords: theory -> string list
+  val end_proof_keywords: theory -> string list
+  val deps: theory -> thm list -> (string * thm) list
+
   (* CONTEXT INFORMATION *)
   val methods: Proof.context -> string list
   val passes_fact_check: Proof.context -> string -> bool
   val filtered_thms: (string * thm list -> bool) list 
     -> Proof.context -> (string * thm list) list
   val thms: Proof.context -> string -> thm list
-  val deps: theory -> thm list -> (string * thm) list
-  (* THM INFORMATION *)
+
+  (* TERM INFORMATION *)
   val vars_of: term -> term list
   val consts_of: term -> term list
   val atomic_types_of: term -> typ list
@@ -67,16 +72,16 @@ fun transitions_info st0 thy0 thy_text =
 (* THEORY INFORMATION *)
 
 (* theory -> string list *)
-fun keywords_minor thy = Scan.dest_lexicon (Keyword.minor_keywords (Thy_Header.get_keywords thy));
+fun minor_keywords thy = Scan.dest_lexicon (Keyword.minor_keywords (Thy_Header.get_keywords thy));
 
 (* theory -> string list *)
-fun keywords_major thy = Scan.dest_lexicon (Keyword.major_keywords (Thy_Header.get_keywords thy));
+fun major_keywords thy = Scan.dest_lexicon (Keyword.major_keywords (Thy_Header.get_keywords thy));
 
 (* theory -> string list *)
-fun keywords_commands thy = Keyword.dest_commands (Thy_Header.get_keywords thy);
+fun command_keywords thy = Keyword.dest_commands (Thy_Header.get_keywords thy);
 
 (* theory -> (string * string list) list *)
-fun keywords_commands_grouped thy =
+fun grouped_commands thy =
   let
     val kwrds = Thy_Header.get_keywords thy;
     fun get_kind name = the (Keyword.command_kind kwrds name);
@@ -85,6 +90,18 @@ fun keywords_commands_grouped thy =
             if kind = get_kind cmnd then (kind, cmnd :: cmnds) :: kcmndss
             else (kind, cmnds) :: add_command cmnd kcmndss;
   in fold add_command (Keyword.dest_commands kwrds) [] end;
+
+(* theory -> string list *)
+fun start_proof_keywords thy =
+  grouped_commands thy 
+  |> filter (Pred.on_fst (Pred.contains "goal"))
+  |> maps snd;
+
+(* theory -> string list *)
+fun end_proof_keywords thy =
+  grouped_commands thy 
+  |> filter (Pred.on_fst (Pred.contains "qed"))
+  |> maps snd;
 
 
 (* CONTEXT INFORMATION *)
