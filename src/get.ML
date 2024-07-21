@@ -1,12 +1,8 @@
 
 signature GET =
 sig
-  (* THEORY FILE INFORMATION *)
-  val transitions: theory -> Position.T -> string -> Toplevel.transition list
-  val transitions_info: Toplevel.state -> theory -> string 
-    -> {kind: string, pos: Position.T, state: Toplevel.state, text: string, warn: (exn * string) option} list
-
   (* THEORY INFORMATION *)
+  val transitions: theory -> Position.T -> string -> Toplevel.transition list
   val minor_keywords: theory -> string list
   val major_keywords: theory -> string list
   val command_keywords: theory -> string list
@@ -38,38 +34,10 @@ structure Get: GET =
 struct
 
 
-(* THEORY FILE INFORMATION *)
+(* THEORY INFORMATION *)
 
 (* theory -> Position.T -> string -> Toplevel.transition list *)
 fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
-
-(* Toplevel.state -> string list -> Toplevel.transition 
-  -> {kind: string, pos: Position.T, state: Toplevel.state, text: string, warn: (exn * string) option} *)
-fun make_transition_info state syms tr =
-  let
-    val (s, err) = Toplevel.transition true tr state;
-    val k = Toplevel.name_of tr;
-    val p = Toplevel.pos_of tr;
-    val t = implode syms;
-  in {kind = k, pos = p, state = s, text  = t, warn  = err} end;
-
-(* Toplevel.state -> theory -> string 
-  -> {kind: string, pos: Position.T, state: Toplevel.state, text: string, warn: (exn * string) option} list *)
-fun transitions_info st0 thy0 thy_text =
-  let
-    val transitions = transitions thy0 Position.start thy_text;
-    fun dist tr1 tr2 = Option.valOf (Position.distance_of (Toplevel.pos_of tr1, Toplevel.pos_of tr2));
-    fun record_info st syms [tr] = [make_transition_info st syms tr]
-      | record_info _ _ [] = []
-      | record_info st syms (tr1 :: tr2 :: trs) = 
-          let 
-            val (syms1, syms2) = Library.chop (dist tr1 tr2) syms;
-            val info = make_transition_info st syms1 tr1;
-          in info :: record_info (#state info) syms2 (tr2 :: trs) end
-  in record_info st0 (Symbol.explode thy_text) transitions end;
-
-
-(* THEORY INFORMATION *)
 
 (* theory -> string list *)
 fun minor_keywords thy = Scan.dest_lexicon (Keyword.minor_keywords (Thy_Header.get_keywords thy));
