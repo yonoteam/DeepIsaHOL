@@ -7,7 +7,6 @@ sig
   val term_string: Proof.context -> format -> term -> string
   val write_to: mode -> string -> unit
   val proof_state: mode -> bool -> Toplevel.state -> unit
-  val steps_pr_states: Toplevel.state -> theory -> string -> unit
 end;
 
 
@@ -152,9 +151,9 @@ fun proof_state mode debug state = write_to mode (string_of (pretty_state debug 
 end;
 
 (* Toplevel.state -> theory -> string -> unit *)
-fun steps_pr_states st0 thy0 thy_text =
+(* fun steps_pr_states st0 thy0 thy_text =
   let
     val info = hd (Get.transitions_info st0 thy0 thy_text);
-  in proof_state (OUT) true (#state info) end;
+  in proof_state (OUT) true (#state info) end; *)
 
 end;
