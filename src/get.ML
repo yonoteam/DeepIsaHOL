@@ -9,7 +9,7 @@ sig
   val grouped_commands: theory -> (string * string list) list
   val start_proof_keywords: theory -> string list
   val end_proof_keywords: theory -> string list
-  val deps: theory -> thm list -> (string * thm) list
+  val deps: theory -> thm list -> (Thm_Name.T * thm) list
 
   (* CONTEXT INFORMATION *)
   val methods: Proof.context -> string list
@@ -34,7 +34,7 @@ structure Get: GET =
 struct
 
 
-(* THEORY INFORMATION *)
+(** THEORY INFORMATION **)
 
 (* theory -> Position.T -> string -> Toplevel.transition list *)
 fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
@@ -72,7 +72,7 @@ fun end_proof_keywords thy =
   |> maps snd;
 
 
-(* CONTEXT INFORMATION *)
+(** CONTEXT INFORMATION **)
 
 (* context -> string -> Token.T list *)
 fun make_default_tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
@@ -132,7 +132,7 @@ fun deps thy thms =
   let
     val lookup = Global_Theory.lookup_thm_id thy;
     fun thm_of_name thm_name = Global_Theory.get_thm_name thy (thm_name, \<^here>);
-    fun make_name_thm id_name = (fst (snd id_name), thm_of_name (snd id_name));
+    fun make_name_thm id_name = (snd id_name, thm_of_name (snd id_name));
     fun deps (i, thm_node) res =
       if Inttab.defined res i then res
       else
@@ -150,7 +150,7 @@ fun deps thy thms =
   end;
 
 
-(* THM INFORMATION *)
+(** THM INFORMATION **)
 
 local
 

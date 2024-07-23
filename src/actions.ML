@@ -3,6 +3,7 @@ signature ACTIONS =
 sig
   type T
   val text_of: T -> string
+  val transition_of: T -> Toplevel.transition
   val kind_of: T -> string
   val pos_of: T -> Position.T
   val apply: T -> Toplevel.state -> Toplevel.state * (exn * string) option
@@ -21,6 +22,8 @@ datatype T = Action of {
   transition: Toplevel.transition}
 
 fun text_of (Action a) = #text a;
+
+fun transition_of (Action a) = #transition a;
 
 fun kind_of (Action a) = Toplevel.name_of (#transition a);
 
