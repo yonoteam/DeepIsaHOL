@@ -1,11 +1,12 @@
 
 signature DATA_OPS =
 sig
+  val ith: int -> 'a list -> 'a
   val insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list
   val intersp: 'a list -> 'a list -> 'a list
   val enumerate: 'a list -> (int * 'a) list
   val uniques: ''a list -> ''a list
-  val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> ('a * 'b) list
+  val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list
   val chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
     -> 'a list -> (string * 'a list) list
   val split_by: string -> string -> string list
@@ -18,6 +19,9 @@ structure Data_Ops: DATA_OPS =
 struct
 
 (* GENERIC DATA OPS *)
+
+(* int -> 'a list -> 'a *)
+fun ith i xs = (if i>=0 then nth xs i else nth (rev xs) (~i - 1))
 
 (* ('a -> bool) -> 'a -> 'a list -> 'a list *)
 fun insert_if P x xs = if P x then x :: xs else xs;
@@ -36,9 +40,9 @@ fun enumerate xs =
 (* 'a list -> 'a list *)
 fun uniques xs = Library.distinct (op =) xs;
 
-(* ('a -> 'b -> 'b) -> 'b -> 'a list -> ('a * 'b) list *)
+(* ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list *)
 fun log_fold _ _ [] = []
-  | log_fold f s (x :: xs) = (x, f x s) :: log_fold f (f x s) xs;
+  | log_fold f s (x :: xs) = f x s :: log_fold f (f x s) xs;
 
 (* string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) -> 'a list -> (string * 'a list) list *)
 fun chop_and_tag tag get_text is_start is_end xs =

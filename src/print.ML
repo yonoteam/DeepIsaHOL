@@ -6,6 +6,8 @@ sig
   val string_of: Pretty.T -> string
   val term_string: Proof.context -> format -> term -> string
   val write_to: mode -> string -> unit
+  val jpair: string -> Pretty.T -> Pretty.T
+  val jattribs: bool -> string -> string -> int -> Pretty.T list -> Pretty.T
   val proof_state: mode -> bool -> Toplevel.state -> unit
 end;
 
@@ -51,7 +53,29 @@ fun write_to mode str =
   in () 
   end;
 
-(* GOAL STATE *)
+(** PRETTY PRINTING **)
+
+(* string -> Pretty.T -> Pretty.T *)
+fun jpair name prt_attribs = 
+  Pretty.block [Pretty.quote (Pretty.str name), (Pretty.str ":"), Pretty.brk 1, prt_attribs];
+
+(* bool -> string -> string -> int -> Pretty.T list -> Pretty.T *)
+fun jattribs debug encl1 encl2 lvl prts = 
+let
+  val jblock = if debug
+    then let
+      fun prt_sep s lvl = [Pretty.str s, Pretty.fbrk, Pretty.brk (lvl+2)];
+      val left_prt = [Pretty.str encl1, Pretty.fbrk, Pretty.brk (lvl+2)];
+      val right_prt = [Pretty.fbrk, Pretty.brk lvl, Pretty.str encl2];
+      val middle_prt = Data_Ops.intersp (prt_sep "," lvl) prts;
+      in Pretty.block (left_prt @ middle_prt @ right_prt) end
+    else Pretty.block (Pretty.str encl1 :: 
+      (Data_Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str encl2])
+in jblock end;
+
+
+(** GOAL STATE **)
+
 
 local
 
@@ -72,21 +96,6 @@ let
         else (key', names) :: register x kns end;
 in fold register xs [] end;
 
-(* string -> Pretty.T -> Pretty.T *)
-fun jpair name prt_attribs = 
-  Pretty.block [Pretty.quote (Pretty.str name), (Pretty.str ":"), Pretty.brk 1, prt_attribs];
-
-(* Proof.context -> (Proof.context -> 'key -> Pretty.T) -> (Proof.context -> 'val -> Pretty.T) 
-  -> ('key * 'val list) list -> Pretty.T list *)
-fun pretty_alist ctxt pretty_key pretty_val str alist = 
-  let
-    fun pretty_right k vs = Pretty.block (
-      Pretty.str "\"" :: Pretty.commas (map (pretty_val ctxt) vs) 
-      @ [Pretty.brk 1, Pretty.str "::", Pretty.brk 1, (pretty_key ctxt) k, Pretty.str "\""]
-    );
-    fun pretty_entry (n, (k, vs)) = jpair (str^(Value.print_int n)) (pretty_right k vs)
-  in map pretty_entry (Data_Ops.enumerate alist) end;
-
 (* term -> term * typ *)
 fun const_info t = (case t of 
   Const (_, T) => (t, T) 
@@ -104,6 +113,17 @@ fun types_info T = (case T of
   | TFree (_, S) => (T, S) 
   | _ => raise TYPE("not a type variable", [T], []));
 
+(* Proof.context -> (Proof.context -> 'key -> Pretty.T) -> (Proof.context -> 'val -> Pretty.T) 
+  -> ('key * 'val list) list -> Pretty.T list *)
+fun pretty_alist ctxt pretty_key pretty_val str alist = 
+  let
+    fun pretty_right k vs = Pretty.block (
+      Pretty.str "\"" :: Pretty.commas (map (pretty_val ctxt) vs) 
+      @ [Pretty.brk 1, Pretty.str "::", Pretty.brk 1, (pretty_key ctxt) k, Pretty.str "\""]
+    );
+    fun pretty_entry (n, (k, vs)) = jpair (str^(Value.print_int n)) (pretty_right k vs)
+  in map pretty_entry (Data_Ops.enumerate alist) end;
+
 (* Proof.context -> term list -> Pretty.T *)
 fun pretty_consts ctxt consts = pretty_alist ctxt
   Syntax.pretty_typ Syntax.pretty_term "Type" (alist_by const_info consts);
@@ -114,21 +134,7 @@ fun pretty_vars ctxt vars = pretty_alist ctxt
 
 (* Proof.context -> typ list -> Pretty.T list *)
 fun pretty_types ctxt typs = pretty_alist ctxt
-  Syntax.pretty_sort Syntax.pretty_typ "Sort" (alist_by types_info typs)
-
-(* bool -> int -> string -> string -> Pretty.T list -> Pretty.T *)
-fun jattribs debug encl1 encl2 lvl prts = 
-let
-  val jblock = if debug
-    then let
-      fun prt_sep s lvl = [Pretty.str s, Pretty.fbrk, Pretty.brk (lvl+2)];
-      val left_prt = [Pretty.str encl1, Pretty.fbrk, Pretty.brk (lvl+2)];
-      val right_prt = [Pretty.fbrk, Pretty.brk lvl, Pretty.str encl2];
-      val middle_prt = Data_Ops.intersp (prt_sep "," lvl) prts;
-      in Pretty.block (left_prt @ middle_prt @ right_prt) end
-    else Pretty.block (Pretty.str encl1 :: 
-      (Data_Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str encl2])
-in jblock end;
+  Syntax.pretty_sort Syntax.pretty_typ "Sort" (alist_by types_info typs);
 
 in
 

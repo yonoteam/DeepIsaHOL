@@ -2,6 +2,7 @@
 signature ACTIONS =
 sig
   type T
+  val null: T
   val text_of: T -> string
   val transition_of: T -> Toplevel.transition
   val kind_of: T -> string
@@ -20,6 +21,8 @@ struct
 datatype T = Action of {
   text: string,
   transition: Toplevel.transition}
+
+val null = Action {text="", transition=Toplevel.ignored Position.none}
 
 fun text_of (Action a) = #text a;
 
