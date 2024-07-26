@@ -11,6 +11,8 @@ sig
   val starts_with: string -> string -> bool
   val contains: string -> string -> bool
   val is_dynamic: Proof.context -> string * thm list -> bool
+  val split: ('a -> bool) -> 'a list -> 'a list list
+  val positions: ('a -> bool) -> 'a list -> int list
 end;
 
 
@@ -38,5 +40,21 @@ fun contains str name =  String.isSubstring str name;
 fun is_dynamic ctxt (name:string, _: thm list) 
   = (#dynamic (Facts.retrieve (Context.Proof ctxt) (Proof_Context.facts_of ctxt) (name, Position.none)));
 
+(* ('a -> bool) -> 'a list -> 'a list list *)
+fun split _ [] = []
+  | split P (x :: xs) =
+  let
+    fun decide y (b, []) = if P y = b then (b, [[y]]) else (not b, [[y]])
+      | decide y (b, ys :: yss) =  
+          if P y = b then (b, (y :: ys) :: yss) else (not b, ([y]) :: ys :: yss);
+    val start = if P x then (true, [[x]]) else (false, [[x]])
+  in rev (map rev (#2 (fold decide xs start))) end;
+
+(* ('a -> bool) -> 'a list -> int list *)
+fun positions P xs = 
+  let
+    fun count _ [] = []
+      | count n (y :: ys) = if P y then n :: count (n + 1) ys else count (n + 1) ys;
+  in count 0 xs end;
 
 end;

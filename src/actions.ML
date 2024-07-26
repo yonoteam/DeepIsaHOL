@@ -9,6 +9,7 @@ sig
   val pos_of: T -> Position.T
   val apply: T -> Toplevel.state -> Toplevel.state * (exn * string) option
   val begins_thy: T -> bool
+  val ends_thy: T -> bool
   val begins_proof: theory -> T -> bool
   val ends_proof: theory -> T -> bool
   val make: theory -> string -> T list
@@ -43,6 +44,10 @@ val begins_thy = Pred.conjunct [
   on_text (Pred.starts_with "theory"), 
   on_text (Pred.contains "begin"), 
   on_kind (curry (op =) "theory")];
+
+(* Action.T -> bool *)
+val ends_thy = on_kind (curry (op =) "end")
+
 
 (* theory -> Action.T -> bool *)
 fun begins_proof thy 
