@@ -13,11 +13,14 @@ sig
   val is_dynamic: Proof.context -> string * thm list -> bool
   val split: ('a -> bool) -> 'a list -> 'a list list
   val positions: ('a -> bool) -> 'a list -> int list
+  val take_until: ('a -> bool) -> 'a list -> 'a list
 end;
 
 
 structure Pred: PRED =
 struct
+
+(** BASIC OPERATORS **)
 
 fun neg P x = not (P x)
 
@@ -29,16 +32,27 @@ fun on_fst P (x, _) = P x;
 
 fun on_snd P (_, y) = P y;
 
+
+(** PREDICATES **)
+
+(* 'a list -> bool *)
 fun has_many xs = length xs > 1;
 
+(* string -> string -> bool *)
 fun starts_with str name = String.isPrefix str name;
 
+(* int -> string -> string -> bool *)
 fun nth_letter_is n str name = nth_string name n = str;
 
+(* string -> string -> bool *)
 fun contains str name =  String.isSubstring str name;
 
+(* Proof.context -> string * thm list -> bool *)
 fun is_dynamic ctxt (name:string, _: thm list) 
   = (#dynamic (Facts.retrieve (Context.Proof ctxt) (Proof_Context.facts_of ctxt) (name, Position.none)));
+
+
+(** LIST OPERATORS **)
 
 (* ('a -> bool) -> 'a list -> 'a list list *)
 fun split _ [] = []
@@ -56,5 +70,9 @@ fun positions P xs =
     fun count _ [] = []
       | count n (y :: ys) = if P y then n :: count (n + 1) ys else count (n + 1) ys;
   in count 0 xs end;
+
+(* ('a -> bool) -> 'a list -> 'a list *)
+fun take_until _ [] = []
+  | take_until P (x :: xs) = if P x then [x] else x :: (take_until P xs)
 
 end;

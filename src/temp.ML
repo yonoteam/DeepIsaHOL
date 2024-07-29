@@ -10,7 +10,6 @@ sig
   
   (* FINDING NEW THEOREMS *)
   val new_thms: Toplevel.state -> Toplevel.state -> (string * thm list) list
-  val tag_enum_steps: Toplevel.state -> (int * Actions.T * Toplevel.state) list -> (string * (int * Actions.T * Toplevel.state * (string * thm list) list) list) list
 
   (* PRETTY PRINTING *)
   val pretty_named_thm: Proof.context -> (string * int) * thm -> Pretty.T list
@@ -93,7 +92,7 @@ fun new_thms state1 state2 =
 (* Toplevel.state -> (int * Actions.T * Toplevel.state) list 
   -> (string * (int * Actions.T * Toplevel.state * (string * thm list) list) list) list *)
 (* ISSUE: too slow and error prone *)
-fun tag_enum_steps state nass = 
+(* fun tag_enum_steps state nass = 
   let
     val acts = map (#2) nass;
     fun lemma_diffs (n:int, a, s) nasfs = (n, a, s, new_thms (#3 nasfs) s);
@@ -102,7 +101,7 @@ fun tag_enum_steps state nass =
     fun starts_prf (_, a, _, _) = Actions.begins_proof thy0 a;
     fun ends_prf (_, a, _, _) = Actions.ends_proof thy0 a;
     fun txt_of (_, a, _, _) = Actions.text_of a;
-  in Data_Ops.chop_and_tag "proof" txt_of starts_prf ends_prf nasfs end;
+  in Data_Ops.chop_and_tag "proof" txt_of starts_prf ends_prf nasfs end; *)
 
 
 (* PRETTY PRINTING *)

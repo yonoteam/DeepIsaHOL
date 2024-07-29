@@ -2,6 +2,7 @@
 signature DATA_OPS =
 sig
   val ith: int -> 'a list -> 'a
+  val last: 'a list -> 'a
   val insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list
   val intersp: 'a list -> 'a list -> 'a list
   val enumerate: 'a list -> (int * 'a) list
@@ -22,6 +23,11 @@ struct
 
 (* int -> 'a list -> 'a *)
 fun ith i xs = (if i>=0 then nth xs i else nth (rev xs) (~i - 1))
+
+(* 'a list -> 'a *)
+fun last [] = raise List.Empty
+  | last [x] = x
+  | last (_ :: xs) = last xs
 
 (* ('a -> bool) -> 'a -> 'a list -> 'a list *)
 fun insert_if P x xs = if P x then x :: xs else xs;

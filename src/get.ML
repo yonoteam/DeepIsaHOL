@@ -7,8 +7,6 @@ sig
   val major_keywords: theory -> string list
   val command_keywords: theory -> string list
   val grouped_commands: theory -> (string * string list) list
-  val start_proof_keywords: theory -> string list
-  val end_proof_keywords: theory -> string list
   val deps: theory -> thm list -> (Thm_Name.T * thm) list
 
   (* CONTEXT INFORMATION *)
@@ -58,18 +56,6 @@ fun grouped_commands thy =
             if kind = get_kind cmnd then (kind, cmnd :: cmnds) :: kcmndss
             else (kind, cmnds) :: add_command cmnd kcmndss;
   in fold add_command (Keyword.dest_commands kwrds) [] end;
-
-(* theory -> string list *)
-fun start_proof_keywords thy =
-  grouped_commands thy 
-  |> filter (Pred.on_fst (Pred.contains "goal"))
-  |> maps snd;
-
-(* theory -> string list *)
-fun end_proof_keywords thy =
-  grouped_commands thy 
-  |> filter (Pred.on_fst (Pred.contains "qed"))
-  |> maps snd;
 
 
 (** CONTEXT INFORMATION **)
