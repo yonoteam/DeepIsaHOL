@@ -7,16 +7,23 @@ sig
   val transition_of: T -> Toplevel.transition
   val kind_of: T -> string
   val pos_of: T -> Position.T
+  val on_text: (string -> 'a) -> T -> 'a
+  val on_kind: (string -> 'a) -> T -> 'a
   val make: theory -> string -> T list
   val apply: T -> Toplevel.state -> Toplevel.state * (exn * string) option
-  val next_state: T -> Toplevel.state -> Toplevel.state
   val begins_thy: T -> bool
   val begin_thy_from: Toplevel.state -> T list -> theory
   val ends_thy_section: T -> bool
-  type section
+  datatype section = 
+    Empty
+  | Single of T
+  | Block of string * bool * (section list)
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
+  val top_tag: section -> string option
   val latest_open: section -> section
-  val segmentate: (string * (T -> bool) * (T -> bool)) list -> T list -> section
+  val next_state: section -> Toplevel.state -> Toplevel.state
+  val segmentate: theory -> T list -> section
+  val get_topmost_proofs: Toplevel.state -> section -> Toplevel.state * (Toplevel.state * section * Toplevel.state) list
 end;
 
 
@@ -96,7 +103,7 @@ val thy_block_tag = "THY_BLOCK"
 val thy_decl_blockN = "thy_decl_block" (* e.g. locale, instantiation *)
 val notepadN = "notepad"
 
-(**)
+(* Action.T -> bool *)
 fun starts_notepad a = Pred.starts_with notepadN (text_of a)
 
 (* Action.T -> bool *)
@@ -185,10 +192,27 @@ datatype section =
   | Single of T
   | Block of string * bool * (section list);
 
-
+(* Actions.section -> bool *)
 fun is_closed (Block (_, closed, sects)) = closed andalso forall is_closed sects
   | is_closed _ = true;
 
+(* Actions.section -> string option *)
+fun top_tag Empty = NONE
+  | top_tag (Single _) = NONE
+  | top_tag (Block (tag, _, _)) = SOME tag
+
+(* Actions.section -> Actions.section *)
+fun latest_open (Block (tag, closed, sects)) = 
+      if null sects then raise Fail ("empty block at" ^ tag)
+      else if forall is_closed sects then
+        if not closed then Block (tag, closed, sects) else Empty
+      else Data_Ops.last (map latest_open sects)
+  |  latest_open _ = Empty;
+
+(*  Actions.section -> Toplevel.state -> Toplevel.state *)
+fun next_state Empty st = st
+  | next_state (Single a) st = fst (apply a st)
+  | next_state (Block (_, _, sects)) st = fold next_state sects st;
 
 local 
 
@@ -197,13 +221,8 @@ fun reverse (Block (tag, closed, sects)) = Block (tag, closed, rev (map reverse 
   | reverse sect = sect;
 
 (* Actions.section -> Actions.section *)
-fun top_last_tag Empty = NONE
-  | top_last_tag (Single _) = NONE
-  | top_last_tag (Block (tag, _, _)) = SOME tag
-
-(* Actions.section -> Actions.section *)
 fun close_latest (Block (tag, closed, sects)) = 
-      if null sects then raise Fail ("empty block at" ^ tag)
+      if null sects then raise Fail ("empty block " ^ tag)
       else if not closed then
         if forall is_closed sects then Block (tag, true, sects)
         else Block (tag, closed, close_latest (hd sects) :: (tl sects))
@@ -228,7 +247,7 @@ fun add_new_section (a, starts, ends) (Empty) =
         else Block (block_tag, false, Single a :: sects)
       else
         if not (null starts) andalso not (null ends) then
-          if hd ends = the (top_last_tag (hd sects)) then 
+          if hd ends = the (top_tag (hd sects)) then 
             add_new_section (a, starts, ends) (Block (block_tag, false, (close_latest (hd sects)) :: tl sects))
           else 
             Block (block_tag, false, (add_new_section (a, starts, ends) (hd sects)) :: tl sects)
@@ -250,23 +269,34 @@ fun get_separators (a:T) [] = (a, [], [])
 
 in
 
-(* Actions.section -> Actions.section *)
-fun latest_open (Block (tag, closed, sects)) = 
-      if null sects then raise Fail ("empty block at" ^ tag)
-      else if forall is_closed sects then
-        if not closed then Block (tag, closed, sects) else Empty
-      else Data_Ops.last (map latest_open sects)
-  |  latest_open _ = Empty;
-
-(* (string * (Actions.T -> bool) * (Actions.T -> bool)) list -> Actions.T list -> Actions.section *)
-fun segmentate tags_starts_ends acts =
+(* theory -> Actions.T list -> Actions.section *)
+fun segmentate thy acts =
   let
-    val rev_result = 
-      let
-        fun iter (a:T) sect = add_new_section (get_separators a tags_starts_ends) sect
-      in fold iter acts Empty end;
+    val tags_starts_ends = theory_separators thy
+    fun iter (a:T) sect = add_new_section (get_separators a tags_starts_ends) sect;
+    val rev_result = fold iter acts Empty;
   in reverse rev_result end;
 
 end;
+
+(* Toplevel.state -> Actions.section -> Toplevel.state * (Toplevel.state * Actions.section * Toplevel.state) list *)
+fun get_topmost_proofs s Empty = (s, [])
+  | get_topmost_proofs _ (Single _) = raise Fail "Single action to Actions.get_proofs"
+  | get_topmost_proofs state (block as Block (tag, _, sects)) =
+      if null sects then raise Fail ("empty block " ^ tag)
+      else let
+        fun iter (Empty) st_proofs = st_proofs
+          | iter (Single a) st_proofs = 
+              (next_state (Single a) (#1 st_proofs), #2 st_proofs)
+          | iter (Block (tag, closed, sects)) st_proofs =
+              if null sects then raise Fail ("empty block " ^ tag)
+              else if tag = "PROOF" then 
+                let
+                  val (so_far, proofs) = st_proofs;
+                  val new_state = fold next_state sects so_far;
+                in (new_state, (so_far, Block (tag, closed, sects), new_state) :: proofs) end
+              else fold iter sects st_proofs;
+        val proofs = iter block (state, [])
+      in (#1 proofs, rev (#2 proofs)) end;
 
 end;
