@@ -10,6 +10,8 @@ sig
   val deps: theory -> thm list -> (Thm_Name.T * thm) list
 
   (* CONTEXT INFORMATION *)
+  val new_thms: Toplevel.state -> Toplevel.state -> (string * thm list) list
+  val tokens: Proof.context -> string -> Token.T list
   val methods: Proof.context -> string list
   val passes_fact_check: Proof.context -> string -> bool
   val filtered_thms: (string * thm list -> bool) list 
@@ -60,8 +62,24 @@ fun grouped_commands thy =
 
 (** CONTEXT INFORMATION **)
 
+(* Toplevel.state -> Toplevel.state -> (string * thm list) list *)
+(* TODO: test further *)
+fun new_thms state1 state2 =
+  if not (Toplevel.is_toplevel state1) andalso not (Toplevel.is_toplevel state2) then
+  let
+    val generic1 = Toplevel.generic_theory_of state1;
+    val generic2 = Toplevel.generic_theory_of state2;
+    val facts1 = Context.cases Global_Theory.facts_of Proof_Context.facts_of generic1;
+    val facts2 = Context.cases Global_Theory.facts_of Proof_Context.facts_of generic2;
+    fun is_new (name, _) = (case Facts.lookup generic1 facts1 name of
+        SOME _ => false 
+      | NONE => true)
+  in Facts.fold_static (Data_Ops.insert_if is_new) facts2 [] end
+  else [];
+
 (* context -> string -> Token.T list *)
-fun make_default_tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
+(* TODO: check if at right level *)
+fun tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
 
 (* Proof.context -> string list *)
 fun methods ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
@@ -108,7 +126,7 @@ fun filtered_thms filters ctxt =
 (* Proof.context -> string -> thm list *)
 fun thms ctxt name =
   let
-    val toks = make_default_tokens ctxt (name ^ " ")
+    val toks = tokens ctxt (name ^ " ")
     val refs_toks = (fst o Parse.thms1) toks;
     val thms = Attrib.eval_thms ctxt refs_toks
   in thms end;

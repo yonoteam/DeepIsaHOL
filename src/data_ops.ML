@@ -12,7 +12,6 @@ sig
     -> 'a list -> (string * 'a list) list
   val split_by: string -> string -> string list
   val read_file: string -> string
-  val mk_default_tokens: Proof.context -> string -> Token.T list (* TODO: move and refine *)
 end;
 
 
@@ -88,9 +87,6 @@ fun read_file fname =
     val content = TextIO.inputAll IO_instream;
     val _ = TextIO.closeIn IO_instream;
   in content end;
-
-(* context -> string -> Token.T list *)
-fun mk_default_tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
 
 
 end;

@@ -14,16 +14,13 @@ sig
   val begins_thy: T -> bool
   val begin_thy_from: Toplevel.state -> T list -> theory
   val ends_thy_section: T -> bool
-  datatype section = 
-    Empty
-  | Single of T
-  | Block of string * bool * (section list)
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
-  val top_tag: section -> string option
-  val latest_open: section -> section
-  val next_state: section -> Toplevel.state -> Toplevel.state
-  val segmentate: theory -> T list -> section
-  val get_topmost_proofs: Toplevel.state -> section -> Toplevel.state * (Toplevel.state * section * Toplevel.state) list
+  val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
+  val segmentate: Toplevel.state -> (string * (T -> bool) * (T -> bool)) list -> T list 
+    -> (Toplevel.state * T) Sections.T
+  val segmentate_triplets: Toplevel.state -> (string * (T -> bool) * (T -> bool)) list -> T list 
+    -> (Toplevel.state * T * Toplevel.state) Sections.T
+  val segmentate_stateless: theory -> T list -> T Sections.T
 end;
 
 
@@ -185,118 +182,36 @@ fun theory_separators thy =
   in [thy_proof_seps, thy_block_seps, thy_seps] end;
 
 
-(** SECTIONS **)
-
-datatype section = 
-    Empty
-  | Single of T
-  | Block of string * bool * (section list);
-
-(* Actions.section -> bool *)
-fun is_closed (Block (_, closed, sects)) = closed andalso forall is_closed sects
-  | is_closed _ = true;
-
-(* Actions.section -> string option *)
-fun top_tag Empty = NONE
-  | top_tag (Single _) = NONE
-  | top_tag (Block (tag, _, _)) = SOME tag
-
-(* Actions.section -> Actions.section *)
-fun latest_open (Block (tag, closed, sects)) = 
-      if null sects then raise Fail ("empty block at" ^ tag)
-      else if forall is_closed sects then
-        if not closed then Block (tag, closed, sects) else Empty
-      else Data_Ops.last (map latest_open sects)
-  |  latest_open _ = Empty;
-
 (*  Actions.section -> Toplevel.state -> Toplevel.state *)
-fun next_state Empty st = st
-  | next_state (Single a) st = fst (apply a st)
-  | next_state (Block (_, _, sects)) st = fold next_state sects st;
+val next_state = Sections.next_state (fn a => fn s => fst (apply a s))
 
-local 
-
-(* Actions.section -> Actions.section *)
-fun reverse (Block (tag, closed, sects)) = Block (tag, closed, rev (map reverse sects))
-  | reverse sect = sect;
-
-(* Actions.section -> Actions.section *)
-fun close_latest (Block (tag, closed, sects)) = 
-      if null sects then raise Fail ("empty block " ^ tag)
-      else if not closed then
-        if forall is_closed sects then Block (tag, true, sects)
-        else Block (tag, closed, close_latest (hd sects) :: (tl sects))
-      else raise Fail ("tried to close closed block" ^ tag)
-  |  close_latest _ = raise Fail ("tried to close closed nonblock");
-
-(* Actions.T * string list * string list -> Actions.section -> Actions.section *)
-fun add_new_section (a, starts, ends) (Empty) = 
-      if not (null starts) then Block (hd starts, false, [Single a])
-      else if not (null ends) then raise Fail ("Unbalanced blocks on " ^ text_of a)
-      else Block ("OTHER", false, [Single a])
-  | add_new_section _ (Single a) = 
-      raise Fail ("Wrong call add_new_section' on Single of" ^ text_of a)
-  | add_new_section (a, starts, ends) (Block (block_tag, false, sects)) =
-      if null sects then 
-        raise Fail ("Nil input in Block before " ^ text_of a)
-      else if is_closed (hd sects) then
-        if not (null starts) then Block (block_tag, false, (Block (hd starts, false, [Single a])) :: sects)
-        else if not (null ends) then
-          if member (op =) ends block_tag then Block (block_tag, true, Single a :: sects)
-          else raise Fail ("Closing " ^ block_tag ^ " block with " ^ hd ends ^ " at " ^ text_of a)
-        else Block (block_tag, false, Single a :: sects)
-      else
-        if not (null starts) andalso not (null ends) then
-          if hd ends = the (top_tag (hd sects)) then 
-            add_new_section (a, starts, ends) (Block (block_tag, false, (close_latest (hd sects)) :: tl sects))
-          else 
-            Block (block_tag, false, (add_new_section (a, starts, ends) (hd sects)) :: tl sects)
-        else
-          Block (block_tag, false, (add_new_section (a, starts, ends) (hd sects)) :: tl sects)
-  | add_new_section (a, _, _) (Block (_, true, sects)) = 
-      if null sects then raise Fail ("Null sections for input Block") 
-      else raise Fail ("unbalanced blocks at " ^ text_of a);
-
-fun get_separators (a:T) [] = (a, [], [])
-  | get_separators a ((tag, starts, ends) :: tses) =
-      if starts a andalso ends a then 
-        (a, tag :: (#2 (get_separators a tses)), tag :: (#3 (get_separators a tses)))
-      else if starts a then 
-        (a, tag :: (#2 (get_separators a tses)), #3 (get_separators a tses))
-      else if ends a then 
-        (a, #2 (get_separators a tses), tag :: (#3 (get_separators a tses)))
-      else get_separators a tses;
-
-in
-
-(* theory -> Actions.T list -> Actions.section *)
-fun segmentate thy acts =
+(* segmentate: Toplevel.state -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list 
+  -> Actions.T list -> (Toplevel.state * Actions.T) Sections.T *)
+fun segmentate state0 separators acts =
   let
-    val tags_starts_ends = theory_separators thy
-    fun iter (a:T) sect = add_new_section (get_separators a tags_starts_ends) sect;
-    val rev_result = fold iter acts Empty;
-  in reverse rev_result end;
+    val init = if null acts then (state0, void) else (state0, hd acts);
+    fun iter a' (s, a) = (fst (apply a s), a');
+    val steps = Data_Ops.log_fold iter init (tl acts)
+    fun lift f (_, a) = f a;
+    fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
+  in Sections.raw_segmentate (lift text_of) (map lifting separators) steps end;
 
-end;
+(* segmentate_triplets: Toplevel.state -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list 
+  -> Actions.T list -> (Toplevel.state * Actions.T * Toplevel.state) Sections.T *)
+fun segmentate_triplets state0 separators acts =
+  let
+    val init = (state0, void, state0);
+    fun iter a (_, _, s) = (s, a, fst (apply a s));
+    val triplets = Data_Ops.log_fold iter init acts
+    fun lift f (_, a, _) = f a;
+    fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
+  in Sections.raw_segmentate (lift text_of) (map lifting separators) triplets end;
 
-(* Toplevel.state -> Actions.section -> Toplevel.state * (Toplevel.state * Actions.section * Toplevel.state) list *)
-fun get_topmost_proofs s Empty = (s, [])
-  | get_topmost_proofs _ (Single _) = raise Fail "Single action to Actions.get_proofs"
-  | get_topmost_proofs state (block as Block (tag, _, sects)) =
-      if null sects then raise Fail ("empty block " ^ tag)
-      else let
-        fun iter (Empty) st_proofs = st_proofs
-          | iter (Single a) st_proofs = 
-              (next_state (Single a) (#1 st_proofs), #2 st_proofs)
-          | iter (Block (tag, closed, sects)) st_proofs =
-              if null sects then raise Fail ("empty block " ^ tag)
-              else if tag = "PROOF" then 
-                let
-                  val (so_far, proofs) = st_proofs;
-                  val new_state = fold next_state sects so_far;
-                in (new_state, (so_far, Block (tag, closed, sects), new_state) :: proofs) end
-              else fold iter sects st_proofs;
-        val proofs = iter block (state, [])
-      in (#1 proofs, rev (#2 proofs)) end;
+(* segmentate_stateless: theory -> Actions.T list -> Actions.T Sections.T *)
+fun segmentate_stateless thy acts =
+  let
+    val separators = theory_separators thy
+  in Sections.raw_segmentate (text_of) separators acts end;
+
 
 end;
