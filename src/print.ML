@@ -173,7 +173,7 @@ fun pretty_state_no_facts debug state =
     val goal = jpair "term" (Pretty.quote (Syntax.pretty_term ctxt (#goal state_data)));
   in jattribs debug "{" "}" 0 [jpair "state" (jattribs debug "{" "}" 2 [goal, vs, cs, Ts])] end;
 
-(* bool ->  Toplevel.state -> Pretty.T *)
+(* bool -> Toplevel.state -> Proof.context * ((string * int) * thm) list -> Pretty.T *)
 fun pretty_state debug (ctxt', named_thms) state = 
   let
     val state_data = Get.goal_data state;

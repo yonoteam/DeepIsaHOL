@@ -127,25 +127,27 @@ fun pretty_named_thms ctxt lvl named_thms =
         (Print.jattribs false "{" "}" (~2) (pretty_named_thm ctxt named_thm))) named_thms
   in Print.jpair "thms" (Print.jattribs true "[" "]" lvl prts) end;
 
+(* (Toplevel.state * Actions.T) Sections.T -> context * (Thm_Name.T * thm) list *)
+fun find_deps proof =
+  let 
+    val (s0, _) = Sections.get_first proof;
+    val (sN, aN) = Sections.get_last proof;
+    val sN' = #1 (Actions.apply aN sN);
+    val thyN' = Toplevel.theory_of sN'
+    val diffs = Get.new_thms s0 sN'
+  in (Toplevel.context_of sN', Get.deps thyN' (maps snd diffs)) end;
+
 (* (Toplevel.state * Actions.T) Sections.T -> (Pretty.T * string) list list *)
 fun make_steps sections =
   let
     val proofs = Sections.get_topmost "PROOF" sections;
-    (* facts *)
-    fun st_prev proof = #1 (Sections.get_first proof);
-    fun st_after proof =
-      let
-        val (s, a) = Sections.get_last proof;
-      in fst (Actions.apply a s) end;
-    fun thy1 proof = Toplevel.theory_of (st_after proof);
-    fun ctxt1 proof = Toplevel.context_of (st_after proof);
-    fun diffs proof = Get.new_thms (st_prev proof) (st_after proof);
-    fun lems proof = Get.deps (thy1 proof) (maps snd (diffs proof));
-    fun prettys proof = Print.pretty_state true (ctxt1 proof, lems proof)
     fun make_data proof =
-       let
-         val raw_pairs = tl (Sections.recover_trace proof);
-       in map (fn (s, a) => (prettys proof s, Actions.text_of a)) raw_pairs end;
+      let
+        val lemmas = find_deps proof;
+        val prettys = Print.pretty_state true lemmas
+        val raw_pairs = tl (Sections.recover_trace proof);
+      in map (fn (s, a:Actions.T) => (prettys s, Actions.text_of a)) raw_pairs end;
   in map (fn proof => make_data proof) proofs end;
+
 
 end;
