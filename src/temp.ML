@@ -7,14 +7,11 @@ sig
   val replace_vars: term -> term
   val generate_queries: Proof.context -> term -> (bool * string Find_Theorems.criterion) list list
   val query_thms: Proof.context -> int -> thm -> (Thm_Name.T * thm) list
-  
-  (* FINDING NEW THEOREMS *)
-  val new_thms: Toplevel.state -> Toplevel.state -> (string * thm list) list
 
   (* PRETTY PRINTING *)
   val pretty_named_thm: Proof.context -> (string * int) * thm -> Pretty.T list
   val pretty_named_thms: Proof.context -> int -> ((string * int) * thm) list -> Pretty.T
-  val make_steps: (Toplevel.state * Actions.T) Sections.T -> (Pretty.T * string) list list
+
 end;
 
 
@@ -73,49 +70,17 @@ fun query_thms ctxt n goal =
   in fold add_thms queries [] end;
 
 
-(** FINDING NEW THEOREMS **)
-
-(* Toplevel.state -> Toplevel.state -> (string * thm list) list *)
-(* TODO: test further *)
-fun new_thms state1 state2 =
-  if not (Toplevel.is_toplevel state1) andalso not (Toplevel.is_toplevel state2) then
-  let
-    val generic1 = Toplevel.generic_theory_of state1;
-    val generic2 = Toplevel.generic_theory_of state2;
-    val facts1 = Context.cases Global_Theory.facts_of Proof_Context.facts_of generic1;
-    val facts2 = Context.cases Global_Theory.facts_of Proof_Context.facts_of generic2;
-    fun is_new (name, _) = (case Facts.lookup generic1 facts1 name of
-        SOME _ => false 
-      | NONE => true)
-  in Facts.fold_static (Data_Ops.insert_if is_new) facts2 [] end
-  else [];
-
-(* Toplevel.state -> (int * Actions.T * Toplevel.state) list 
-  -> (string * (int * Actions.T * Toplevel.state * (string * thm list) list) list) list *)
-(* ISSUE: too slow and error prone *)
-(* fun tag_enum_steps state nass = 
-  let
-    val acts = map (#2) nass;
-    fun lemma_diffs (n:int, a, s) nasfs = (n, a, s, new_thms (#3 nasfs) s);
-    val nasfs = Data_Ops.log_fold lemma_diffs (~1, Actions.null, #3 (hd nass), []) nass;
-    val thy0 = Toplevel.theory_of (fst (Actions.apply (hd (filter Actions.begins_thy acts)) state));
-    fun starts_prf (_, a, _, _) = Actions.begins_proof thy0 a;
-    fun ends_prf (_, a, _, _) = Actions.ends_proof thy0 a;
-    fun txt_of (_, a, _, _) = Actions.text_of a;
-  in Data_Ops.chop_and_tag "proof" txt_of starts_prf ends_prf nasfs end; *)
-
-
 (* PRETTY PRINTING *)
 
 (* Proof.context -> (string * int) * thm -> Pretty.T list *)
 (* TODO: rename and move *)
 fun pretty_named_thm ctxt ((name, i),thm) = [
-  Print.jpair "name" (
+  Print.pretty_json_elem "name" (
     Pretty.quote (Pretty.block [
       Pretty.marks_str (#1 (Proof_Context.markup_extern_fact ctxt name), name),
       Pretty.str (Thm_Name.print_suffix (name, i))])
   ),
-  Print.jpair "term" (Pretty.quote (Thm.pretty_thm ctxt thm))
+  Print.pretty_json_elem "term" (Pretty.quote (Thm.pretty_thm ctxt thm))
   ];
 
 (* Proof.context -> int -> ((string * int) * thm) list -> Pretty.T *)
@@ -123,31 +88,11 @@ fun pretty_named_thm ctxt ((name, i),thm) = [
 fun pretty_named_thms ctxt lvl named_thms =
   let
     val prts = map (fn named_thm => 
-      Print.jpair "thm"
-        (Print.jattribs false "{" "}" (~2) (pretty_named_thm ctxt named_thm))) named_thms
-  in Print.jpair "thms" (Print.jattribs true "[" "]" lvl prts) end;
+      Print.pretty_json_elem "thm"
+        (Print.pretty_json_attribs false "{" "}" (~2) (pretty_named_thm ctxt named_thm))) named_thms
+  in Print.pretty_json_elem "thms" (Print.pretty_json_attribs true "[" "]" lvl prts) end;
 
-(* (Toplevel.state * Actions.T) Sections.T -> context * (Thm_Name.T * thm) list *)
-fun find_deps proof =
-  let 
-    val (s0, _) = Sections.get_first proof;
-    val (sN, aN) = Sections.get_last proof;
-    val sN' = #1 (Actions.apply aN sN);
-    val thyN' = Toplevel.theory_of sN'
-    val diffs = Get.new_thms s0 sN'
-  in (Toplevel.context_of sN', Get.deps thyN' (maps snd diffs)) end;
 
-(* (Toplevel.state * Actions.T) Sections.T -> (Pretty.T * string) list list *)
-fun make_steps sections =
-  let
-    val proofs = Sections.get_topmost "PROOF" sections;
-    fun make_data proof =
-      let
-        val lemmas = find_deps proof;
-        val prettys = Print.pretty_state true lemmas
-        val raw_pairs = tl (Sections.recover_trace proof);
-      in map (fn (s, a:Actions.T) => (prettys s, Actions.text_of a)) raw_pairs end;
-  in map (fn proof => make_data proof) proofs end;
 
 
 end;

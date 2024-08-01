@@ -2,6 +2,10 @@
 signature SECTIONS =
 sig
   type 'a T
+  val theory_tag: string
+  val thy_block_tag: string
+  val proof_tag: string
+  val other_tag: string
   val is_closed: 'a T -> bool
   val contains_tag: string -> 'a T -> bool
   val get_top_tag: 'a T -> string option
@@ -9,9 +13,9 @@ sig
   val get_first: 'a T -> 'a
   val get_last: 'a T -> 'a
   val get_latest_open: 'a T -> 'a T
+  val next_state: ('a -> 'b -> 'b) -> 'a T -> 'b -> 'b
   val reverse: 'a T -> 'a T
   val recover_trace: 'a T -> 'a list
-  val next_state: ('a -> 'b -> 'b) -> 'a T -> 'b -> 'b
   val raw_segmentate: ('a -> string) -> (string * ('a -> bool) * ('a -> bool)) list 
     -> 'a list -> 'a T
 end;
@@ -24,6 +28,11 @@ datatype 'a T =
     Empty
   | Single of 'a
   | Block of string * bool * ('a T list);
+
+val theory_tag = "THEORY"
+val thy_block_tag = "THY_BLOCK"
+val proof_tag = "PROOF"
+val other_tag = "OTHER"
 
 (* 'a Sections.T -> bool *)
 fun is_closed (Block (_, closed, sects)) = closed andalso forall is_closed sects
@@ -101,7 +110,7 @@ fun close_latest (Block (tag, closed, sects)) =
 fun add_new_section text_of (a, starts, ends) (Empty) = 
       if not (null starts) then Block (hd starts, false, [Single a])
       else if not (null ends) then raise Fail ("Unbalanced blocks on " ^ text_of a)
-      else Block ("OTHER", false, [Single a])
+      else Block (other_tag, false, [Single a])
   | add_new_section text_of _ (Single a) = 
       raise Fail ("Wrong call add_new_section' on Single of" ^ text_of a)
   | add_new_section text_of (a, starts, ends) (Block (block_tag, false, sects)) =

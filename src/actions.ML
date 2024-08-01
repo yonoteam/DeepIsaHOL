@@ -1,6 +1,7 @@
 
 signature ACTIONS =
 sig
+  (* Actions.T *)
   type T
   val void: T
   val text_of: T -> string
@@ -11,10 +12,14 @@ sig
   val on_kind: (string -> 'a) -> T -> 'a
   val make: theory -> string -> T list
   val apply: T -> Toplevel.state -> Toplevel.state * (exn * string) option
+  
+  (* Separators *)
   val begins_thy: T -> bool
   val begin_thy_from: Toplevel.state -> T list -> theory
   val ends_thy_section: T -> bool
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
+  
+  (* Data preparation *)
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
   val segmentate: Toplevel.state -> (string * (T -> bool) * (T -> bool)) list -> T list 
     -> (Toplevel.state * T) Sections.T
@@ -26,6 +31,7 @@ end;
 
 structure Actions: ACTIONS =
 struct
+
 
 (** ACTIONS **)
 
@@ -43,7 +49,7 @@ fun kind_of (Action a) = Toplevel.name_of (#transition a);
 
 fun pos_of (Action a) = Toplevel.pos_of (#transition a);
 
-(* inspired from Portal-to-Isabelle's parse_text MLFunction2 *)
+(* inspired by Portal-to-Isabelle's parse_text MLFunction2 *)
 (* theory -> string -> Actions.T list *)
 fun make thy0 thy_text =
   let
@@ -66,7 +72,8 @@ fun apply (Action a) st = Toplevel.transition true (#transition a) st;
 fun next_state a st = fst (apply a st)
 
 
-(** KEYWORD PREDICATES **)
+
+(** SEPARATORS **)
 
 (* (string -> 'a) -> Actions.T -> 'a *)
 fun on_text f a = f (text_of a);
@@ -76,11 +83,10 @@ fun on_kind f a = f (kind_of a);
 
 
 (* THEORY *)
-val theory_tag = "THEORY"
 (* val thy_beginN = "thy_begin" (* i.e. theory *) *)
+(* val thy_endN = "thy_end" (* i.e. end *) *)
 val theoryN = "theory"
 val beginN = "begin"
-(* val thy_endN = "thy_end" (* i.e. end *) *)
 val endN = "end"
 
 (* Action.T -> bool *)
@@ -96,7 +102,6 @@ fun begin_thy_from state acts = state
 
 
 (* THY_BLOCK *)
-val thy_block_tag = "THY_BLOCK"
 val thy_decl_blockN = "thy_decl_block" (* e.g. locale, instantiation *)
 val notepadN = "notepad"
 
@@ -108,7 +113,6 @@ val ends_thy_section = on_kind (curry (op =) endN)
 
 
 (* THEORY ADDITIONS *)
-val lemmasN = "lemmas"
 (* 
 val thy_defnN = "thy_defn" (* e.g. abbreviation *)
 val thy_declN = "thy_decl" (* e.g. no_notation *)
@@ -116,19 +120,19 @@ val thy_stmtN = "thy_stmt" (* i.e. axiomatization *)
 val thy_loadN = "thy_load" (* e.g. ML_file *)
 val diagN = "diag" (* e.g. term *) 
 *)
+val lemmasN = "lemmas"
 
 
 (* PROOF *)
-val proof_tag = "PROOF"
-val goalN = "goal"
 (* 
 val thy_goalN = "thy_goal" (* e.g. instance *)
 val thy_goal_stmtN = "thy_goal_stmt" (* e.g. lemma *)
 val thy_goal_defnN = "thy_goal_defn" (* e.g. termination *)
 *)
+val goalN = "goal"
+
 
 (* APPLY-STYLE PROOFS *)
-val qedN = "qed" (* i.e. by *)
 (* 
 val prf_scriptN = "prf_script" (* e.g. apply *)
 val prf_script_goalN = "prf_script_goal" (* i.e. subgoal *)
@@ -137,6 +141,7 @@ val qed_scriptN = "qed_script" (* i.e. done *)
 
 val qed_globalN = "qed_global" (* i.e. oops *) 
 *)
+val qedN = "qed" (* i.e. by *)
 
 (* ISAR-STYLE PROOFS *)
 (* 
@@ -159,6 +164,10 @@ val document_bodyN = "document_body" (* e.g. text *)
 val document_rawN = "document_raw" (* i.e. text_raw *) 
 *)
 
+
+
+(** DATA PREPARATION **)
+
 (*  theory -> (string * (T -> bool) * (T -> bool)) list *)
 fun theory_separators thy =
   let 
@@ -168,19 +177,18 @@ fun theory_separators thy =
         val kwds = maps snd (filter (Pred.on_fst P) cmmnds);
       in member (op =) kwds (kind_of a) end;
     
-    val thy_seps = (theory_tag, begins_thy, ends_thy_section);
+    val thy_seps = (Sections.theory_tag, begins_thy, ends_thy_section);
 
     val starts_thy_block = in_group_cmmnds (fn grp_name => grp_name = thy_decl_blockN);    
-    val thy_block_seps = (thy_block_tag, starts_thy_block, ends_thy_section 
+    val thy_block_seps = (Sections.thy_block_tag, starts_thy_block, ends_thy_section 
           orf (starts_thy_block andf (Pred.neg starts_notepad)));
     
     fun starts_proof a = on_kind (fn txt => not (txt = lemmasN)) a
       andalso in_group_cmmnds (fn str => Pred.contains goalN str) a
     fun ends_proof a = in_group_cmmnds (fn str => Pred.contains qedN str) a
-    val thy_proof_seps = (proof_tag, starts_proof, ends_proof); 
+    val thy_proof_seps = (Sections.proof_tag, starts_proof, ends_proof); 
 
   in [thy_proof_seps, thy_block_seps, thy_seps] end;
-
 
 (*  Actions.section -> Toplevel.state -> Toplevel.state *)
 val next_state = Sections.next_state (fn a => fn s => fst (apply a s))
@@ -212,6 +220,5 @@ fun segmentate_stateless thy acts =
   let
     val separators = theory_separators thy
   in Sections.raw_segmentate (text_of) separators acts end;
-
 
 end;
