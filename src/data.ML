@@ -3,17 +3,8 @@ signature DATA =
 sig
   (* data *)
   type data
-  val build_data: {
-    action: string, 
-    consts: term list, 
-    facts: Proof.context * (Thm_Name.T * thm) list, 
-    goal: term, 
-    hyps: term list, 
-    methods: string list, 
-    state: Toplevel.state, 
-    types: typ list, 
-    vars: term list} 
-    -> data
+  val build: Proof.context * (Thm_Name.T * thm) list -> Toplevel.state -> Actions.T -> data
+  val from: Toplevel.state -> data
   val action_of: data -> string
   val state_of: data -> Toplevel.state
   val goal_of: data -> term
@@ -26,22 +17,28 @@ sig
  
   (* Extraction *)
   val find_deps: (Toplevel.state * Actions.T) Sections.T -> Proof.context * (Thm_Name.T * thm) list
-  val extract_data: (Toplevel.state * Actions.T) Sections.T -> data list
-  val make_steps: (Toplevel.state * Actions.T) Sections.T -> data list list
+  val extract: (Toplevel.state * Actions.T) Sections.T -> data list
+  val extract_proofs: (Toplevel.state * Actions.T) Sections.T -> data list list
   
   (* Pretty printing *)
   val pretty_json_action: data -> Pretty.T
   val pretty_json_goal: Proof.context -> data -> Pretty.T
+  val pretty_json_hyps: bool -> int -> Proof.context -> data -> Pretty.T
   val pretty_json_consts: bool -> int -> Proof.context -> data -> Pretty.T
   val pretty_json_vars: bool -> int -> Proof.context -> data -> Pretty.T
   val pretty_json_types: bool -> int -> Proof.context -> data -> Pretty.T
   val pretty_json_facts: bool -> int -> data -> Pretty.T
+  val pretty_json_methods: bool -> int -> data -> Pretty.T
   val pretty_json_data: bool -> data -> Pretty.T
+  val print_out: Toplevel.state -> unit
 end;
 
 
 structure Data: DATA =
 struct
+
+
+(** DATA **)
 
 datatype data = Data of {
   action: string, 
@@ -55,7 +52,6 @@ datatype data = Data of {
   vars: term list
   };
 
-fun build_data d = Data d;
 fun rep_data (Data d) = d;
 fun action_of d = #action (rep_data d);
 fun state_of d = #state (rep_data d);
@@ -67,6 +63,32 @@ fun types_of d = #types (rep_data d);
 fun facts_of d = #facts (rep_data d);
 fun methods_of d = #methods (rep_data d);
 
+(* context * (Thm_Name.T * thm) list -> Toplevel.state -> Actions.T -> data *)
+fun build fs s a = 
+  let
+    val prop = Proof.goal (Toplevel.proof_of s);
+    val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
+    val xs = Get.vars goal_hyps;
+    val cs = Get.consts goal_hyps;
+    val Ts = Get.atomic_types goal_hyps;
+    val mthds = Get.methods (Toplevel.context_of s);
+  in Data {state = s, 
+      action = Actions.text_of a,
+      goal = hd goal_hyps, 
+      consts = cs, 
+      vars = xs, 
+      types = Ts, 
+      hyps = tl goal_hyps,
+      methods = mthds,
+      facts = fs} 
+  end;
+
+(* Toplevel.state -> data *)
+fun from s = build (Toplevel.context_of s, []) s (Actions.void);
+
+
+(** EXTRACTION **)
+(* Assumes the input section is well-formed and that it is a proof *) 
 (* (Toplevel.state * Actions.T) Sections.T -> context * (Thm_Name.T * thm) list *)
 fun find_deps proof =
   let 
@@ -77,39 +99,23 @@ fun find_deps proof =
     val diffs = Get.new_thms s0 sN'
   in (Toplevel.context_of sN', Get.deps thyN' (maps snd diffs)) end;
 
+(* Assumes the input section is well-formed and that it is a proof *) 
 (* (Toplevel.state * Actions.T) Sections.T -> data list *)
-fun extract_data proof =
+fun extract proof =
   let
     val lemmas = find_deps proof;
     val raw_pairs = tl (Sections.recover_trace proof);
-    fun make_data (s, a) =
-      let
-        val prop = Proof.goal (Toplevel.proof_of s);
-        val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
-        val xs = Get.vars goal_hyps;
-        val cs = Get.consts goal_hyps;
-        val Ts = Get.atomic_types goal_hyps;
-        val mthds = Get.methods (Toplevel.context_of s);
-      in build_data {state = s, 
-          action = Actions.text_of a,
-          goal = hd goal_hyps, 
-          consts = cs, 
-          vars = xs, 
-          types = Ts, 
-          hyps = tl goal_hyps,
-          methods = mthds,
-          facts = lemmas} 
-      end;
+    fun make_data (s, a) = build lemmas s a;
   in map make_data raw_pairs end;
 
-fun make_steps sections =
+(* (Toplevel.state * Actions.T) Sections.T -> data list list *)
+fun extract_proofs sections =
   let
     val proofs = Sections.get_topmost Sections.proof_tag sections;
-  in map (fn proof => extract_data proof) proofs end;
+  in map (fn proof => extract proof) proofs end;
 
 
 (** PRETTY PRINTING **)
-
 
 local
 
@@ -170,6 +176,12 @@ fun pretty_vars ctxt vars = pretty_alist ctxt
 fun pretty_types ctxt typs = pretty_alist ctxt
   Syntax.pretty_sort Syntax.pretty_typ "Sort" (alist_by types_info typs);
 
+(* unit -> string list -> Pretty.T list *)
+fun pretty_methods () = (map (Print.pretty_json_elem "name" o Pretty.quote o Pretty.str));
+
+(* Proof.context -> string list -> Pretty.T list *)
+fun pretty_hyps ctxt = (map (Print.pretty_json_elem "name" o Pretty.quote o Syntax.pretty_term ctxt));
+
 (* Proof.context -> (string * int) * thm -> Pretty.T list *)
 fun pretty_fact ctxt ((name, i),thm) = [
   Print.pretty_json_elem "name" (
@@ -189,42 +201,44 @@ fun pretty_facts debug lvl (ctxt, named_thms) =
   in Print.pretty_json_elem "thms" (Print.pretty_json_attribs debug "[" "]" lvl prts) end;
 
 (* ('a -> 'b) -> ('c -> 'b -> Pretty.T list) -> bool -> 'c -> string -> 'a -> Pretty.T *)
-fun to_pretty retriever prettyfier debug lvl ctxt name data =
+fun pretty_list retriever prettyfier debug lvl ctxt name data =
   let
     val jattribs = Print.pretty_json_attribs debug "[" "]" lvl (prettyfier ctxt (retriever data))
   in Print.pretty_json_elem name jattribs end;
 
 in 
 
-fun pretty_json_action data = Print.pretty_json_elem "action" (Pretty.quote (Pretty.str (action_of data)))
+(* bool -> int -> _ -> data -> Pretty.T *)
+fun pretty_json_action data = Print.pretty_json_elem "action" (Pretty.quote (Pretty.str (action_of data)));
 fun pretty_json_goal ctxt data = Print.pretty_json_elem "term" (Pretty.quote (Syntax.pretty_term ctxt (goal_of data)));
-fun pretty_json_consts debug lvl ctxt = to_pretty consts_of pretty_consts debug lvl ctxt "constants"
-fun pretty_json_vars debug lvl ctxt = to_pretty vars_of pretty_vars debug lvl ctxt "variables"
-fun pretty_json_types debug lvl ctxt = to_pretty types_of pretty_types debug lvl ctxt "type variables"
-fun pretty_json_facts debug lvl data = pretty_facts debug lvl (facts_of data)
+fun pretty_json_hyps debug lvl ctxt = pretty_list hyps_of pretty_hyps debug lvl ctxt "hyps";
+fun pretty_json_consts debug lvl ctxt = pretty_list consts_of pretty_consts debug lvl ctxt "constants";
+fun pretty_json_vars debug lvl ctxt = pretty_list vars_of pretty_vars debug lvl ctxt "variables";
+fun pretty_json_types debug lvl ctxt = pretty_list types_of pretty_types debug lvl ctxt "type variables";
+fun pretty_json_methods debug lvl = pretty_list methods_of pretty_methods debug lvl () "methods";
+fun pretty_json_facts debug lvl data = pretty_facts debug lvl (facts_of data);
 
-(* bool -> Toplevel.state -> Proof.context * ((string * int) * thm) list -> Pretty.T *)
+(* bool -> data -> Pretty.T *)
 fun pretty_json_data debug data = 
   let
     val state = state_of data;
     val ctxt = Proof.context_of (Toplevel.proof_of state)
       |> Config.put show_sorts false
       |> Config.put show_types false 
-    fun to_pretty retriever prettyfier name =
-      let
-        val jattribs = Print.pretty_json_attribs debug "[" "]" 4 (prettyfier ctxt (retriever data))
-      in Print.pretty_json_elem name jattribs end;
-    val Ts = to_pretty types_of pretty_types "type variables"
-    val cs = to_pretty consts_of pretty_consts "constants"
-    val vs = to_pretty vars_of pretty_vars "variables"
-    val goal = Print.pretty_json_elem "term" (Pretty.quote (Syntax.pretty_term ctxt (goal_of data)));
-    val lems = pretty_facts debug 4 (facts_of data);
-    val pretty_state = Print.pretty_json_attribs debug "{" "}" 2 [goal, vs, cs, Ts, lems]
+    val goal = pretty_json_goal ctxt data;
+    val hs = pretty_json_hyps debug 4 ctxt data;
+    val cs = pretty_json_consts debug 4 ctxt data;
+    val vs = pretty_json_vars debug 4 ctxt data;
+    val Ts = pretty_json_types debug 4 ctxt data;
+    val ms = pretty_json_methods debug 4 data;
+    val lems = pretty_json_facts debug 4 data;
+    val act = pretty_json_action data;
+    val pretty_state = Print.pretty_json_attribs debug "{" "}" 2 
+      [goal, hs, vs, cs, Ts, ms, lems, act]
   in Print.pretty_json_attribs debug "{" "}" 0 [Print.pretty_json_elem "state" pretty_state] end;
 
-(* mode -> bool -> Toplevel.state -> unit *)
-(* fun proof_state mode debug state = write_to mode (string_of (pretty_state_no_facts debug state));
- *)
+(* print_out: Toplevel.state -> unit *)
+fun print_out s = Print.pretty_out (pretty_json_data true (from s));
 
 end
 

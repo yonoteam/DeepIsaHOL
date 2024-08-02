@@ -3,9 +3,11 @@ signature PRINT =
 sig
   datatype mode = FILE of string | OUT;
   datatype format = XML of int | YX | AST;
-  val string_of: Pretty.T -> string
+  val string_of_pretty: Pretty.T -> string
   val term_string: Proof.context -> format -> term -> string
   val write_to: mode -> string -> unit
+  val out: string -> unit
+  val pretty_out: Pretty.T -> unit
   val pretty_json_elem: string -> Pretty.T -> Pretty.T
   val pretty_json_attribs: bool -> string -> string -> int -> Pretty.T list -> Pretty.T
   (* val pretty_state_no_facts: bool -> Toplevel.state -> Pretty.T
@@ -27,7 +29,7 @@ exception FORMAT of string
 val yx_string_of = Pretty.string_of
 
 (* Pretty.T -> string *)
-val string_of = YXML.content_of o yx_string_of
+val string_of_pretty = YXML.content_of o yx_string_of
 
 (* term -> string *)
 val term_yx_string = Syntax.string_of_term
@@ -54,6 +56,10 @@ fun write_to mode str =
         end)
   in () 
   end;
+
+fun out str = write_to OUT str;
+
+fun pretty_out prts = out (string_of_pretty prts);
 
 (** PRETTY PRINTING **)
 

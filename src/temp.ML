@@ -8,10 +8,6 @@ sig
   val generate_queries: Proof.context -> term -> (bool * string Find_Theorems.criterion) list list
   val query_thms: Proof.context -> int -> thm -> (Thm_Name.T * thm) list
 
-  (* PRETTY PRINTING *)
-  val pretty_named_thm: Proof.context -> (string * int) * thm -> Pretty.T list
-  val pretty_named_thms: Proof.context -> int -> ((string * int) * thm) list -> Pretty.T
-
 end;
 
 
@@ -50,7 +46,7 @@ fun generate_queries ctxt t =
       |> Term.show_dummy_patterns
       |> Syntax.pretty_term ctxt
       |> Pretty.quote
-      |> Print.string_of
+      |> Print.string_of_pretty
       |> Find_Theorems.read_query Position.none
   in map query_term trms end;
 
@@ -68,31 +64,5 @@ fun query_thms ctxt n goal =
         fun in_names (name_cnt, _) = member (op =) names name_cnt
       in fold (Data_Ops.insert_if (Pred.neg in_names)) results nthms end;
   in fold add_thms queries [] end;
-
-
-(* PRETTY PRINTING *)
-
-(* Proof.context -> (string * int) * thm -> Pretty.T list *)
-(* TODO: rename and move *)
-fun pretty_named_thm ctxt ((name, i),thm) = [
-  Print.pretty_json_elem "name" (
-    Pretty.quote (Pretty.block [
-      Pretty.marks_str (#1 (Proof_Context.markup_extern_fact ctxt name), name),
-      Pretty.str (Thm_Name.print_suffix (name, i))])
-  ),
-  Print.pretty_json_elem "term" (Pretty.quote (Thm.pretty_thm ctxt thm))
-  ];
-
-(* Proof.context -> int -> ((string * int) * thm) list -> Pretty.T *)
-(* TODO: rename and move *)
-fun pretty_named_thms ctxt lvl named_thms =
-  let
-    val prts = map (fn named_thm => 
-      Print.pretty_json_elem "thm"
-        (Print.pretty_json_attribs false "{" "}" (~2) (pretty_named_thm ctxt named_thm))) named_thms
-  in Print.pretty_json_elem "thms" (Print.pretty_json_attribs true "[" "]" lvl prts) end;
-
-
-
 
 end;
