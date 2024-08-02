@@ -24,6 +24,8 @@ end;
 structure Sections: SECTIONS =
 struct
 
+(** Sections.T **)
+
 datatype 'a T = 
     Empty
   | Single of 'a
@@ -34,23 +36,23 @@ val thy_block_tag = "THY_BLOCK"
 val proof_tag = "PROOF"
 val other_tag = "OTHER"
 
-(* 'a Sections.T -> bool *)
+(* is_closed: 'a Sections.T -> bool *)
 fun is_closed (Block (_, closed, sects)) = closed andalso forall is_closed sects
   | is_closed _ = true;
 
-(* string -> Actions.section -> bool *)
+(* contains_tag: string -> Actions.section -> bool *)
 fun contains_tag _ (Empty) = false
   | contains_tag _ (Single _) = false
   | contains_tag tag (Block (block_tag, _, sects)) = 
       if tag = block_tag then true
       else exists (contains_tag tag) sects;
 
-(* 'a Sections.T -> string option *)
+(* get_top_tag: 'a Sections.T -> string option *)
 fun get_top_tag Empty = NONE
   | get_top_tag (Single _) = NONE
   | get_top_tag (Block (tag, _, _)) = SOME tag
 
-(* 'a Sections.T -> 'a Sections.T *)
+(* get_latest_open: 'a Sections.T -> 'a Sections.T *)
 fun get_latest_open (Block (tag, closed, sects)) = 
       if null sects then raise Fail ("empty block at" ^ tag)
       else if forall is_closed sects then
@@ -58,7 +60,7 @@ fun get_latest_open (Block (tag, closed, sects)) =
       else Ops.last (map get_latest_open sects)
   | get_latest_open _ = Empty;
 
-(* string -> 'a Sections.T -> ('a Sections.T) list *)
+(* get_topmost: string -> 'a Sections.T -> ('a Sections.T) list *)
 fun get_topmost _ Empty = []
   | get_topmost _ (Single _) = []
   | get_topmost tag (block as Block (block_tag, _, sects)) =
@@ -66,30 +68,30 @@ fun get_topmost _ Empty = []
       else if block_tag = tag then [block]
       else flat (fold (cons o get_topmost tag) (rev sects) [])
 
-(* 'a Sections.T -> 'a *)
+(* get_first: 'a Sections.T -> 'a *)
 fun get_first Empty = raise Fail "get_first: Empty"
   | get_first (Single a) = a
   | get_first (Block (tag, _, sects)) = 
       if null sects then raise Fail ("empty block at" ^ tag)
       else get_first (hd sects)
 
-(* 'a Sections.T -> 'a *)
+(* get_last: 'a Sections.T -> 'a *)
 fun get_last Empty = raise Fail "get_last: Empty"
   | get_last (Single a) = a
   | get_last (Block (tag, _, sects)) = 
       if null sects then raise Fail ("empty block at" ^ tag)
       else get_last (Ops.last sects)
 
-(*  ('a -> 'b -> 'b) -> 'a Sections.T -> 'b -> 'b *)
+(* next_state: ('a -> 'b -> 'b) -> 'a Sections.T -> 'b -> 'b *)
 fun next_state _ Empty st = st
   | next_state next (Single a) st = next a st
   | next_state next (Block (_, _, sects)) st = fold (next_state next) sects st;
 
-(* 'a Sections.T -> 'a Sections.T *)
+(* reverse: 'a Sections.T -> 'a Sections.T *)
 fun reverse (Block (tag, closed, sects)) = Block (tag, closed, rev (map reverse sects))
   | reverse sect = sect;
 
-(* 'a Sections.T -> 'a list *)
+(* recover_trace: 'a Sections.T -> 'a list *)
 fun recover_trace Empty = []
   | recover_trace (Single a) = [a]
   | recover_trace (Block (_, _, sects)) = 

@@ -25,8 +25,6 @@ sig
   val vars: term list -> term list
   val consts: term list -> term list
   val atomic_types: term list -> typ list
-  val goal_data: Toplevel.state 
-    -> {consts: term list, goal: term, hyps: term list, types: typ list, vars: term list}
 end;
 
 
@@ -36,19 +34,19 @@ struct
 
 (** THEORY INFORMATION **)
 
-(* theory -> Position.T -> string -> Toplevel.transition list *)
+(* transitions: theory -> Position.T -> string -> Toplevel.transition list *)
 fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
 
-(* theory -> string list *)
+(* minor_keywords: theory -> string list *)
 fun minor_keywords thy = Scan.dest_lexicon (Keyword.minor_keywords (Thy_Header.get_keywords thy));
 
-(* theory -> string list *)
+(* major_keywords: theory -> string list *)
 fun major_keywords thy = Scan.dest_lexicon (Keyword.major_keywords (Thy_Header.get_keywords thy));
 
-(* theory -> string list *)
+(* command_keywords: theory -> string list *)
 fun command_keywords thy = Keyword.dest_commands (Thy_Header.get_keywords thy);
 
-(* theory -> (string * string list) list *)
+(* grouped_commands: theory -> (string * string list) list *)
 fun grouped_commands thy =
   let
     val kwrds = Thy_Header.get_keywords thy;
@@ -62,8 +60,7 @@ fun grouped_commands thy =
 
 (** CONTEXT INFORMATION **)
 
-(* Toplevel.state -> Toplevel.state -> (string * thm list) list *)
-(* TODO: test further *)
+(* new_thms: Toplevel.state -> Toplevel.state -> (string * thm list) list *)
 fun new_thms state1 state2 =
   if not (Toplevel.is_toplevel state1) andalso not (Toplevel.is_toplevel state2) then
   let
@@ -77,14 +74,14 @@ fun new_thms state1 state2 =
   in Facts.fold_static (Ops.insert_if is_new) facts2 [] end
   else [];
 
-(* context -> string -> Token.T list *)
+(* tokens: context -> string -> Token.T list *)
 (* TODO: check if at right level *)
 fun tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
 
-(* Proof.context -> string list *)
+(* methods: Proof.context -> string list *)
 fun methods ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
 
-(* Proof.context -> {global_f: Facts.T, local_f: Facts.T} *)
+(* get_all_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T} *)
 fun get_all_facts ctxt =
   let
     val thy = Proof_Context.theory_of ctxt;
@@ -92,7 +89,7 @@ fun get_all_facts ctxt =
     val global_facts = Global_Theory.facts_of thy;
   in {global_f = global_facts, local_f=local_facts} end;
 
-(* Proof.context -> string -> bool *)
+(* passes_fact_check: Proof.context -> string -> bool *)
 fun passes_fact_check ctxt thm_name =
   let
     val generic = Context.Proof ctxt
@@ -103,7 +100,7 @@ fun passes_fact_check ctxt thm_name =
       handle ERROR _ => false
   in checks end;
 
-(* Proof.context -> (string * thm list) list *)
+(* get_all_thms: Proof.context -> (string * thm list) list *)
 fun get_all_thms ctxt =
   let
     val generic = Context.Proof ctxt;
@@ -116,14 +113,14 @@ fun get_all_thms ctxt =
         @ (consolidate_then_filter_wrt [] (#global_f fs));
   in all_facts end;
 
-(* (string * thm list -> bool) list -> Proof.context -> (string * thm list) list *)
+(* filtered_thms: (string * thm list -> bool) list -> Proof.context -> (string * thm list) list *)
 fun filtered_thms filters ctxt =
   let
     val all_thms = get_all_thms ctxt;
     val filtered_thms = filter (Pred.conjunct filters) all_thms;
   in filtered_thms end;
 
-(* Proof.context -> string -> thm list *)
+(* thms: Proof.context -> string -> thm list *)
 fun thms ctxt name =
   let
     val toks = tokens ctxt (name ^ " ")
@@ -131,7 +128,7 @@ fun thms ctxt name =
     val thms = Attrib.eval_thms ctxt refs_toks
   in thms end;
 
-(*  theory -> thm list -> (string * thm) list *)
+(* deps: theory -> thm list -> (string * thm) list *)
 fun deps thy thms =
   let
     val lookup = Global_Theory.lookup_thm_id thy;
@@ -160,20 +157,20 @@ local
 
 fun not_member_cons_if P x xs = Ops.insert_if (P andf (Pred.neg (member (op =) xs))) x xs;
 
-(* term -> bool *)
+(* is_gen_var: term -> bool *)
 fun is_gen_var (Term.Free _) = true
   | is_gen_var (Term.Var _) = true
   | is_gen_var _ = false;
 
-(* typ -> bool *)
+(* is_gen_type_var: typ -> bool *)
 fun is_gen_type_var (Term.TFree _) = true
   | is_gen_type_var (Term.TVar _) = true
   | is_gen_type_var _ = false;
 
-(* typ -> typ list *) 
+(* add_atomic_types: typ -> typ list *) 
 fun add_atomic_types T Ts = Term.fold_atyps (not_member_cons_if is_gen_type_var) T Ts;
 
-(* (term -> 'a list) -> term list -> 'a list *)
+(* get_uniques: (term -> 'a list) -> term list -> 'a list *)
 fun get_uniques f (terms: term list) =
   let
     fun cond_add t ts = fold (not_member_cons_if (fn _ => true)) ts (f t);
@@ -181,34 +178,23 @@ fun get_uniques f (terms: term list) =
 
 in
 
-(* term -> term list *)
+(* vars_of: term -> term list *)
 fun vars_of t = Term.fold_aterms (not_member_cons_if is_gen_var) t [];
 
-(* term -> term list *)
+(* consts_of: term -> term list *)
 fun consts_of t = Term.fold_aterms (not_member_cons_if Term.is_Const) t [];
 
-(* term -> typ list *)
+(* atomic_types_of: term -> typ list *)
 fun atomic_types_of t = Term.fold_types add_atomic_types t [];
 
-(* term list -> term list *)
+(* vars: term list -> term list *)
 val vars = get_uniques (vars_of)
 
-(* term list -> term list *)
+(* consts: term list -> term list *)
 val consts = get_uniques (consts_of)
 
-(* term list -> typ list *)
+(* atomic_types: term list -> typ list *)
 val atomic_types = get_uniques (atomic_types_of);
-
-(* Toplevel.state 
-  -> {consts: term list, goal: term, hyps: term list, tvars: typ list, vars: term list} *)
-fun goal_data state = 
-  let
-    val prop = Proof.goal (Toplevel.proof_of state);
-    val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
-    val xs = vars goal_hyps;
-    val cs = consts goal_hyps;
-    val Ts = atomic_types goal_hyps;
-  in {goal = hd goal_hyps, consts = cs, vars = xs, types = Ts, hyps = tl goal_hyps} end;
 
 end;
 

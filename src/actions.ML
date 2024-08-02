@@ -50,7 +50,7 @@ fun kind_of (Action a) = Toplevel.name_of (#transition a);
 fun pos_of (Action a) = Toplevel.pos_of (#transition a);
 
 (* inspired by Portal-to-Isabelle's parse_text MLFunction2 *)
-(* theory -> string -> Actions.T list *)
+(* make: theory -> string -> Actions.T list *)
 fun make thy0 thy_text =
   let
     val trs = Get.transitions thy0 Position.start thy_text;
@@ -65,20 +65,20 @@ fun make thy0 thy_text =
             in act :: record_acts syms2 (tr2 :: trs) end;
   in record_acts (Symbol.explode thy_text) trs end;
 
-(* Actions.T -> Toplevel.state -> Toplevel.state * (exn * string) option *)
+(* apply: Actions.T -> Toplevel.state -> Toplevel.state * (exn * string) option *)
 fun apply (Action a) st = Toplevel.transition true (#transition a) st;
 
-(* Actions.T -> Toplevel.state -> Toplevel.state *)
+(* next_state: Actions.T Sections.T -> Toplevel.state -> Toplevel.state *)
 fun next_state a st = fst (apply a st)
 
 
 
 (** SEPARATORS **)
 
-(* (string -> 'a) -> Actions.T -> 'a *)
+(* on_text: (string -> 'a) -> Actions.T -> 'a *)
 fun on_text f a = f (text_of a);
 
-(* (string -> 'a) -> Actions.T -> 'a *)
+(* on_kind: (string -> 'a) -> Actions.T -> 'a *)
 fun on_kind f a = f (kind_of a);
 
 
@@ -89,13 +89,13 @@ val theoryN = "theory"
 val beginN = "begin"
 val endN = "end"
 
-(* Action.T -> bool *)
+(* begins_thy: Action.T -> bool *)
 val begins_thy = Pred.conjunct [
   on_text (Pred.starts_with theoryN), 
   on_text (Pred.contains beginN), 
   on_kind (curry (op =) theoryN)];
 
-(* Toplevel.state -> Actions.T list -> theory *)
+(* begin_thy_from: Toplevel.state -> Actions.T list -> theory *)
 fun begin_thy_from state acts = state
   |> fold next_state (Pred.take_until (begins_thy) acts)
   |> Toplevel.theory_of;
@@ -105,10 +105,10 @@ fun begin_thy_from state acts = state
 val thy_decl_blockN = "thy_decl_block" (* e.g. locale, instantiation *)
 val notepadN = "notepad"
 
-(* Action.T -> bool *)
+(* starts_notepad: Action.T -> bool *)
 fun starts_notepad a = Pred.starts_with notepadN (text_of a)
 
-(* Action.T -> bool *)
+(* ends_thy_section: Action.T -> bool *)
 val ends_thy_section = on_kind (curry (op =) endN)
 
 
@@ -168,7 +168,7 @@ val document_rawN = "document_raw" (* i.e. text_raw *)
 
 (** DATA PREPARATION **)
 
-(*  theory -> (string * (T -> bool) * (T -> bool)) list *)
+(* theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list *)
 fun theory_separators thy =
   let 
     val cmmnds = Get.grouped_commands thy;
@@ -190,7 +190,7 @@ fun theory_separators thy =
 
   in [thy_proof_seps, thy_block_seps, thy_seps] end;
 
-(*  Actions.section -> Toplevel.state -> Toplevel.state *)
+(*  next_state: Actions.section -> Toplevel.state -> Toplevel.state *)
 val next_state = Sections.next_state (fn a => fn s => fst (apply a s))
 
 (* segmentate: Toplevel.state -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list 

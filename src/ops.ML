@@ -18,38 +18,39 @@ end;
 structure Ops: OPS =
 struct
 
-(* GENERIC OPS *)
+(** GENERIC OPERATIONS **)
 
-(* int -> 'a list -> 'a *)
+(* ith: int -> 'a list -> 'a *)
 fun ith i xs = (if i>=0 then nth xs i else nth (rev xs) (~i - 1))
 
-(* 'a list -> 'a *)
+(* last: 'a list -> 'a *)
 fun last [] = raise List.Empty
   | last [x] = x
   | last (_ :: xs) = last xs
 
-(* ('a -> bool) -> 'a -> 'a list -> 'a list *)
+(* insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list *)
 fun insert_if P x xs = if P x then x :: xs else xs;
 
-(* 'a list -> 'a list -> 'a list *)
+(* intersp: 'a list -> 'a list -> 'a list *)
 fun intersp seps (x :: (xs as  _ :: _)) = (x :: seps) @ (intersp seps xs)
   | intersp _ xs = xs;
 
-(* 'a list -> (int * 'a) list *)
+(* enumerate: 'a list -> (int * 'a) list *)
 fun enumerate xs =
   let
     fun iter_enum _ [] = []
       | iter_enum n (y::ys) = (n, y) :: (iter_enum (n+1) ys)
   in iter_enum 0 xs end;
 
-(* 'a list -> 'a list *)
+(* uniques: 'a list -> 'a list *)
 fun uniques xs = Library.distinct (op =) xs;
 
-(* ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list *)
+(* log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list *)
 fun log_fold _ _ [] = []
   | log_fold f s (x :: xs) = f x s :: log_fold f (f x s) xs;
 
-(* string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) -> 'a list -> (string * 'a list) list *)
+(* chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
+  -> 'a list -> (string * 'a list) list *)
 fun chop_and_tag tag get_text is_start is_end xs =
   let
     fun add_one x =
@@ -77,10 +78,10 @@ fun chop_and_tag tag get_text is_start is_end xs =
      val _ = if not (null (fst rev_result)) then raise Fail ("unbalanced" ^ tag) else ();
    in rev (map (fn (name, chunk) => (name, rev chunk)) (snd rev_result)) end;
 
-(* string -> string -> string list *)
+(* split_by: string -> string -> string list *)
 fun split_by split_str target_str = space_explode split_str target_str;
 
-(* string -> string *)
+(* read_file: string -> string *)
 fun read_file fname = 
   let 
     val IO_instream = TextIO.openIn fname;

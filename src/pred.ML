@@ -35,26 +35,26 @@ fun on_snd P (_, y) = P y;
 
 (** PREDICATES **)
 
-(* 'a list -> bool *)
+(* has_many: 'a list -> bool *)
 fun has_many xs = length xs > 1;
 
-(* string -> string -> bool *)
+(* starts_with: string -> string -> bool *)
 fun starts_with str name = String.isPrefix str name;
 
-(* int -> string -> string -> bool *)
+(* nth_letter_is: int -> string -> string -> bool *)
 fun nth_letter_is n str name = nth_string name n = str;
 
-(* string -> string -> bool *)
+(* contains: string -> string -> bool *)
 fun contains str name =  String.isSubstring str name;
 
-(* Proof.context -> string * thm list -> bool *)
+(* is_dynamic: Proof.context -> string * thm list -> bool *)
 fun is_dynamic ctxt (name:string, _: thm list) 
   = (#dynamic (Facts.retrieve (Context.Proof ctxt) (Proof_Context.facts_of ctxt) (name, Position.none)));
 
 
 (** LIST OPERATORS **)
 
-(* ('a -> bool) -> 'a list -> 'a list list *)
+(* split: ('a -> bool) -> 'a list -> 'a list list *)
 fun split _ [] = []
   | split P (x :: xs) =
   let
@@ -64,14 +64,14 @@ fun split _ [] = []
     val start = if P x then (true, [[x]]) else (false, [[x]])
   in rev (map rev (#2 (fold decide xs start))) end;
 
-(* ('a -> bool) -> 'a list -> int list *)
+(* positions: ('a -> bool) -> 'a list -> int list *)
 fun positions P xs = 
   let
     fun count _ [] = []
       | count n (y :: ys) = if P y then n :: count (n + 1) ys else count (n + 1) ys;
   in count 0 xs end;
 
-(* ('a -> bool) -> 'a list -> 'a list *)
+(* take_until: ('a -> bool) -> 'a list -> 'a list *)
 fun take_until _ [] = []
   | take_until P (x :: xs) = if P x then [x] else x :: (take_until P xs)
 

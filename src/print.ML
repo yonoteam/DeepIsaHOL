@@ -60,11 +60,11 @@ fun pretty_out prts = out (string_of_pretty prts);
 
 (** PRETTY PRINTING **)
 
-(* string -> Pretty.T -> Pretty.T *)
+(* pretty_json_elem: string -> Pretty.T -> Pretty.T *)
 fun pretty_json_elem name prt_attribs = 
   Pretty.block [Pretty.quote (Pretty.str name), (Pretty.str ":"), Pretty.brk 1, prt_attribs];
 
-(* bool -> string -> string -> int -> Pretty.T list -> Pretty.T *)
+(* pretty_json_attribs: bool -> string -> string -> int -> Pretty.T list -> Pretty.T *)
 fun pretty_json_attribs debug encl1 encl2 lvl prts = 
 let
   val jblock = if debug
@@ -77,7 +77,5 @@ let
     else Pretty.block (Pretty.str encl1 :: 
       (Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str encl2])
 in jblock end;
-
-
 
 end;
