@@ -32,7 +32,11 @@ sig
   val pretty_json_methods: bool -> int -> T -> Pretty.T
   val pretty_json: bool -> T -> Pretty.T
   val pretty_apply: string -> Toplevel.state -> Pretty.T
+
+  (* IO *)
   val print_out: Toplevel.state -> unit
+  val write_proof: string -> int -> T list -> unit
+  val write_proofs: string -> T list list -> unit
 end;
 
 
@@ -271,6 +275,24 @@ fun pretty_apply txt s = pretty_json true (apply txt s)
 
 (* print_out: Toplevel.state -> unit *)
 fun print_out s = Print.pretty_out (pretty_json true (from s));
+
+(* string -> int -> Data.T list -> unit *)
+(* TODO: Make IO operations safer to use. *)
+fun write_proof dir i proof =
+  let
+    val name = "proof" ^ Value.print_int i ^ ".json";
+    val fname = (dir ^ name);
+    val _ = Ops.create_file false dir name "";
+    val _ = map (Print.write_to (Print.FILE fname) o Print.string_of_pretty o pretty_json true) proof;
+  in () end;
+
+(* string -> Data.T list list -> unit *)
+fun write_proofs dir proofs =
+  let
+    fun writting _ [] = []
+      | writting n (p :: ps) = write_proof dir (n+1) p :: writting (n+1) ps
+    val _ = writting 0 proofs
+  in () end;
 
 end
 

@@ -1,6 +1,7 @@
 
 signature OPS =
 sig
+  (* Generic operations *)
   val ith: int -> 'a list -> 'a
   val last: 'a list -> 'a
   val insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list
@@ -11,6 +12,11 @@ sig
   val chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
     -> 'a list -> (string * 'a list) list
   val split_by: string -> string -> string list
+
+  (* IO operations *)
+  val file_exists: string -> bool
+  val is_directory: string -> bool
+  val create_file: bool -> string -> string -> string -> unit
   val read_file: string -> string
 end;
 
@@ -80,6 +86,29 @@ fun chop_and_tag tag get_text is_start is_end xs =
 
 (* split_by: string -> string -> string list *)
 fun split_by split_str target_str = space_explode split_str target_str;
+
+
+(** IO OPERATIONS **)
+
+(* string -> bool *)
+fun file_exists file_dir 
+  = OS.FileSys.access (file_dir, [OS.FileSys.A_READ]) handle OS.SysErr _ => false;
+
+(* string -> bool *)
+fun is_directory dir 
+  = OS.FileSys.isDir dir handle OS.SysErr _ => false;
+
+(* bool -> string -> string -> string -> unit *)
+fun create_file force dir name content =
+  let
+    val _ = if is_directory dir then () else OS.FileSys.mkDir dir;
+    val filepath = OS.Path.joinDirFile {dir=dir, file=name};
+  in
+    if file_exists filepath andalso not force then () else
+      let val outstream = TextIO.openOut filepath; in
+        TextIO.output (outstream, content);
+        TextIO.closeOut outstream end
+  end;
 
 (* read_file: string -> string *)
 fun read_file fname = 
