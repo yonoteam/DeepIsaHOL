@@ -199,7 +199,7 @@ fun segmentate state0 separators acts =
   let
     val init = if null acts then (state0, void) else (state0, hd acts);
     fun iter a' (s, a) = (fst (apply a s), a');
-    val steps = Data_Ops.log_fold iter init (tl acts)
+    val steps = Ops.log_fold iter init (tl acts)
     fun lift f (_, a) = f a;
     fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
   in Sections.raw_segmentate (lift text_of) (map lifting separators) steps end;
@@ -210,7 +210,7 @@ fun segmentate_triplets state0 separators acts =
   let
     val init = (state0, void, state0);
     fun iter a (_, _, s) = (s, a, fst (apply a s));
-    val triplets = Data_Ops.log_fold iter init acts
+    val triplets = Ops.log_fold iter init acts
     fun lift f (_, a, _) = f a;
     fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
   in Sections.raw_segmentate (lift text_of) (map lifting separators) triplets end;

@@ -55,7 +55,7 @@ fun get_latest_open (Block (tag, closed, sects)) =
       if null sects then raise Fail ("empty block at" ^ tag)
       else if forall is_closed sects then
         if not closed then Block (tag, closed, sects) else Empty
-      else Data_Ops.last (map get_latest_open sects)
+      else Ops.last (map get_latest_open sects)
   | get_latest_open _ = Empty;
 
 (* string -> 'a Sections.T -> ('a Sections.T) list *)
@@ -78,7 +78,7 @@ fun get_last Empty = raise Fail "get_last: Empty"
   | get_last (Single a) = a
   | get_last (Block (tag, _, sects)) = 
       if null sects then raise Fail ("empty block at" ^ tag)
-      else get_last (Data_Ops.last sects)
+      else get_last (Ops.last sects)
 
 (*  ('a -> 'b -> 'b) -> 'a Sections.T -> 'b -> 'b *)
 fun next_state _ Empty st = st

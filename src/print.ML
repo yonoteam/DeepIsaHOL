@@ -10,9 +10,6 @@ sig
   val pretty_out: Pretty.T -> unit
   val pretty_json_elem: string -> Pretty.T -> Pretty.T
   val pretty_json_attribs: bool -> string -> string -> int -> Pretty.T list -> Pretty.T
-  (* val pretty_state_no_facts: bool -> Toplevel.state -> Pretty.T
-  val pretty_state: bool -> Proof.context * ((string * int) * thm) list -> Toplevel.state -> Pretty.T
-  val proof_state: mode -> bool -> Toplevel.state -> unit *)
 end;
 
 
@@ -75,10 +72,10 @@ let
       fun prt_sep s lvl = [Pretty.str s, Pretty.fbrk, Pretty.brk (lvl+2)];
       val left_prt = [Pretty.str encl1, Pretty.fbrk, Pretty.brk (lvl+2)];
       val right_prt = [Pretty.fbrk, Pretty.brk lvl, Pretty.str encl2];
-      val middle_prt = Data_Ops.intersp (prt_sep "," lvl) prts;
+      val middle_prt = Ops.intersp (prt_sep "," lvl) prts;
       in Pretty.block (left_prt @ middle_prt @ right_prt) end
     else Pretty.block (Pretty.str encl1 :: 
-      (Data_Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str encl2])
+      (Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str encl2])
 in jblock end;
 
 

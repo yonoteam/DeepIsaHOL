@@ -62,7 +62,7 @@ fun query_thms ctxt n goal =
         val results = snd (find q);
         val names = map fst nthms;
         fun in_names (name_cnt, _) = member (op =) names name_cnt
-      in fold (Data_Ops.insert_if (Pred.neg in_names)) results nthms end;
+      in fold (Ops.insert_if (Pred.neg in_names)) results nthms end;
   in fold add_thms queries [] end;
 
 end;

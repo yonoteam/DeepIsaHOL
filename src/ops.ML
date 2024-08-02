@@ -1,5 +1,5 @@
 
-signature DATA_OPS =
+signature OPS =
 sig
   val ith: int -> 'a list -> 'a
   val last: 'a list -> 'a
@@ -15,10 +15,10 @@ sig
 end;
 
 
-structure Data_Ops: DATA_OPS =
+structure Ops: OPS =
 struct
 
-(* GENERIC DATA OPS *)
+(* GENERIC OPS *)
 
 (* int -> 'a list -> 'a *)
 fun ith i xs = (if i>=0 then nth xs i else nth (rev xs) (~i - 1))

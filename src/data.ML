@@ -4,8 +4,6 @@ sig
   (* data *)
   type data
   val build: Proof.context * (Thm_Name.T * thm) list -> Toplevel.state -> Actions.T -> data
-  val from: Toplevel.state -> data
-  val action_of: data -> string
   val state_of: data -> Toplevel.state
   val goal_of: data -> term
   val hyps_of: data -> term list
@@ -14,7 +12,10 @@ sig
   val types_of: data -> typ list
   val facts_of: data -> Proof.context * (Thm_Name.T * thm) list
   val methods_of: data -> string list
- 
+  val from: Toplevel.state -> data
+  val action_of: data -> string
+  val apply: string -> Toplevel.state -> data
+
   (* Extraction *)
   val find_deps: (Toplevel.state * Actions.T) Sections.T -> Proof.context * (Thm_Name.T * thm) list
   val extract: (Toplevel.state * Actions.T) Sections.T -> data list
@@ -29,7 +30,8 @@ sig
   val pretty_json_types: bool -> int -> Proof.context -> data -> Pretty.T
   val pretty_json_facts: bool -> int -> data -> Pretty.T
   val pretty_json_methods: bool -> int -> data -> Pretty.T
-  val pretty_json_data: bool -> data -> Pretty.T
+  val pretty_json: bool -> data -> Pretty.T
+  val pretty_apply: string -> Toplevel.state -> Pretty.T
   val print_out: Toplevel.state -> unit
 end;
 
@@ -86,6 +88,12 @@ fun build fs s a =
 (* Toplevel.state -> data *)
 fun from s = build (Toplevel.context_of s, []) s (Actions.void);
 
+(* string -> Toplevel.state -> data *)
+fun apply txt s = 
+  let
+    val a = hd (Actions.make (Toplevel.theory_of s) txt);
+    val s' = fst (Actions.apply a s);
+  in build (Toplevel.context_of s', []) s' (Actions.void) end;
 
 (** EXTRACTION **)
 (* Assumes the input section is well-formed and that it is a proof *) 
@@ -119,7 +127,7 @@ fun extract_proofs sections =
 
 local
 
-fun not_member_cons_if P x xs = Data_Ops.insert_if (P andf (Pred.neg (member (op =) xs))) x xs;
+fun not_member_cons_if P x xs = Ops.insert_if (P andf (Pred.neg (member (op =) xs))) x xs;
 
 (* ('a -> ('val, 'key)) -> 'a list -> ('key * 'val list) list *)
 fun alist_by extract_info xs =
@@ -162,7 +170,7 @@ fun pretty_alist ctxt pretty_key pretty_val str alist =
       @ [Pretty.brk 1, Pretty.str "::", Pretty.brk 1, (pretty_key ctxt) k, Pretty.str "\""]
     );
     fun pretty_entry (n, (k, vs)) = Print.pretty_json_elem (str^(Value.print_int n)) (pretty_right k vs)
-  in map pretty_entry (Data_Ops.enumerate alist) end;
+  in map pretty_entry (Ops.enumerate alist) end;
 
 (* Proof.context -> term list -> Pretty.T *)
 fun pretty_consts ctxt consts = pretty_alist ctxt
@@ -219,7 +227,7 @@ fun pretty_json_methods debug lvl = pretty_list methods_of pretty_methods debug 
 fun pretty_json_facts debug lvl data = pretty_facts debug lvl (facts_of data);
 
 (* bool -> data -> Pretty.T *)
-fun pretty_json_data debug data = 
+fun pretty_json debug data = 
   let
     val state = state_of data;
     val ctxt = Proof.context_of (Toplevel.proof_of state)
@@ -237,8 +245,11 @@ fun pretty_json_data debug data =
       [goal, hs, vs, cs, Ts, ms, lems, act]
   in Print.pretty_json_attribs debug "{" "}" 0 [Print.pretty_json_elem "state" pretty_state] end;
 
+(* string -> Toplevel.state -> Pretty.T *)
+fun pretty_apply txt s = pretty_json true (apply txt s)
+
 (* print_out: Toplevel.state -> unit *)
-fun print_out s = Print.pretty_out (pretty_json_data true (from s));
+fun print_out s = Print.pretty_out (pretty_json true (from s));
 
 end
 

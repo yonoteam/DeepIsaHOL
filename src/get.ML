@@ -74,7 +74,7 @@ fun new_thms state1 state2 =
     fun is_new (name, _) = (case Facts.lookup generic1 facts1 name of
         SOME _ => false 
       | NONE => true)
-  in Facts.fold_static (Data_Ops.insert_if is_new) facts2 [] end
+  in Facts.fold_static (Ops.insert_if is_new) facts2 [] end
   else [];
 
 (* context -> string -> Token.T list *)
@@ -158,7 +158,7 @@ fun deps thy thms =
 
 local
 
-fun not_member_cons_if P x xs = Data_Ops.insert_if (P andf (Pred.neg (member (op =) xs))) x xs;
+fun not_member_cons_if P x xs = Ops.insert_if (P andf (Pred.neg (member (op =) xs))) x xs;
 
 (* term -> bool *)
 fun is_gen_var (Term.Free _) = true
