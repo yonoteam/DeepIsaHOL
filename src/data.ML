@@ -221,7 +221,8 @@ fun pretty_facts debug lvl (ctxt, named_thms) =
   -> bool -> int -> 'b -> string -> Data.T -> Pretty.T *)
 fun pretty_list retriever prettyfier debug lvl ctxt name (data: T) =
   let
-    val jattribs = Print.pretty_json_attribs debug "[" "]" lvl (prettyfier ctxt (retriever data))
+    fun wrap elem = Print.pretty_json_attribs false "{" "}" 0 [elem]
+    val jattribs = Print.pretty_json_attribs debug "[" "]" lvl (map wrap (prettyfier ctxt (retriever data)))
   in Print.pretty_json_elem name jattribs end;
 
 in 
