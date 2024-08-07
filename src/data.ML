@@ -94,11 +94,12 @@ fun build fs s a =
 fun from s = build (Toplevel.context_of s, []) s (Actions.void);
 
 (* apply: string -> Toplevel.state -> data *)
+(* TODO: make it Data.T -> Data.T*)
 fun apply txt s = 
   let
     val a = hd (Actions.make (Toplevel.theory_of s) txt);
     val s' = fst (Actions.apply a s);
-  in build (Toplevel.context_of s', []) s' (Actions.void) end;
+  in build (Toplevel.context_of s, []) s' (Actions.void) end;
 
 (** EXTRACTION **)
 (* Assumes the input section is well-formed and that it is a proof *) 
