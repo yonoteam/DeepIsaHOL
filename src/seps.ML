@@ -1,0 +1,139 @@
+
+signature SEPS =
+sig
+  (* Separators *)
+  val begins_thy: string -> bool
+  val ends_thy_section: string -> bool
+  val is_in_group_where: (string * string list) list -> (string -> bool) -> (string -> bool)
+  val starts_notepad: string -> bool
+  val starts_thy_block: (string * string list) list -> string -> bool
+  val ends_thy_block: (string * string list) list -> string -> bool
+  val starts_proof: (string * string list) list -> string -> bool
+  val ends_proof: (string * string list) list -> string -> bool
+  val is_apply_step: (string * string list) list -> string -> bool
+  val for_theory: (string * string list) list -> (string * (string -> bool) * (string -> bool)) list
+end;
+
+
+structure Seps: SEPS =
+struct
+
+
+(** SEPARATORS **)
+
+
+(* THEORY *)
+(* val thy_beginN = "thy_begin" (* i.e. theory *) *)
+(* val thy_endN = "thy_end" (* i.e. end *) *)
+val theoryN = "theory"
+val endN = "end"
+
+val begins_thy = Pred.is theoryN
+
+val ends_thy_section = Pred.is endN
+
+
+(* THY_BLOCK *)
+val thy_decl_blockN = "thy_decl_block" (* e.g. locale, instantiation *)
+val notepadN = "notepad"
+
+(* theory -> (string -> bool) -> string -> bool *)
+fun is_in_group_where grouped_commands P command = 
+  let
+    val kwds = maps snd (filter (Pred.on_fst P) grouped_commands);
+  in member (op =) kwds command end;
+
+val starts_notepad = Pred.starts_with notepadN
+
+fun starts_thy_block grp_cmmnds = is_in_group_where grp_cmmnds (Pred.is thy_decl_blockN);
+
+fun ends_thy_block grp_cmmnds = ends_thy_section
+  orf (starts_thy_block grp_cmmnds andf (Pred.neg starts_notepad))
+
+(* THEORY ADDITIONS *)
+(* 
+val thy_defnN = "thy_defn" (* e.g. abbreviation *)
+val thy_declN = "thy_decl" (* e.g. no_notation *)
+val thy_stmtN = "thy_stmt" (* i.e. axiomatization *)
+val thy_loadN = "thy_load" (* e.g. ML_file *)
+val diagN = "diag" (* e.g. term *) 
+*)
+val lemmasN = "lemmas"
+
+
+(* PROOF *)
+(* 
+val thy_goal_stmtN = "thy_goal_stmt" (* e.g. lemma *)
+val thy_goal_defnN = "thy_goal_defn" (* e.g. termination *)
+*)
+val goalN = "goal"
+val thy_goalN = "thy_goal" (* e.g. instance *)
+
+
+(* APPLY-STYLE PROOFS *)
+
+(* 
+val prf_script_goalN = "prf_script_goal" (* i.e. subgoal *)
+val prf_declN = "prf_decl" (* e.g. unfolding *)
+val qed_scriptN = "qed_script" (* i.e. done *)
+
+val qed_globalN = "qed_global" (* i.e. oops *) 
+*)
+val prf_scriptN = "prf_script" (* e.g. apply *)
+val qedN = "qed" (* i.e. by *)
+val unfoldingN = "unfolding"
+val usingN = "using"
+val includingN = "including"
+
+fun starts_proof grp_cmmnds = (Pred.is_not lemmasN)
+  andf (is_in_group_where grp_cmmnds (Pred.contains goalN))
+
+fun ends_proof grp_cmmnds = is_in_group_where grp_cmmnds (Pred.contains qedN)
+
+fun is_apply_step grp_cmmnds = 
+  (Pred.is_not qedN)
+  andf (
+    is_in_group_where grp_cmmnds (Pred.disjunct [
+      Pred.contains prf_scriptN, 
+      Pred.contains qedN,
+      Pred.contains thy_goalN])
+    orf (Pred.is unfoldingN)
+    orf (Pred.is usingN)
+    orf (Pred.is includingN)
+  );
+
+(* ISAR-STYLE PROOFS *)
+(* 
+val prf_blockN = "prf_block" (* i.e. proof *)
+val prf_asmN = "prf_asm" (* e.g. define *)
+val prf_goalN = "prf_goal" (* e.g. have *)
+val prf_closeN = "prf_close" (* i.e. { *)
+val prf_openN = "prf_open" (* i.e. } *)
+val next_blockN = "next_block" (* i.e. next *)
+val prf_chainN = "prf_chain" (* e.g. ultimately *)
+val prf_asm_goalN = "prf_asm_goal" (* i.e. show, obtain and thus *)
+val qed_blockN = "qed_block" (* i.e. qed *) 
+*)
+
+
+(* DOCUMENT PREPARATION *)
+(* 
+val document_headingN = "document_heading" (* e.g. section *)
+val document_bodyN = "document_body" (* e.g. text *)
+val document_rawN = "document_raw" (* i.e. text_raw *) 
+*)
+
+
+
+(** DATA PREPARATION **)
+
+(* theory_separators: theory -> (string * (string -> bool) * (string -> bool)) list *)
+fun for_theory cmmnds =
+  let 
+    val thy_seps = (Sections.theory_tag, begins_thy, ends_thy_section);
+    val thy_block_seps = (Sections.thy_block_tag, starts_thy_block cmmnds, ends_thy_block cmmnds);
+    val thy_proof_seps = (Sections.proof_tag, starts_proof cmmnds, ends_proof cmmnds); 
+  in [thy_proof_seps, thy_block_seps, thy_seps] end;
+
+
+end;
