@@ -17,6 +17,7 @@ sig
   val begins_thy: T -> bool
   val begin_thy_from: Toplevel.state -> T list -> theory
   val ends_thy_section: T -> bool
+  val is_apply_step: theory -> T -> bool
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
   
   (* Data preparation *)
@@ -93,7 +94,7 @@ val endN = "end"
 val begins_thy = Pred.conjunct [
   on_text (Pred.starts_with theoryN), 
   on_text (Pred.contains beginN), 
-  on_kind (curry (op =) theoryN)];
+  on_kind (Pred.is theoryN)];
 
 (* begin_thy_from: Toplevel.state -> Actions.T list -> theory *)
 fun begin_thy_from state acts = state
@@ -106,10 +107,10 @@ val thy_decl_blockN = "thy_decl_block" (* e.g. locale, instantiation *)
 val notepadN = "notepad"
 
 (* starts_notepad: Action.T -> bool *)
-fun starts_notepad a = Pred.starts_with notepadN (text_of a)
+val starts_notepad = on_text (Pred.starts_with notepadN)
 
 (* ends_thy_section: Action.T -> bool *)
-val ends_thy_section = on_kind (curry (op =) endN)
+val ends_thy_section = on_kind (Pred.is endN)
 
 
 (* THEORY ADDITIONS *)
@@ -125,23 +126,48 @@ val lemmasN = "lemmas"
 
 (* PROOF *)
 (* 
-val thy_goalN = "thy_goal" (* e.g. instance *)
 val thy_goal_stmtN = "thy_goal_stmt" (* e.g. lemma *)
 val thy_goal_defnN = "thy_goal_defn" (* e.g. termination *)
 *)
 val goalN = "goal"
-
+val thy_goalN = "thy_goal" (* e.g. instance *)
 
 (* APPLY-STYLE PROOFS *)
+
 (* 
-val prf_scriptN = "prf_script" (* e.g. apply *)
+
 val prf_script_goalN = "prf_script_goal" (* i.e. subgoal *)
 val prf_declN = "prf_decl" (* e.g. unfolding *)
 val qed_scriptN = "qed_script" (* i.e. done *)
 
 val qed_globalN = "qed_global" (* i.e. oops *) 
 *)
+val prf_scriptN = "prf_script" (* e.g. apply *)
 val qedN = "qed" (* i.e. by *)
+val unfoldingN = "unfolding"
+val usingN = "using"
+val includingN = "including"
+
+(* theory -> (string -> bool) -> string -> bool *)
+fun is_in_group_where thy P txt = 
+  let
+    val kwds = Get.commands_where_group thy P;
+  in member (op =) kwds txt end;
+
+(* theory -> Action.T -> bool *)
+fun is_apply_step thy =
+  let
+    val final_pred = (Pred.is_not qedN)
+      andf (
+        is_in_group_where thy (Pred.disjunct [
+          Pred.contains prf_scriptN, 
+          Pred.contains qedN,
+          Pred.contains thy_goalN])
+        orf (Pred.is unfoldingN)
+        orf (Pred.is usingN)
+        orf (Pred.is includingN)
+      );
+  in on_kind final_pred end;
 
 (* ISAR-STYLE PROOFS *)
 (* 
@@ -172,20 +198,21 @@ val document_rawN = "document_raw" (* i.e. text_raw *)
 fun theory_separators thy =
   let 
     val cmmnds = Get.grouped_commands thy;
-    fun in_group_cmmnds P a = 
+    fun in_grp_where P str = 
       let
         val kwds = maps snd (filter (Pred.on_fst P) cmmnds);
-      in member (op =) kwds (kind_of a) end;
-    
+      in member (op =) kwds str end;
+
     val thy_seps = (Sections.theory_tag, begins_thy, ends_thy_section);
 
-    val starts_thy_block = in_group_cmmnds (fn grp_name => grp_name = thy_decl_blockN);    
-    val thy_block_seps = (Sections.thy_block_tag, starts_thy_block, ends_thy_section 
-          orf (starts_thy_block andf (Pred.neg starts_notepad)));
+    val starts_thy_block = on_kind (in_grp_where (Pred.is thy_decl_blockN));
+    val ends_thy_block = ends_thy_section 
+      orf (starts_thy_block andf (Pred.neg starts_notepad))
+    val thy_block_seps = (Sections.thy_block_tag, starts_thy_block, ends_thy_block);
     
-    fun starts_proof a = on_kind (fn txt => not (txt = lemmasN)) a
-      andalso in_group_cmmnds (fn str => Pred.contains goalN str) a
-    fun ends_proof a = in_group_cmmnds (fn str => Pred.contains qedN str) a
+    val starts_proof = on_kind ((Pred.is_not lemmasN)
+      andf (in_grp_where (Pred.contains goalN)))
+    fun ends_proof a = on_kind (in_grp_where (Pred.contains qedN)) a
     val thy_proof_seps = (Sections.proof_tag, starts_proof, ends_proof); 
 
   in [thy_proof_seps, thy_block_seps, thy_seps] end;

@@ -7,6 +7,7 @@ sig
   val major_keywords: theory -> string list
   val command_keywords: theory -> string list
   val grouped_commands: theory -> (string * string list) list
+  val commands_where_group: theory -> (string -> bool) -> string list
   val deps: theory -> thm list -> (Thm_Name.T * thm) list
 
   (* CONTEXT INFORMATION *)
@@ -56,6 +57,12 @@ fun grouped_commands thy =
             if kind = get_kind cmnd then (kind, cmnd :: cmnds) :: kcmndss
             else (kind, cmnds) :: add_command cmnd kcmndss;
   in fold add_command (Keyword.dest_commands kwrds) [] end;
+
+(* commands_where_group: theory -> (string -> bool) -> string list *)
+fun commands_where_group thy P =
+  let
+    val cmmnds = grouped_commands thy;
+  in maps snd (filter (Pred.on_fst P) cmmnds) end;
 
 
 (** CONTEXT INFORMATION **)

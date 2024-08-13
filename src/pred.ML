@@ -6,6 +6,8 @@ sig
   val disjunct: ('a -> bool) list -> ('a -> bool)
   val on_fst: ('a -> bool) -> 'a * 'b -> bool
   val on_snd: ('b -> bool) -> 'a * 'b -> bool
+  val is: ''a -> ''a -> bool
+  val is_not: ''a -> ''a -> bool
   val has_many: 'a list -> bool
   val nth_letter_is: int -> string -> string -> bool
   val starts_with: string -> string -> bool
@@ -32,6 +34,9 @@ fun on_fst P (x, _) = P x;
 
 fun on_snd P (_, y) = P y;
 
+fun is x y = (x = y);
+
+fun is_not x y = not (x = y);
 
 (** PREDICATES **)
 
