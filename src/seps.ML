@@ -12,6 +12,7 @@ sig
   val ends_proof: (string * string list) list -> string -> bool
   val is_apply_step: (string * string list) list -> string -> bool
   val is_isar_step: (string * string list) list -> string -> bool
+  val is_document_step: (string * string list) list -> string -> bool
   val for_theory: (string * string list) list -> (string * (string -> bool) * (string -> bool)) list
 end;
 
@@ -126,6 +127,10 @@ val document_headingN = "document_heading" (* e.g. section *)
 val document_bodyN = "document_body" (* e.g. text *)
 val document_rawN = "document_raw" (* i.e. text_raw *) 
 *)
+val documentN = "document"
+
+fun is_document_step grp_cmmnds = 
+  is_in_group_where grp_cmmnds (Pred.contains documentN)
 
 
 (** DATA PREPARATION **)

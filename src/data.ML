@@ -122,7 +122,7 @@ fun from s = build (Toplevel.context_of s, []) s (Actions.void);
 fun apply txt s = 
   let
     val a = hd (Actions.make (Toplevel.theory_of s) txt);
-    val s' = fst (Actions.apply a s);
+    val s' = Actions.apply a s;
   in build (Toplevel.context_of s, []) s' (Actions.void) end;
 
 (** EXTRACTION **)
@@ -132,7 +132,7 @@ fun find_deps proof =
   let 
     val (s0, _) = Sections.get_first proof;
     val (sN, aN) = Sections.get_last proof;
-    val sN' = #1 (Actions.apply aN sN);
+    val sN' = Actions.apply aN sN;
     val thyN' = Toplevel.theory_of sN'
     val diffs = Get.new_thms s0 sN'
   in (Toplevel.context_of sN', Get.deps thyN' (maps snd diffs)) end;
@@ -252,7 +252,7 @@ fun pretty_list retriever prettyfier debug lvl ctxt name (data: T) =
 
 in 
 
-(* bool -> int -> _ -> data -> Pretty.T *)
+(* bool -> int -> _ -> Data.T -> Pretty.T *)
 fun pretty_json_action data 
   = Print.pretty_json_elem "action" (Pretty.quote (Pretty.str (action_of data)));
 

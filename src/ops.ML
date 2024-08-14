@@ -53,7 +53,7 @@ fun uniques xs = Library.distinct (op =) xs;
 
 (* log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list *)
 fun log_fold _ _ [] = []
-  | log_fold f s (x :: xs) = f x s :: log_fold f (f x s) xs;
+  | log_fold f s (x :: xs) = let val v = f x s in v :: log_fold f v xs end;
 
 (* chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
   -> 'a list -> (string * 'a list) list *)
