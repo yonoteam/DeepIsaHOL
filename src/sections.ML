@@ -6,6 +6,7 @@ sig
   val thy_block_tag: string
   val proof_tag: string
   val other_tag: string
+  val map: ('a -> 'b) -> 'a T -> 'b T
   val is_closed: 'a T -> bool
   val contains_tag: string -> 'a T -> bool
   val get_top_tag: 'a T -> string option
@@ -36,6 +37,11 @@ val thy_block_tag = "THY_BLOCK"
 val proof_tag = "PROOF"
 val other_tag = "OTHER"
 
+(* map: ('a -> 'b) -> 'a Sections.T -> 'b Sections.T *)
+fun map _ Empty = Empty
+  | map f (Single a) = Single (f a)
+  | map f (Block (tag, closed, sects)) = Block (tag, closed, List.map (map f) sects)
+
 (* is_closed: 'a Sections.T -> bool *)
 fun is_closed (Block (_, closed, sects)) = closed andalso forall is_closed sects
   | is_closed _ = true;
@@ -57,7 +63,7 @@ fun get_latest_open (Block (tag, closed, sects)) =
       if null sects then raise Fail ("empty block at" ^ tag)
       else if forall is_closed sects then
         if not closed then Block (tag, closed, sects) else Empty
-      else Ops.last (map get_latest_open sects)
+      else Ops.last (List.map get_latest_open sects)
   | get_latest_open _ = Empty;
 
 (* get_topmost: string -> 'a Sections.T -> ('a Sections.T) list *)
@@ -88,7 +94,7 @@ fun next_state _ Empty st = st
   | next_state next (Block (_, _, sects)) st = fold (next_state next) sects st;
 
 (* reverse: 'a Sections.T -> 'a Sections.T *)
-fun reverse (Block (tag, closed, sects)) = Block (tag, closed, rev (map reverse sects))
+fun reverse (Block (tag, closed, sects)) = Block (tag, closed, rev (List.map reverse sects))
   | reverse sect = sect;
 
 (* recover_trace: 'a Sections.T -> 'a list *)

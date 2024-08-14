@@ -9,6 +9,7 @@ sig
   val starts_thy_block: (string * string list) list -> string -> bool
   val ends_thy_block: (string * string list) list -> string -> bool
   val starts_proof: (string * string list) list -> string -> bool
+  val inits_proof: (string * string list) list -> string -> bool
   val ends_proof: (string * string list) list -> string -> bool
   val is_apply_step: (string * string list) list -> string -> bool
   val is_isar_step: (string * string list) list -> string -> bool
@@ -64,13 +65,15 @@ val lemmasN = "lemmas"
 
 
 (* PROOF *)
-(*
 val thy_goalN = "thy_goal" (* e.g. instance *)
 val thy_goal_stmtN = "thy_goal_stmt" (* e.g. lemma *)
 val thy_goal_defnN = "thy_goal_defn" (* e.g. termination *)
-*)
 val goalN = "goal"
 
+fun inits_proof grp_cmmnds = is_in_group_where grp_cmmnds (
+  Pred.is thy_goalN 
+  orf Pred.is thy_goal_stmtN
+  orf Pred.is thy_goal_defnN)
 
 (* APPLY-STYLE PROOFS *)
 
@@ -105,13 +108,13 @@ fun is_apply_step grp_cmmnds =
 
 (* ISAR-STYLE PROOFS *)
 (* 
+val prf_goalN = "prf_goal" (* e.g. have *)
+val prf_asm_goalN = "prf_asm_goal" (* i.e. show, obtain and thus *)
 val prf_blockN = "prf_block" (* i.e. proof *)
 val prf_asmN = "prf_asm" (* e.g. define *)
-val prf_goalN = "prf_goal" (* e.g. have *)
 val prf_closeN = "prf_close" (* i.e. { *)
 val prf_openN = "prf_open" (* i.e. } *)
 val prf_chainN = "prf_chain" (* e.g. ultimately *)
-val prf_asm_goalN = "prf_asm_goal" (* i.e. show, obtain and thus *)
 val qed_blockN = "qed_block" (* i.e. qed *) 
 *)
 val next_blockN = "next_block" (* i.e. next *)
