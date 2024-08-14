@@ -11,6 +11,7 @@ sig
   val starts_proof: (string * string list) list -> string -> bool
   val ends_proof: (string * string list) list -> string -> bool
   val is_apply_step: (string * string list) list -> string -> bool
+  val is_isar_step: (string * string list) list -> string -> bool
   val for_theory: (string * string list) list -> (string * (string -> bool) * (string -> bool)) list
 end;
 
@@ -62,12 +63,12 @@ val lemmasN = "lemmas"
 
 
 (* PROOF *)
-(* 
+(*
+val thy_goalN = "thy_goal" (* e.g. instance *)
 val thy_goal_stmtN = "thy_goal_stmt" (* e.g. lemma *)
 val thy_goal_defnN = "thy_goal_defn" (* e.g. termination *)
 *)
 val goalN = "goal"
-val thy_goalN = "thy_goal" (* e.g. instance *)
 
 
 (* APPLY-STYLE PROOFS *)
@@ -95,8 +96,7 @@ fun is_apply_step grp_cmmnds =
   andf (
     is_in_group_where grp_cmmnds (Pred.disjunct [
       Pred.contains prf_scriptN, 
-      Pred.contains qedN,
-      Pred.contains thy_goalN])
+      Pred.contains qedN])
     orf (Pred.is unfoldingN)
     orf (Pred.is usingN)
     orf (Pred.is includingN)
@@ -109,12 +109,16 @@ val prf_asmN = "prf_asm" (* e.g. define *)
 val prf_goalN = "prf_goal" (* e.g. have *)
 val prf_closeN = "prf_close" (* i.e. { *)
 val prf_openN = "prf_open" (* i.e. } *)
-val next_blockN = "next_block" (* i.e. next *)
 val prf_chainN = "prf_chain" (* e.g. ultimately *)
 val prf_asm_goalN = "prf_asm_goal" (* i.e. show, obtain and thus *)
 val qed_blockN = "qed_block" (* i.e. qed *) 
 *)
+val next_blockN = "next_block" (* i.e. next *)
+val prfN = "prf"
 
+fun is_isar_step grp_cmmnds = 
+  is_in_group_where grp_cmmnds (Pred.contains prfN orf Pred.is next_blockN)
+  andf (Pred.neg (is_apply_step grp_cmmnds));
 
 (* DOCUMENT PREPARATION *)
 (* 
@@ -122,7 +126,6 @@ val document_headingN = "document_heading" (* e.g. section *)
 val document_bodyN = "document_body" (* e.g. text *)
 val document_rawN = "document_raw" (* i.e. text_raw *) 
 *)
-
 
 
 (** DATA PREPARATION **)

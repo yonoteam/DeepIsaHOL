@@ -3,6 +3,7 @@ signature DATA =
 sig
   (* Data.T *)
   type T
+  val init: Toplevel.state -> Actions.T -> T
   val build: Proof.context * (Thm_Name.T * thm) list -> Toplevel.state -> Actions.T -> T
   val state_of: T -> Toplevel.state
   val goal_of: T -> term
@@ -70,7 +71,26 @@ fun types_of d = #types (rep_data d);
 fun facts_of d = #facts (rep_data d);
 fun methods_of d = #methods (rep_data d);
 
-(* build: Proof.context * (Thm_Name.T * thm) list -> Toplevel.state -> Actions.T -> data *)
+(* init: Toplevel.state -> Actions.T -> Data.T *)
+fun init s a =
+  let
+    val prop = Proof.goal (Toplevel.proof_of s);
+    val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
+    val xs = Get.vars goal_hyps;
+    val cs = Get.consts goal_hyps;
+    val Ts = Get.atomic_types goal_hyps;
+  in Data {state = s, 
+      action = Actions.text_of a,
+      goal = hd goal_hyps, 
+      consts = cs, 
+      vars = xs, 
+      types = Ts, 
+      hyps = tl goal_hyps,
+      methods = [],
+      facts = (Toplevel.context_of s, [])} 
+  end;
+
+(* build: Proof.context * (Thm_Name.T * thm) list -> Toplevel.state -> Actions.T -> Data.T *)
 fun build fs s a = 
   let
     val prop = Proof.goal (Toplevel.proof_of s);
@@ -78,7 +98,11 @@ fun build fs s a =
     val xs = Get.vars goal_hyps;
     val cs = Get.consts goal_hyps;
     val Ts = Get.atomic_types goal_hyps;
-    val mthds = Get.methods (Toplevel.context_of s);
+    val mthds = 
+      let
+        val grp_cmmnds = Get.grouped_commands (Toplevel.theory_of s);
+        fun is_apply_step act = Actions.on_kind (Seps.is_apply_step grp_cmmnds) act;
+      in if is_apply_step a then Get.methods (Toplevel.context_of s) else [] end;
   in Data {state = s, 
       action = Actions.text_of a,
       goal = hd goal_hyps, 
@@ -90,10 +114,10 @@ fun build fs s a =
       facts = fs} 
   end;
 
-(* from: Toplevel.state -> data *)
+(* from: Toplevel.state -> Data.T *)
 fun from s = build (Toplevel.context_of s, []) s (Actions.void);
 
-(* apply: string -> Toplevel.state -> data *)
+(* apply: string -> Toplevel.state -> Data.T *)
 (* TODO: make it Data.T -> Data.T*)
 fun apply txt s = 
   let
