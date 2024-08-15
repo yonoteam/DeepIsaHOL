@@ -4,7 +4,6 @@ sig
   (* Actions.T *)
   type T
   val void: T
-  val build: string -> Toplevel.transition -> T
   val text_of: T -> string
   val transition_of: T -> Toplevel.transition
   val kind_of: T -> string
@@ -12,11 +11,13 @@ sig
   val on_text: (string -> 'a) -> T -> 'a
   val on_kind: (string -> 'a) -> T -> 'a
   val make: theory -> string -> T list
+  val make_one: theory -> string -> T
   val apply_safe: T -> Toplevel.state -> Toplevel.state * (exn * string) option
   val apply: T -> Toplevel.state -> Toplevel.state
    
   (* Data preparation *)
   val begin_thy_from: Toplevel.state -> T list -> theory
+  val make': theory -> string -> T list
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
   val segmentate: Toplevel.state -> (string * (T -> bool) * (T -> bool)) list -> T list 
@@ -37,7 +38,9 @@ datatype T = Action of {
   text: string,
   transition: Toplevel.transition}
 
-val void = Action {text="", transition=Toplevel.ignored Position.none}
+fun build txt tr = Action {text=txt, transition=tr};
+
+val void = build "" (Toplevel.ignored Position.none);
 
 fun text_of (Action a) = #text a;
 
@@ -48,12 +51,10 @@ fun kind_of (Action a) = Toplevel.name_of (#transition a);
 fun pos_of (Action a) = Toplevel.pos_of (#transition a);
 
 (* on_text: (string -> 'a) -> Actions.T -> 'a *)
-fun on_text f a = f (text_of a);
+fun on_text f act = f (text_of act);
 
 (* on_kind: (string -> 'a) -> Actions.T -> 'a *)
-fun on_kind f a = f (kind_of a);
-
-fun build txt tr = Action {text=txt, transition=tr}
+fun on_kind f act = f (kind_of act);
 
 (* inspired by Portal-to-Isabelle's parse_text MLFunction2 *)
 (* make: theory -> string -> Actions.T list *)
@@ -70,10 +71,17 @@ fun make thy0 thy_text =
           in act :: record_acts syms2 (tr2 :: trs) end;
   in record_acts (Symbol.explode thy_text) trs end;
 
+(* make_one: theory -> string -> Actions.T *)
+fun make_one thy0 thy_text = hd (make thy0 thy_text)
+
 (* apply_safe: Actions.T -> Toplevel.state -> Toplevel.state * (exn * string) option *)
 fun apply_safe (Action a) st = Toplevel.transition true (#transition a) st;
 
+(* apply: Actions.T -> Toplevel.state -> Toplevel.state *)
 fun apply act st = fst (apply_safe act st);
+
+
+(** DATA PREPARATION **)
 
 (* begin_thy_from: Toplevel.state -> Actions.T list -> theory *)
 fun begin_thy_from state acts = 
@@ -83,8 +91,13 @@ fun begin_thy_from state acts =
   |> fold apply (Pred.take_until begins_thy acts)
   |> Toplevel.theory_of end;
 
-
-(** DATA PREPARATION **)
+(* make': theory -> string -> Actions.T list *)
+fun make' thy0 thy_text =
+  let
+    val does_something = on_kind (
+      Pred.is_not "<ignored>" 
+      andf Pred.neg (Seps.is_document_step (Get.grouped_commands thy0)))
+  in void :: (filter does_something (make thy0 thy_text)) end;
 
 (* theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list *)
 fun theory_separators thy =

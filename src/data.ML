@@ -71,6 +71,7 @@ fun kwds_of e = #kwds (rep_env e);
 fun grp_cmmnds_of e = #grp_cmmnds (rep_env e);
 
 fun get_env proof =
+  if Sections.get_top_tag proof = SOME Sections.proof_tag then
   let 
     val (s0, _) = Sections.get_first proof;
     val (sN, aN) = Sections.get_last proof;
@@ -82,7 +83,8 @@ fun get_env proof =
   methods = Get.methods (Toplevel.context_of s0), 
   deps = Get.deps thyN' (maps snd diffs), 
   kwds = Get.minor_keywords thyN',
-  grp_cmmnds = Get.grouped_commands thyN'} end;
+  grp_cmmnds = Get.grouped_commands thyN'} end
+  else raise Fail "Input not a proof block.";
 
 (** DATA **)
 
