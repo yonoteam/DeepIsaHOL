@@ -9,7 +9,7 @@ sig
   val starts_thy_block: (string * string list) list -> string -> bool
   val ends_thy_block: (string * string list) list -> string -> bool
   val starts_proof: (string * string list) list -> string -> bool
-  val inits_proof: (string * string list) list -> string -> bool
+  val declares_proof: (string * string list) list -> string -> bool
   val ends_proof: (string * string list) list -> string -> bool
   val is_apply_step: (string * string list) list -> string -> bool
   val is_isar_step: (string * string list) list -> string -> bool
@@ -70,7 +70,7 @@ val thy_goal_stmtN = "thy_goal_stmt" (* e.g. lemma *)
 val thy_goal_defnN = "thy_goal_defn" (* e.g. termination *)
 val goalN = "goal"
 
-fun inits_proof grp_cmmnds = is_in_group_where grp_cmmnds (
+fun declares_proof grp_cmmnds = is_in_group_where grp_cmmnds (
   Pred.is thy_goalN 
   orf Pred.is thy_goal_stmtN
   orf Pred.is thy_goal_defnN)

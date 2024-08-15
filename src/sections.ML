@@ -7,6 +7,7 @@ sig
   val proof_tag: string
   val other_tag: string
   val map: ('a -> 'b) -> 'a T -> 'b T
+  val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a T -> 'b T
   val is_closed: 'a T -> bool
   val contains_tag: string -> 'a T -> bool
   val get_top_tag: 'a T -> string option
@@ -19,6 +20,7 @@ sig
   val recover_trace: 'a T -> 'a list
   val raw_segmentate: ('a -> string) -> (string * ('a -> bool) * ('a -> bool)) list 
     -> 'a list -> 'a T
+  val do_one_then_fold: bool -> 'b -> ('a -> 'b) -> ('a -> 'b -> 'b) -> 'a T -> 'b T
 end;
 
 
@@ -88,10 +90,22 @@ fun get_last Empty = raise Fail "get_last: Empty"
       if null sects then raise Fail ("empty block at" ^ tag)
       else get_last (Ops.last sects)
 
+(* ('a -> 'b -> 'b) -> 'b -> 'a Sections.T -> 'b Sections.T *)
+fun log_fold _ _ Empty = Empty
+  | log_fold (f: 'a -> 'b -> 'b) b (Single a) = Single (f a b)
+  | log_fold f b (Block (tag, closed, sects)) = 
+      if null sects then raise Fail ("fold: Empty block input")
+      else
+        let
+          val B = Single b;
+          fun recurse next prev = log_fold f (get_last prev) next;
+          val new_sects = Ops.log_fold recurse B sects;
+        in Block (tag, closed, new_sects) end;
+
 (* next_state: ('a -> 'b -> 'b) -> 'a Sections.T -> 'b -> 'b *)
 fun next_state _ Empty st = st
   | next_state next (Single a) st = next a st
-  | next_state next (Block (_, _, sects)) st = fold (next_state next) sects st;
+  | next_state next (Block (_, _, sects)) st = Basics.fold (next_state next) sects st;
 
 (* reverse: 'a Sections.T -> 'a Sections.T *)
 fun reverse (Block (tag, closed, sects)) = Block (tag, closed, rev (List.map reverse sects))
@@ -101,7 +115,7 @@ fun reverse (Block (tag, closed, sects)) = Block (tag, closed, rev (List.map rev
 fun recover_trace Empty = []
   | recover_trace (Single a) = [a]
   | recover_trace (Block (_, _, sects)) = 
-      fold (fn sect => fn sects => sects @ (recover_trace sect)) sects []
+      Basics.fold (fn sect => fn sects => sects @ (recover_trace sect)) sects []
 
 local
 
@@ -159,10 +173,29 @@ in
 fun raw_segmentate text_of separators xs =
   let
     fun iter x sect = add_new_section text_of (make_tag_separators x separators) sect;
-    val rev_result = fold iter xs Empty;
+    val rev_result = Basics.fold iter xs Empty;
   in reverse rev_result end;
 
 end;
 
+(* do_one_then_fold: bool -> 'b -> ('a -> 'b) -> ('a -> 'b -> 'b) -> 'a T -> 'b T *)
+fun do_one_then_fold _ _ _ _ Empty = Empty
+  | do_one_then_fold _ prev _ (g:'a -> 'b -> 'b) (Single a) = Single (g a prev)
+  | do_one_then_fold true _ f g (A as Block (tag, closed, sects)) = 
+      if null sects then raise Fail ("do_proof: Empty block input")
+      else
+        let
+          val b = f (get_first A);
+          fun recurse next prev = do_one_then_fold false (get_last prev) f g next;
+          val new_sects = Single b :: (Ops.log_fold recurse (Single b) (tl sects));
+        in Block (tag, closed, new_sects) end
+  | do_one_then_fold false prev f g (Block (tag, closed, sects)) = 
+      if null sects then raise Fail ("do_proof: Empty block input")
+      else
+        let
+          val B = Single prev;
+          fun recurse next prev = do_one_then_fold false (get_last prev) f g next;
+          val new_sects = Ops.log_fold recurse B sects;
+        in Block (tag, closed, new_sects) end;
 
 end;
