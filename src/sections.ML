@@ -90,7 +90,7 @@ fun get_last Empty = raise Fail "get_last: Empty"
       if null sects then raise Fail ("empty block at" ^ tag)
       else get_last (Ops.last sects)
 
-(* ('a -> 'b -> 'b) -> 'b -> 'a Sections.T -> 'b Sections.T *)
+(* log_fold: ('a -> 'b -> 'b) -> 'b -> 'a Sections.T -> 'b Sections.T *)
 fun log_fold _ _ Empty = Empty
   | log_fold (f: 'a -> 'b -> 'b) b (Single a) = Single (f a b)
   | log_fold f b (Block (tag, closed, sects)) = 
@@ -178,11 +178,16 @@ fun raw_segmentate text_of separators xs =
 
 end;
 
-(* do_one_then_fold: bool -> 'b -> ('a -> 'b) -> ('a -> 'b -> 'b) -> 'a T -> 'b T *)
+(* do_one_then_fold: bool -> 'b -> ('a -> 'b) -> ('a -> 'b -> 'b) -> 'a T -> 'b T 
+1st arg. is boolean indicating if we are at the topmost block
+2nd arg. is carry on value for the fold
+3rd arg. is initializing function for the first state
+4rth arg. is folding function
+*)
 fun do_one_then_fold _ _ _ _ Empty = Empty
   | do_one_then_fold _ prev _ (g:'a -> 'b -> 'b) (Single a) = Single (g a prev)
   | do_one_then_fold true _ f g (A as Block (tag, closed, sects)) = 
-      if null sects then raise Fail ("do_proof: Empty block input")
+      if null sects then raise Fail ("do_one_then_fold: Empty block input")
       else
         let
           val b = f (get_first A);
@@ -190,7 +195,7 @@ fun do_one_then_fold _ _ _ _ Empty = Empty
           val new_sects = Single b :: (Ops.log_fold recurse (Single b) (tl sects));
         in Block (tag, closed, new_sects) end
   | do_one_then_fold false prev f g (Block (tag, closed, sects)) = 
-      if null sects then raise Fail ("do_proof: Empty block input")
+      if null sects then raise Fail ("do_one_then_fold: Empty block input")
       else
         let
           val B = Single prev;

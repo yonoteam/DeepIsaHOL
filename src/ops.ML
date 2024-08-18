@@ -6,6 +6,7 @@ sig
   val last: 'a list -> 'a
   val insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list
   val intersp: 'a list -> 'a list -> 'a list
+  val enumerate_from: int -> 'a list -> (int * 'a) list
   val enumerate: 'a list -> (int * 'a) list
   val uniques: ''a list -> ''a list
   val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list
@@ -27,12 +28,12 @@ struct
 (** GENERIC OPERATIONS **)
 
 (* ith: int -> 'a list -> 'a *)
-fun ith i xs = (if i>=0 then nth xs i else nth (rev xs) (~i - 1))
+fun ith i xs = (if i>=0 then nth xs i else nth (rev xs) (~i - 1));
 
 (* last: 'a list -> 'a *)
 fun last [] = raise List.Empty
   | last [x] = x
-  | last (_ :: xs) = last xs
+  | last (_ :: xs) = last xs;
 
 (* insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list *)
 fun insert_if P x xs = if P x then x :: xs else xs;
@@ -41,12 +42,12 @@ fun insert_if P x xs = if P x then x :: xs else xs;
 fun intersp seps (x :: (xs as  _ :: _)) = (x :: seps) @ (intersp seps xs)
   | intersp _ xs = xs;
 
+(* enumerate_from: int -> 'a list -> (int * 'a) list *)
+fun enumerate_from _ [] = []
+  | enumerate_from n (y::ys) = (n, y) :: (enumerate_from (n+1) ys);
+
 (* enumerate: 'a list -> (int * 'a) list *)
-fun enumerate xs =
-  let
-    fun iter_enum _ [] = []
-      | iter_enum n (y::ys) = (n, y) :: (iter_enum (n+1) ys)
-  in iter_enum 0 xs end;
+fun enumerate xs = enumerate_from 0 xs;
 
 (* uniques: 'a list -> 'a list *)
 fun uniques xs = Library.distinct (op =) xs;

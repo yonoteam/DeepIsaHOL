@@ -8,11 +8,13 @@ sig
   val command_keywords: theory -> string list
   val grouped_commands: theory -> (string * string list) list
   val deps: theory -> thm list -> (Thm_Name.T * thm) list
-
-  (* CONTEXT INFORMATION *)
-  val new_thms: Toplevel.state -> Toplevel.state -> (string * thm list) list
   val tokens: Proof.context -> string -> Token.T list
   val methods: Proof.context -> string list
+
+  (* THEOREM INFORMATION *)
+  val new_thms: Toplevel.state -> Toplevel.state -> (string * thm list) list
+  val named_thms: (string * thm list) list -> (Thm_Name.T * thm) list
+  val name_of_thm: thm -> Thm_Name.T
   val passes_fact_check: Proof.context -> string -> bool
   val filtered_thms: (string * thm list -> bool) list 
     -> Proof.context -> (string * thm list) list
@@ -57,8 +59,15 @@ fun grouped_commands thy =
             else (kind, cmnds) :: add_command cmnd kcmndss;
   in fold add_command (Keyword.dest_commands kwrds) [] end;
 
+(* tokens: context -> string -> Token.T list *)
+(* TODO: check if at right level *)
+fun tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
 
-(** CONTEXT INFORMATION **)
+(* methods: Proof.context -> string list *)
+fun methods ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
+
+
+(** THEOREM INFORMATION **)
 
 (* new_thms: Toplevel.state -> Toplevel.state -> (string * thm list) list *)
 fun new_thms state1 state2 =
@@ -74,12 +83,16 @@ fun new_thms state1 state2 =
   in Facts.fold_static (Ops.insert_if is_new) facts2 [] end
   else [];
 
-(* tokens: context -> string -> Token.T list *)
-(* TODO: check if at right level *)
-fun tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
+(* named_thms: (string * thm list) list -> (Thm_Name.T * thm) list
+ assumes input names are correct for the input thms (~ Thm_Name.make_list) *)
+fun named_thms nthms =
+  let
+    fun distrib _ _ [] = []
+      | distrib name n (thm :: thms) = ((name, n), thm) :: distrib name (n+1) thms;
+  in maps (fn (name, thms) => distrib name 1 thms) nthms end;
 
-(* methods: Proof.context -> string list *)
-fun methods ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
+(* name_of_thm: thm -> Thm_Name.T (c.f. Thm.derivation_name) *)
+val name_of_thm = Thm.derivation_name
 
 (* get_all_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T} *)
 fun get_all_facts ctxt =
@@ -128,11 +141,11 @@ fun thms ctxt name =
     val thms = Attrib.eval_thms ctxt refs_toks
   in thms end;
 
-(* deps: theory -> thm list -> (string * thm) list *)
+(* deps: theory -> thm list -> (Thm_Name.T * thm) list *)
 fun deps thy thms =
   let
     val lookup = Global_Theory.lookup_thm_id thy;
-    fun thm_of_name thm_name = Global_Theory.get_thm_name thy (thm_name, \<^here>);
+    fun thm_of_name thm_name = Global_Theory.get_thm_name thy (thm_name, Position.none);
     fun make_name_thm id_name = (snd id_name, thm_of_name (snd id_name));
     fun deps (i, thm_node) res =
       if Inttab.defined res i then res

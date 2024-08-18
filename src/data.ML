@@ -76,21 +76,22 @@ fun grp_cmmnds_of e = #grp_cmmnds (rep_env e);
 
 fun get_env proof =
   if Sections.get_top_tag proof = SOME Sections.proof_tag then
-  let 
-    val (s0, a0) = Sections.get_first proof;
-    val (sN, aN) = Sections.get_last proof;
-    val s1' = Actions.apply a0 s0;
-    val sN' = Actions.apply aN sN;
-    val ctxtN' = Toplevel.context_of sN';
-    val thyN' = Toplevel.theory_of sN';
-    val diffs = Get.new_thms s0 sN';
-  in Env {s1 = s1',
-  context = ctxtN', 
-  methods = Get.methods (Toplevel.context_of s0), 
-  deps = Get.deps thyN' (maps snd diffs), 
-  kwds = Get.minor_keywords thyN',
-  grp_cmmnds = Get.grouped_commands thyN'} end
-  else raise Fail "Input not a proof block.";
+    let 
+      val (s0, a0) = Sections.get_first proof;
+      val (sN, aN) = Sections.get_last proof;
+      val s1' = Actions.apply a0 s0;
+      val sN' = Actions.apply aN sN;
+      val ctxtN' = Toplevel.context_of sN';
+      val thyN' = Toplevel.theory_of sN';
+      val diffs = Get.new_thms s0 sN';
+    in Env {s1 = s1',
+      context = ctxtN', 
+      methods = Get.methods (Toplevel.context_of s0), 
+      deps = Get.deps thyN' (maps snd diffs), 
+      kwds = Get.minor_keywords thyN',
+      grp_cmmnds = Get.grouped_commands thyN'} 
+    end
+  else raise Fail "Data.get_env: Input not a proof block.";
 
 (** DATA **)
 
@@ -121,13 +122,17 @@ fun keywords_of d = #keywords (rep_data d);
 fun methods_of d = #methods (rep_data d);
 fun facts_of d = #facts (rep_data d);
 
+
+(** EXTRACTION **)
+
 (* init: Data.env -> Toplevel.state * Actions.T -> Data.T *)
 fun init env (s, a) = 
   let
-    val s' = Actions.apply a s;
+    val s' = s1_of env;
     val _ = if Toplevel.is_proof s' 
-      then if Toplevel.is_theory s then () else raise Fail "Non-theory input for Data.init"
-      else raise Fail "Non-pre-proof input for Data.init";
+      then if Toplevel.is_theory s then () 
+        else raise Fail "Data.init: Non-theory input"
+      else raise Fail "Data.init: Non-pre-proof input";
     val prop = Proof.goal (Toplevel.proof_of s');
     val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
     val xs = Get.vars goal_hyps;
@@ -157,10 +162,7 @@ fun next env (incoming as (s, a)) old_data =
       val prop = Proof.goal (Toplevel.proof_of s);
       val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
       val new_goal = hd goal_hyps;
-      val new_proven = 
-        let
-          val proven = proven_of old_data;
-        in if member (op =) proven new_goal then proven else new_goal :: proven end
+      val new_proven = new_goal :: proven_of old_data;
       val xs = Get.vars goal_hyps;
       val cs = Get.consts goal_hyps;
       val Ts = Get.atomic_types goal_hyps;
@@ -183,10 +185,12 @@ fun next env (incoming as (s, a)) old_data =
       val prop = Proof.goal (Toplevel.proof_of s);
       val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
       val new_goal = hd goal_hyps;
-      val new_proven = 
+      val facts_to_add = 
         if Actions.on_kind (Seps.ends_proof cmmnds) (action_of old_data) 
-        then map Thm.prop_of (maps snd (Get.new_thms (s1_of env) s))
-        else proven_of old_data
+        then Get.new_thms (s1_of env) s
+        else []
+      val new_proven = (map Thm.prop_of (maps snd facts_to_add)) @ (proven_of old_data)
+      val new_facts = Get.named_thms (facts_to_add) @ (facts_of old_data)
       val xs = Get.vars goal_hyps;
       val cs = Get.consts goal_hyps;
       val Ts = Get.atomic_types goal_hyps;
@@ -202,7 +206,7 @@ fun next env (incoming as (s, a)) old_data =
       proven = new_proven,
       keywords = kwrds,
       methods = [],
-      facts = facts_of old_data}
+      facts = new_facts}
     end end;
 
 (* from: Toplevel.state -> Data.T *)
@@ -217,7 +221,6 @@ fun next env (incoming as (s, a)) old_data =
   in build (Toplevel.context_of s, []) s' (Actions.void) end;
  *)
 
-(** EXTRACTION **)
 (* Assumes the input section is well-formed and that it is a proof *) 
 (* find_deps: (Toplevel.state * Actions.T) Sections.T -> context * (Thm_Name.T * thm) list *)
 (* fun find_deps proof =
