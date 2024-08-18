@@ -28,9 +28,8 @@ sig
   (* Extraction *)
   val init: env -> Toplevel.state * Actions.T -> T
   val next: env -> (Toplevel.state * Actions.T) -> T -> T
-  (* val find_deps: (Toplevel.state * Actions.T) Sections.T -> Proof.context * (Thm_Name.T * thm) list
-  val extract: (Toplevel.state * Actions.T) Sections.T -> T list
-  val extract_proofs: (Toplevel.state * Actions.T) Sections.T -> T list list *)
+  val extract: (Toplevel.state * Actions.T) Sections.T -> T Sections.T
+  val extract_proofs: (Toplevel.state * Actions.T) Sections.T -> (T Sections.T) list
   
   (* Pretty printing *)
   val pretty_json_action: T -> Pretty.T
@@ -92,6 +91,7 @@ fun get_env proof =
       grp_cmmnds = Get.grouped_commands thyN'} 
     end
   else raise Fail "Data.get_env: Input not a proof block.";
+
 
 (** DATA **)
 
@@ -155,21 +155,24 @@ fun init env (s, a) =
   end;
 
 (* next: Data.env -> (Toplevel.state * Actions.T) -> Data.T *)
-fun next env (incoming as (s, a)) old_data = 
+fun next env (s_new, act_to_do) old_data = 
   let val cmmnds = grp_cmmnds_of env; in
-  if Actions.on_kind (Seps.is_apply_step cmmnds) a then
+  if Actions.on_kind (Seps.is_apply_step cmmnds) act_to_do then
     let
-      val prop = Proof.goal (Toplevel.proof_of s);
+      val prop = Proof.goal (Toplevel.proof_of s_new);
       val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
       val new_goal = hd goal_hyps;
-      val new_proven = new_goal :: proven_of old_data;
+      val new_proven = 
+        if Actions.on_kind (Seps.is_apply_step cmmnds) (action_of old_data)
+        then (goal_of old_data) :: proven_of old_data
+        else proven_of old_data;
       val xs = Get.vars goal_hyps;
       val cs = Get.consts goal_hyps;
       val Ts = Get.atomic_types goal_hyps;
       val kwrds = filter (Seps.is_apply_step cmmnds orf Pred.is "proof") (maps snd cmmnds);
     in Data {
-      state = s, 
-      action = a,
+      state = s_new, 
+      action = act_to_do,
       goal = new_goal,
       hyps = tl goal_hyps,
       consts = cs,
@@ -182,12 +185,12 @@ fun next env (incoming as (s, a)) old_data =
     end
   else 
     let
-      val prop = Proof.goal (Toplevel.proof_of s);
+      val prop = Proof.goal (Toplevel.proof_of s_new);
       val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
       val new_goal = hd goal_hyps;
       val facts_to_add = 
         if Actions.on_kind (Seps.ends_proof cmmnds) (action_of old_data) 
-        then Get.new_thms (s1_of env) s
+        then Get.new_thms (s1_of env) s_new
         else []
       val new_proven = (map Thm.prop_of (maps snd facts_to_add)) @ (proven_of old_data)
       val new_facts = Get.named_thms (facts_to_add) @ (facts_of old_data)
@@ -196,8 +199,8 @@ fun next env (incoming as (s, a)) old_data =
       val Ts = Get.atomic_types goal_hyps;
       val kwrds = filter (Seps.is_isar_step cmmnds) (maps snd cmmnds);
     in Data {
-      state = s, 
-      action = a,
+      state = s_new, 
+      action = act_to_do,
       goal = new_goal,
       hyps = tl goal_hyps,
       consts = cs,
@@ -209,9 +212,26 @@ fun next env (incoming as (s, a)) old_data =
       facts = new_facts}
     end end;
 
+(* extract: (Toplevel.state * Actions.T) Sections.T -> Data.T Sections.T *)
+fun extract proof =
+  let
+    val (s0, a0) = Sections.get_first proof;
+    val env = get_env proof;
+    val data0 = init env (s0, a0);
+  in Sections.do_one_then_fold true data0 (next env) proof end;
+
+(* extract_proofs: (Toplevel.state * Actions.T) Sections.T -> Data.T Sections.T list *)
+fun extract_proofs sections =
+  sections
+  |> Sections.get_topmost Sections.proof_tag
+  |> map extract;
+
+
 (* from: Toplevel.state -> Data.T *)
 (* fun from s = build (Toplevel.context_of s, []) s (Actions.void);
  *)
+
+
 (* apply: string -> Toplevel.state -> Data.T *)
 (* TODO: make it Data.T -> Data.T*)
 (* fun apply txt s = 
@@ -221,31 +241,7 @@ fun next env (incoming as (s, a)) old_data =
   in build (Toplevel.context_of s, []) s' (Actions.void) end;
  *)
 
-(* Assumes the input section is well-formed and that it is a proof *) 
-(* find_deps: (Toplevel.state * Actions.T) Sections.T -> context * (Thm_Name.T * thm) list *)
-(* fun find_deps proof =
-  let 
-    val (s0, _) = Sections.get_first proof;
-    val (sN, aN) = Sections.get_last proof;
-    val sN' = Actions.apply aN sN;
-    val thyN' = Toplevel.theory_of sN'
-    val diffs = Get.new_thms s0 sN'
-  in (Toplevel.context_of sN', Get.deps thyN' (maps snd diffs)) end; *)
 
-(* Assumes the input section is well-formed and that it is a proof *) 
-(* extract: (Toplevel.state * Actions.T) Sections.T -> data list *)
-(* fun extract proof =
-  let
-    val env = get_env proof;
-    val raw_pairs = tl (Sections.recover_trace proof);
-    fun make_data (s, a) = build env s a;
-  in map make_data raw_pairs end; *)
-
-(* extract_proofs: (Toplevel.state * Actions.T) Sections.T -> data list list *)
-(* fun extract_proofs sections =
-  let
-    val proofs = Sections.get_topmost Sections.proof_tag sections;
-  in map (fn proof => extract proof) proofs end; *)
 
 
 (** PRETTY PRINTING **)
@@ -312,12 +308,12 @@ fun pretty_vars ctxt vars = pretty_alist ctxt
 fun pretty_types ctxt typs = pretty_alist ctxt
   Syntax.pretty_sort Syntax.pretty_typ "Sort" (alist_by types_info typs);
 
-(* pretty_methods: unit -> string list -> Pretty.T list *)
-fun pretty_methods () = (map (Print.pretty_json_elem "name" o Pretty.quote o Pretty.str));
+(* pretty_keywords: unit -> string list -> Pretty.T list *)
+fun pretty_keywords () = (map (Print.pretty_json_elem "name" o Pretty.quote o Pretty.str));
 
 (* pretty_hyps: Proof.context -> string list -> Pretty.T list *)
 fun pretty_hyps ctxt 
-  = (map (Print.pretty_json_elem "name" o Pretty.quote o Syntax.pretty_term ctxt));
+  = (map (Print.pretty_json_elem "term" o Pretty.quote o Syntax.pretty_term ctxt));
 
 (* pretty_fact: Proof.context -> (string * int) * thm -> Pretty.T list *)
 fun pretty_fact ctxt ((name, i),thm) = [
@@ -357,6 +353,9 @@ fun pretty_json_goal ctxt data
 fun pretty_json_hyps debug lvl ctxt 
   = pretty_list hyps_of pretty_hyps debug lvl ctxt "hyps";
 
+fun pretty_json_proven debug lvl ctxt 
+  = pretty_list proven_of pretty_hyps debug lvl ctxt "proven";
+
 fun pretty_json_consts debug lvl ctxt 
   = pretty_list consts_of pretty_consts debug lvl ctxt "constants";
 
@@ -366,8 +365,11 @@ fun pretty_json_vars debug lvl ctxt
 fun pretty_json_types debug lvl ctxt 
   = pretty_list types_of pretty_types debug lvl ctxt "type variables";
 
+fun pretty_json_keywords debug lvl 
+  = pretty_list keywords_of pretty_keywords debug lvl () "keywords";
+
 fun pretty_json_methods debug lvl 
-  = pretty_list methods_of pretty_methods debug lvl () "methods";
+  = pretty_list methods_of pretty_keywords debug lvl () "methods";
 
 fun pretty_json_facts env debug lvl data 
   = pretty_facts (ctxt_of env) debug lvl (facts_of data);
@@ -376,19 +378,25 @@ fun pretty_json_facts env debug lvl data
 fun pretty_json env debug data = 
   let
     val state = state_of data;
-    val ctxt = Proof.context_of (Toplevel.proof_of state)
+    val ctxt0 = if Toplevel.is_proof state 
+      then Proof.context_of (Toplevel.proof_of state) 
+      else ctxt_of env
+    val ctxt = 
+      ctxt0
       |> Config.put show_sorts false
       |> Config.put show_types false 
     val goal = pretty_json_goal ctxt data;
     val hs = pretty_json_hyps debug 4 ctxt data;
+    val seen = pretty_json_proven debug 4 ctxt data;
     val cs = pretty_json_consts debug 4 ctxt data;
     val vs = pretty_json_vars debug 4 ctxt data;
     val Ts = pretty_json_types debug 4 ctxt data;
+    val ks = pretty_json_keywords debug 4 data;
     val ms = pretty_json_methods debug 4 data;
     val lems = pretty_json_facts env debug 4 data;
     val act = pretty_json_action data;
     val pretty_state = Print.pretty_json_attribs debug "{" "}" 2 
-      [goal, hs, vs, cs, Ts, ms, lems, act]
+      [goal, hs, seen, vs, cs, Ts, ks, ms, lems, act]
   in Print.pretty_json_attribs debug "{" "}" 0 [Print.pretty_json_elem "state" pretty_state] end;
 
 (* pretty_apply: string -> Toplevel.state -> Pretty.T *)

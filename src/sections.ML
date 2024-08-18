@@ -20,7 +20,7 @@ sig
   val recover_trace: 'a T -> 'a list
   val raw_segmentate: ('a -> string) -> (string * ('a -> bool) * ('a -> bool)) list 
     -> 'a list -> 'a T
-  val do_one_then_fold: bool -> 'b -> ('a -> 'b) -> ('a -> 'b -> 'b) -> 'a T -> 'b T
+  val do_one_then_fold: bool -> 'b -> ('a -> 'b -> 'b) -> 'a T -> 'b T 
 end;
 
 
@@ -178,28 +178,26 @@ fun raw_segmentate text_of separators xs =
 
 end;
 
-(* do_one_then_fold: bool -> 'b -> ('a -> 'b) -> ('a -> 'b -> 'b) -> 'a T -> 'b T 
+(* do_one_then_fold: bool -> 'b -> ('a -> 'b -> 'b) -> 'a Sections.T -> 'b Sections.T 
 1st arg. is boolean indicating if we are at the topmost block
-2nd arg. is carry on value for the fold
-3rd arg. is initializing function for the first state
-4rth arg. is folding function
+2nd arg. is carry-on value for the fold
+3rd arg. is folding function
 *)
-fun do_one_then_fold _ _ _ _ Empty = Empty
-  | do_one_then_fold _ prev _ (g:'a -> 'b -> 'b) (Single a) = Single (g a prev)
-  | do_one_then_fold true _ f g (A as Block (tag, closed, sects)) = 
+fun do_one_then_fold _ _ _ Empty = Empty
+  | do_one_then_fold _ carry (f:'a -> 'b -> 'b) (Single a) = Single (f a carry)
+  | do_one_then_fold true carry f (Block (tag, closed, sects)) = 
       if null sects then raise Fail ("do_one_then_fold: Empty block input")
       else
         let
-          val b = f (get_first A);
-          fun recurse next prev = do_one_then_fold false (get_last prev) f g next;
-          val new_sects = Single b :: (Ops.log_fold recurse (Single b) (tl sects));
+          fun recurse next prev = do_one_then_fold false (get_last prev) f next;
+          val new_sects = Single carry :: (Ops.log_fold recurse (Single carry) (tl sects));
         in Block (tag, closed, new_sects) end
-  | do_one_then_fold false prev f g (Block (tag, closed, sects)) = 
+  | do_one_then_fold false carry f (Block (tag, closed, sects)) = 
       if null sects then raise Fail ("do_one_then_fold: Empty block input")
       else
         let
-          val B = Single prev;
-          fun recurse next prev = do_one_then_fold false (get_last prev) f g next;
+          val B = Single carry;
+          fun recurse next prev = do_one_then_fold false (get_last prev) f next;
           val new_sects = Ops.log_fold recurse B sects;
         in Block (tag, closed, new_sects) end;
 
