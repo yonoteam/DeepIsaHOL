@@ -6,7 +6,6 @@ sig
   val ctxt_of: env -> Proof.context
   val mthds_of: env -> string list
   val deps_of: env -> (Thm_Name.T * thm) list
-  val kwds_of: env -> string list
   val grp_cmmnds_of: env -> (string * string list) list
   val get_env: (Toplevel.state * Actions.T) Sections.T -> env
 
@@ -22,15 +21,15 @@ sig
   val keywords_of: T -> string list
   val methods_of: T -> string list
   val facts_of: T -> (Thm_Name.T * thm) list
-  (* val from: Toplevel.state -> T *)
-  (* val apply: string -> Toplevel.state -> T *)
 
   (* Extraction *)
   val init: env -> Toplevel.state * Actions.T -> T
   val next: env -> (Toplevel.state * Actions.T) -> T -> T
   val extract: (Toplevel.state * Actions.T) Sections.T -> T Sections.T
   val extract_proofs: (Toplevel.state * Actions.T) Sections.T -> (T Sections.T) list
-  
+  val from: Toplevel.state -> T
+  val apply: string -> T -> T
+
   (* Pretty printing *)
   val pretty_json_action: T -> Pretty.T
   val pretty_json_goal: Proof.context -> T -> Pretty.T
@@ -38,17 +37,13 @@ sig
   val pretty_json_consts: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_vars: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_types: bool -> int -> Proof.context -> T -> Pretty.T
-  val pretty_json_facts: env -> bool -> int -> T -> Pretty.T
+  val pretty_json_facts: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_methods: bool -> int -> T -> Pretty.T
-  val pretty_json: env -> bool -> T -> Pretty.T
-(*   val pretty_apply: string -> Toplevel.state -> Pretty.T
- *)
+  val pretty_json: bool -> Proof.context -> T -> Pretty.T
 
   (* IO *)
-(*   val print_out: Toplevel.state -> unit
- *)
-  (* val write_proof: string -> int -> T Sections.T -> unit
-  val write_proofs: string -> (T Sections.T) list -> unit *)
+  val write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit
+  val write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit
 end;
 
 
@@ -62,7 +57,6 @@ datatype env = Env of
   context: Proof.context, 
   methods: string list, 
   deps: (Thm_Name.T * thm) list, 
-  kwds: string list,
   grp_cmmnds: (string * string list) list}
 
 fun rep_env (Env e) = e;
@@ -70,7 +64,6 @@ fun s1_of e = #s1 (rep_env e);
 fun ctxt_of e = #context (rep_env e);
 fun mthds_of e = #methods (rep_env e);
 fun deps_of e = #deps (rep_env e);
-fun kwds_of e = #kwds (rep_env e);
 fun grp_cmmnds_of e = #grp_cmmnds (rep_env e);
 
 fun get_env proof =
@@ -87,7 +80,6 @@ fun get_env proof =
       context = ctxtN', 
       methods = Get.methods (Toplevel.context_of s0), 
       deps = Get.deps thyN' (maps snd diffs), 
-      kwds = Get.minor_keywords thyN',
       grp_cmmnds = Get.grouped_commands thyN'} 
     end
   else raise Fail "Data.get_env: Input not a proof block.";
@@ -123,7 +115,7 @@ fun methods_of d = #methods (rep_data d);
 fun facts_of d = #facts (rep_data d);
 
 
-(** EXTRACTION **)
+(** FILE EXTRACTION **)
 
 (* init: Data.env -> Toplevel.state * Actions.T -> Data.T *)
 fun init env (s, a) = 
@@ -227,19 +219,93 @@ fun extract_proofs sections =
   |> map extract;
 
 
+(** INTERACTIVE EXTRACTION **)
+
 (* from: Toplevel.state -> Data.T *)
-(* fun from s = build (Toplevel.context_of s, []) s (Actions.void);
- *)
-
-
-(* apply: string -> Toplevel.state -> Data.T *)
-(* TODO: make it Data.T -> Data.T*)
-(* fun apply txt s = 
+fun from s =
   let
+    val prop = Proof.goal (Toplevel.proof_of s);
+    val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
+    val obj = hd goal_hyps;
+    val xs = Get.vars goal_hyps;
+    val cs = Get.consts goal_hyps;
+    val Ts = Get.atomic_types goal_hyps;
+    val thy = Toplevel.theory_of s;
+    val ctxt = Toplevel.context_of s;
+    val cmmnds = maps snd (Get.grouped_commands thy);
+    val ms = Get.methods ctxt
+    val sought = [] (* Temp.query_thms ctxt 20 obj *);
+  in Data {
+    state = s, 
+    action = Actions.void,
+    goal = obj,
+    hyps = tl goal_hyps,
+    consts = cs,
+    vars = xs,
+    types = Ts,
+    proven = [],
+    keywords = cmmnds,
+    methods = ms,
+    facts = sought}
+  end;
+
+(* apply: string -> Data.T -> Data.T *)
+fun apply txt old_data = 
+  let 
+    val s = state_of old_data;
     val a = hd (Actions.make (Toplevel.theory_of s) txt);
     val s' = Actions.apply a s;
-  in build (Toplevel.context_of s, []) s' (Actions.void) end;
- *)
+    val cmmnds = Get.grouped_commands (Toplevel.theory_of s');
+    val prop = Proof.goal (Toplevel.proof_of s');
+    val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
+    val new_goal = hd goal_hyps;
+    val xs = Get.vars goal_hyps;
+    val cs = Get.consts goal_hyps;
+    val Ts = Get.atomic_types goal_hyps;
+  in
+  if Actions.on_kind ((Seps.is_apply_step cmmnds) andf Pred.neg (Seps.ends_proof cmmnds)) a 
+  then
+    let      
+      val new_proven = (goal_of old_data) :: proven_of old_data;
+      val kwrds = filter (Seps.is_apply_step cmmnds orf Pred.is "proof") (maps snd cmmnds);
+      val ctxt = Toplevel.context_of s';
+      val ms = Get.methods ctxt
+    in Data {
+      state = s', 
+      action = a,
+      goal = new_goal,
+      hyps = tl goal_hyps,
+      consts = cs,
+      vars = xs,
+      types = Ts,
+      proven = new_proven,
+      keywords = kwrds,
+      methods = ms,
+      facts = facts_of old_data}
+    end
+  else 
+    let
+      val facts_to_add = 
+        if Actions.on_kind (Seps.ends_proof cmmnds) a 
+        then Get.new_thms s s'
+        else []
+      val new_proven = (map Thm.prop_of (maps snd facts_to_add)) @ (proven_of old_data)
+      val new_facts = Get.named_thms (facts_to_add) @ (facts_of old_data);
+      val kwrds = filter (Seps.is_isar_step cmmnds) (maps snd cmmnds);
+    in Data {
+      state = s', 
+      action = a,
+      goal = new_goal,
+      hyps = tl goal_hyps,
+      consts = cs,
+      vars = xs,
+      types = Ts,
+      proven = new_proven,
+      keywords = kwrds,
+      methods = [],
+      facts = new_facts}
+    end end;
+
 
 
 
@@ -371,18 +437,18 @@ fun pretty_json_keywords debug lvl
 fun pretty_json_methods debug lvl 
   = pretty_list methods_of pretty_keywords debug lvl () "methods";
 
-fun pretty_json_facts env debug lvl data 
-  = pretty_facts (ctxt_of env) debug lvl (facts_of data);
+fun pretty_json_facts debug lvl ctxt data 
+  = pretty_facts ctxt debug lvl (facts_of data);
 
 (* pretty_json: bool -> data -> Pretty.T *)
-fun pretty_json env debug data = 
+fun pretty_json debug ctxt0 data= 
   let
     val state = state_of data;
-    val ctxt0 = if Toplevel.is_proof state 
+    val ctxt0' = if Toplevel.is_proof state 
       then Proof.context_of (Toplevel.proof_of state) 
-      else ctxt_of env
+      else ctxt0
     val ctxt = 
-      ctxt0
+      ctxt0'
       |> Config.put show_sorts false
       |> Config.put show_types false 
     val goal = pretty_json_goal ctxt data;
@@ -393,37 +459,42 @@ fun pretty_json env debug data =
     val Ts = pretty_json_types debug 4 ctxt data;
     val ks = pretty_json_keywords debug 4 data;
     val ms = pretty_json_methods debug 4 data;
-    val lems = pretty_json_facts env debug 4 data;
+    val lems = pretty_json_facts debug 4 ctxt data;
     val act = pretty_json_action data;
     val pretty_state = Print.pretty_json_attribs debug "{" "}" 2 
       [goal, hs, seen, vs, cs, Ts, ks, ms, lems, act]
   in Print.pretty_json_attribs debug "{" "}" 0 [Print.pretty_json_elem "state" pretty_state] end;
 
-(* pretty_apply: string -> Toplevel.state -> Pretty.T *)
-(* fun pretty_apply txt s = pretty_json true (apply txt s)
- *)
-(* print_out: Toplevel.state -> unit *)
-(* fun print_out s = Print.pretty_out (pretty_json true (from s));
- *)
+
+val _ = ML_system_pp (fn _ => fn _ 
+  => Pretty.to_polyml o pretty_json true (Context.the_local_context ()))
+
 (* string -> int -> Data.T list -> unit *)
 (* TODO: Make IO operations safer to use. *)
-(* fun write_proof env dir i proof =
+fun write_proof dir i proof =
   let
     val name = "proof" ^ Value.print_int i ^ ".json";
     val fname = (dir ^ name);
-    val env = get_env proof;
-    val trace = Sections.recover_trace proof;
+    val env = get_env proof; 
+    val start = init env (Sections.get_first proof);
+    val proof_data = Sections.do_one_then_fold true start (next env) proof
+    val trace = Sections.recover_trace proof_data;
     val _ = Ops.create_file false dir name "";
-    val _ = map (Print.write_to (Print.FILE fname) o Print.string_of_pretty o pretty_json env true) trace;
-  in () end; *)
+    fun write data =
+      data
+      |> pretty_json true (ctxt_of env)
+      |> Print.string_of_pretty
+      |> Print.write_to (Print.FILE fname)
+    val _ = map write trace;
+  in () end;
 
-(* string -> Data.T list list -> unit *)
-(* fun write_proofs dir proofs =
+(* string -> Data.T Sections.T list -> unit *)
+fun write_proofs dir proofs =
   let
     fun writting _ [] = []
       | writting n (p :: ps) = write_proof dir (n+1) p :: writting (n+1) ps
     val _ = writting 0 proofs
-  in () end; *)
+  in () end;
 
 end
 

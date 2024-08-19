@@ -81,7 +81,7 @@ fun new_thms state1 state2 =
         SOME _ => false 
       | NONE => true)
   in Facts.fold_static (Ops.insert_if is_new) facts2 [] end
-  else [];
+  else raise Fail "new_thms: at top level";
 
 (* named_thms: (string * thm list) list -> (Thm_Name.T * thm) list
  assumes input names are correct for the input thms (~ Thm_Name.make_list) *)
