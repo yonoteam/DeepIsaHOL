@@ -12,7 +12,10 @@ sig
   val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list
   val chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
     -> 'a list -> (string * 'a list) list
-  val split_by: string -> string -> string list
+  val bifurcate_at: ''a -> ''a list -> ''a list * ''a * ''a list
+  val segmentate_by: ''a list -> ''a list -> ''a list list
+  val split_at: string -> string -> string list
+  val replace_all: string -> string -> string -> string
 
   (* IO operations *)
   val file_exists: string -> bool
@@ -85,8 +88,56 @@ fun chop_and_tag tag get_text is_start is_end xs =
      val _ = if not (null (fst rev_result)) then raise Fail ("unbalanced" ^ tag) else ();
    in rev (map (fn (name, chunk) => (name, rev chunk)) (snd rev_result)) end;
 
-(* split_by: string -> string -> string list *)
-fun split_by split_str target_str = space_explode split_str target_str;
+(* bifurcate_at: ''a -> ''a list -> ''a list * ''a * ''a list *)
+fun bifurcate_at a [] = ([], a, [])
+  | bifurcate_at a (c :: cs) = 
+      if a = c then ([], a, cs)
+      else let 
+        val (xs, _, ys) = bifurcate_at a cs
+      in (c::xs, a, ys) end;
+
+(* segmentate_by: ''a list -> ''a list -> ''a list list *)
+fun segmentate_by [] ys = [ys]
+  | segmentate_by _ [] = [] 
+  | segmentate_by (x :: xs) (y :: ys) =
+     if length xs > length ys then [y :: ys] else
+     let 
+       val (not_x, _, after_x) = bifurcate_at x (y :: ys);
+       (* out = (is_prefix, largest_coinc, rest_of_c_cs) *)
+       fun largest_coincide [] cs = (true, [], cs)
+         | largest_coincide _ [] = (false, [], [])
+         | largest_coincide (d::ds) (c::cs) =
+             if not (d = c) then (false, [], c::cs)
+             else 
+               let
+                 val (matched, ds', cs') = largest_coincide ds cs;
+                 val result = if matched 
+                   then (true, d::ds', cs')
+                   else (false, d::ds', cs')
+               in result end;
+       val (matched, coincidences, rest) = if null after_x 
+         then (false, [], []) 
+         else largest_coincide (x::xs) (x::after_x);
+       val result = if matched 
+         then if null not_x 
+           then [coincidences] @ segmentate_by (x::xs) rest 
+           else [not_x, coincidences] @ segmentate_by (x::xs) rest 
+         else let val xss = segmentate_by (x::xs) rest; in 
+           if null xss then [not_x @ coincidences] 
+           else [not_x @ coincidences @ hd xss] @ (tl xss) end;
+     in result end;
+
+(* split_at: string -> string -> string list *)
+fun split_at split_str target_str = space_explode split_str target_str;
+
+(* replace_all: string -> string -> string -> string *)
+fun replace_all str1 str2 txt =
+  let
+    val chars = String.explode txt;
+    val cs1 = String.explode str1;
+    val cs2 = String.explode str2;
+    fun replace subcs = if subcs = cs1 then cs2 else subcs;
+  in String.concat (map (String.implode o replace) (segmentate_by cs1 chars)) end;
 
 
 (** IO OPERATIONS **)

@@ -16,6 +16,8 @@ sig
   val split: ('a -> bool) -> 'a list -> 'a list list
   val positions: ('a -> bool) -> 'a list -> int list
   val take_until: ('a -> bool) -> 'a list -> 'a list
+  val bifurcate_ifL: ('a -> bool) -> 'a list -> 'a list * 'a list
+  val split_whenL: ('a -> bool) -> 'a list -> 'a list list
 end;
 
 
@@ -79,5 +81,19 @@ fun positions P xs =
 (* take_until: ('a -> bool) -> 'a list -> 'a list *)
 fun take_until _ [] = []
   | take_until P (x :: xs) = if P x then [x] else x :: (take_until P xs)
+
+(* bifurcate_ifL: ('a -> bool) -> 'a list -> 'a list * 'a list *)
+fun bifurcate_ifL _ [] = ([], [])
+  | bifurcate_ifL P (c :: cs) = 
+      if P c then ([c],cs)
+      else let 
+        val (xs, ys) = bifurcate_ifL P cs
+      in (c::xs, ys) end;
+
+(* splitL: ('a -> bool) -> 'a list -> 'a list list *)
+fun split_whenL _ [] = []
+  | split_whenL P (c :: cs) = 
+      bifurcate_ifL P (c :: cs) 
+      |> (fn (sub1, sub2) => sub1 :: (split_whenL P sub2));
 
 end;

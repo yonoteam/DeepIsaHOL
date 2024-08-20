@@ -121,9 +121,7 @@ fun facts_of d = #facts (rep_data d);
 fun init env (s, a) = 
   let
     val s' = s1_of env;
-    val _ = if Toplevel.is_proof s' 
-      then if Toplevel.is_theory s then () 
-        else raise Fail "Data.init: Non-theory input"
+    val _ = if Toplevel.is_proof s' then () 
       else raise Fail "Data.init: Non-pre-proof input";
     val prop = Proof.goal (Toplevel.proof_of s');
     val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
@@ -394,9 +392,10 @@ fun pretty_fact ctxt ((name, i),thm) = [
 (* pretty_facts: Proof.context -> bool -> int -> ((string * int) * thm) list -> Pretty.T *)
 fun pretty_facts ctxt debug lvl named_thms =
   let
-    val prts = map (fn fact => 
-      Print.pretty_json_elem "thm"
-        (Print.pretty_json_attribs false "{" "}" (~2) (pretty_fact ctxt fact))) named_thms
+    fun jsonify fact = Pretty.enclose "{" "}"
+      [Print.pretty_json_elem "thm"
+        (Print.pretty_json_attribs false "{" "}" (~2) (pretty_fact ctxt fact))]
+    val prts = map jsonify named_thms
   in Print.pretty_json_elem "thms" (Print.pretty_json_attribs debug "[" "]" lvl prts) end;
 
 (* pretty_list: (Data.T -> 'a) -> ('b -> 'a -> Pretty.T list) 
@@ -473,19 +472,38 @@ val _ = ML_system_pp (fn _ => fn _
 (* TODO: Make IO operations safer to use. *)
 fun write_proof dir i proof =
   let
-    val name = "proof" ^ Value.print_int i ^ ".json";
-    val fname = (dir ^ name);
-    val env = get_env proof; 
+    val _ = if Ops.is_directory dir then () else OS.FileSys.mkDir dir
+      handle OS.SysErr txt => (raise Fail ("write_proof: directory is too nested: " ^ (#1 txt)));
+    val env = get_env proof;
+    val thy_name = Context.theory_name {long=false} (Toplevel.theory_of (s1_of env))
+    val _ = writeln (dir ^ thy_name ^ "/");
+    val _ = 
+      let 
+        val dir' = dir ^ thy_name ^ "/" 
+      in if Ops.is_directory dir' then () else OS.FileSys.mkDir dir'
+      handle OS.SysErr txt => (raise Fail ("write_proof: directory is too nested: " ^ (#1 txt))) end;
+    val dir_name = dir ^ thy_name ^ "/" ^ "proof" ^ Value.print_int i;
+    fun fname j = ("step" ^ Value.print_int j ^ ".json");
+    val _ = writeln (OS.Path.joinDirFile {dir=dir_name, file=fname 0});
+
     val start = init env (Sections.get_first proof);
     val proof_data = Sections.do_one_then_fold true start (next env) proof
     val trace = Sections.recover_trace proof_data;
-    val _ = Ops.create_file false dir name "";
-    fun write data =
-      data
-      |> pretty_json true (ctxt_of env)
-      |> Print.string_of_pretty
-      |> Print.write_to (Print.FILE fname)
-    val _ = map write trace;
+    
+    fun write_next data j =
+      let
+        val _ = writeln ("Reached step " ^ Value.print_int j);
+        val _ = Ops.create_file false dir_name (fname j) "";
+        val _ = writeln ("Created file in step " ^ Value.print_int j);
+        val _ =
+          data
+          |> pretty_json true (ctxt_of env)
+          |> Print.string_of_pretty
+          |> Print.write_to (Print.FILE (OS.Path.joinDirFile {dir=dir_name, file=fname j}))
+      in j+1 end;
+    val _ = if null trace 
+      then raise Fail "Data.write_proof: empty proof" 
+      else fold write_next (tl trace) (write_next (hd trace) 0)
   in () end;
 
 (* string -> Data.T Sections.T list -> unit *)
