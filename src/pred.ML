@@ -13,6 +13,7 @@ sig
   val starts_with: string -> string -> bool
   val contains: string -> string -> bool
   val is_dynamic: Proof.context -> string * thm list -> bool
+  val find_first: ('a -> bool) -> 'a list -> 'a option
   val split: ('a -> bool) -> 'a list -> 'a list list
   val positions: ('a -> bool) -> 'a list -> int list
   val take_until: ('a -> bool) -> 'a list -> 'a list
@@ -60,6 +61,10 @@ fun is_dynamic ctxt (name:string, _: thm list)
 
 
 (** LIST OPERATORS **)
+
+(* find_first: ('a -> bool) -> 'a list -> 'a option *)
+fun find_first _ [] = NONE
+  | find_first P (x::xs) = if P x then SOME x else find_first P xs;
 
 (* split: ('a -> bool) -> 'a list -> 'a list list *)
 fun split _ [] = []

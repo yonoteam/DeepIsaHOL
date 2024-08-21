@@ -41,9 +41,10 @@ sig
   val pretty_json_methods: bool -> int -> T -> Pretty.T
   val pretty_json: bool -> Proof.context -> T -> Pretty.T
 
-  (* IO *)
+  (* Writing *)
   val write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit
   val write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit
+  val retrieve_to: theory -> Toplevel.state -> string -> string -> unit
 end;
 
 
@@ -305,9 +306,6 @@ fun apply txt old_data =
     end end;
 
 
-
-
-
 (** PRETTY PRINTING **)
 
 local
@@ -409,38 +407,47 @@ fun pretty_list retriever prettyfier debug lvl ctxt name (data: T) =
 in 
 
 (* bool -> int -> _ -> Data.T -> Pretty.T *)
-fun pretty_json_action data 
-  = Print.pretty_json_elem "action" (Pretty.quote (Pretty.str (Actions.text_of (action_of data))));
+fun pretty_json_action data = 
+  let
+    val backslash = "\\";
+    val quote_mark = "\"";
+    val new_line = "\n";
+    val to_write = 
+      action_of data
+      |> Actions.text_of
+      |> Ops.replace_all quote_mark (backslash ^ quote_mark)
+      |> Ops.replace_all new_line " "
+  in Print.pretty_json_elem "action" (Pretty.quote (Pretty.str to_write)) end;
 
-fun pretty_json_goal ctxt data 
-  = Print.pretty_json_elem "term" (Pretty.quote (Syntax.pretty_term ctxt (goal_of data)));
+fun pretty_json_goal ctxt data = 
+  Print.pretty_json_elem "term" (Pretty.quote (Syntax.pretty_term ctxt (goal_of data)));
 
-fun pretty_json_hyps debug lvl ctxt 
-  = pretty_list hyps_of pretty_hyps debug lvl ctxt "hyps";
+fun pretty_json_hyps debug lvl ctxt = 
+  pretty_list hyps_of pretty_hyps debug lvl ctxt "hyps";
 
-fun pretty_json_proven debug lvl ctxt 
-  = pretty_list proven_of pretty_hyps debug lvl ctxt "proven";
+fun pretty_json_proven debug lvl ctxt = 
+  pretty_list proven_of pretty_hyps debug lvl ctxt "proven";
 
-fun pretty_json_consts debug lvl ctxt 
-  = pretty_list consts_of pretty_consts debug lvl ctxt "constants";
+fun pretty_json_consts debug lvl ctxt = 
+  pretty_list consts_of pretty_consts debug lvl ctxt "constants";
 
-fun pretty_json_vars debug lvl ctxt 
-  = pretty_list vars_of pretty_vars debug lvl ctxt "variables";
+fun pretty_json_vars debug lvl ctxt = 
+  pretty_list vars_of pretty_vars debug lvl ctxt "variables";
 
-fun pretty_json_types debug lvl ctxt 
-  = pretty_list types_of pretty_types debug lvl ctxt "type variables";
+fun pretty_json_types debug lvl ctxt = 
+  pretty_list types_of pretty_types debug lvl ctxt "type variables";
 
-fun pretty_json_keywords debug lvl 
-  = pretty_list keywords_of pretty_keywords debug lvl () "keywords";
+fun pretty_json_keywords debug lvl = 
+  pretty_list keywords_of pretty_keywords debug lvl () "keywords";
 
-fun pretty_json_methods debug lvl 
-  = pretty_list methods_of pretty_keywords debug lvl () "methods";
+fun pretty_json_methods debug lvl = 
+  pretty_list methods_of pretty_keywords debug lvl () "methods";
 
-fun pretty_json_facts debug lvl ctxt data 
-  = pretty_facts ctxt debug lvl (facts_of data);
+fun pretty_json_facts debug lvl ctxt data = 
+  pretty_facts ctxt debug lvl (facts_of data);
 
 (* pretty_json: bool -> data -> Pretty.T *)
-fun pretty_json debug ctxt0 data= 
+fun pretty_json debug ctxt0 data = 
   let
     val state = state_of data;
     val ctxt0' = if Toplevel.is_proof state 
@@ -464,6 +471,10 @@ fun pretty_json debug ctxt0 data=
       [goal, hs, seen, vs, cs, Ts, ks, ms, lems, act]
   in Print.pretty_json_attribs debug "{" "}" 0 [Print.pretty_json_elem "state" pretty_state] end;
 
+end;
+
+
+(** WRITING OPERATIONS **)
 
 val _ = ML_system_pp (fn _ => fn _ 
   => Pretty.to_polyml o pretty_json true (Context.the_local_context ()))
@@ -514,6 +525,16 @@ fun write_proofs dir proofs =
     val _ = writting 0 proofs
   in () end;
 
-end
+(* retrieve_to: theory -> Toplevel.state -> string -> string -> unit *)
+(* TODO: Replace by more robust approach: no thy, and no state *)
+fun retrieve_to thy state thy_file dir =
+  let
+    val proofs =
+      thy_file
+      |> Ops.read_file
+      |> Actions.make' thy
+      |> Actions.segmentate state (Actions.theory_separators thy)
+      |> Sections.get_topmost Sections.proof_tag;
+  in write_proofs dir proofs end;
 
 end;

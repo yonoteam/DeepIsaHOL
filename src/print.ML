@@ -43,6 +43,7 @@ fun term_string ctxt format t =
   end;
 
 (* mode -> string -> unit *)
+(* TODO: add {force=forced} parameter? *)
 fun write_to mode str =
   let 
     val _ = (case mode of
