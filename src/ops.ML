@@ -20,7 +20,8 @@ sig
   (* IO operations *)
   val file_exists: string -> bool
   val is_directory: string -> bool
-  val create_file: bool -> string -> string -> string -> unit
+  val create_directory: {force: bool} -> string -> unit
+  val create_file: {force: bool} -> string -> string -> string -> unit
   val read_file: string -> string
 end;
 
@@ -142,21 +143,44 @@ fun replace_all str1 str2 txt =
 
 (** IO OPERATIONS **)
 
-(* string -> bool *)
+(* file_exists: string -> bool *)
 fun file_exists file_dir 
   = OS.FileSys.access (file_dir, [OS.FileSys.A_READ]) handle OS.SysErr _ => false;
 
-(* string -> bool *)
+(* is_directory: string -> bool *)
 fun is_directory dir 
   = OS.FileSys.isDir dir handle OS.SysErr _ => false;
 
-(* bool -> string -> string -> string -> unit *)
-fun create_file force dir name content =
+(* create_directory: {force: bool} -> string -> unit *)
+fun create_directory {force=forced} dir =
+  if is_directory dir then ()
+  else let
+    val dirs = map (String.implode) (Pred.split_whenL (fn c => str c = "/") (String.explode dir));
+    val _ = if null dirs orelse not (hd dirs = "/") 
+      then raise Fail "Ops.create_directory: only accepts absolute paths starting with \"/\"" 
+      else ()
+    fun make dir_str = OS.FileSys.mkDir dir_str
+      handle OS.SysErr (cause, err) => (
+        raise (Fail ("Ops.create_directory: could not create directory:\n")); 
+        Exn.reraise (OS.SysErr (cause, err))
+      );
+    fun iter str dir_so_far = 
+      let
+        val new_dir = dir_so_far ^ str;
+        val result = if is_directory new_dir orelse not forced then new_dir
+          else let val _ = make new_dir in new_dir end;
+      in result end;
+    val _ = fold iter dirs "";
+  in () end;
+
+(* create_file: {force: bool} -> string -> string -> string -> unit *)
+fun create_file {force=forced} dir name content =
   let
-    val _ = if is_directory dir then () else OS.FileSys.mkDir dir;
+    val _ = create_directory {force=forced} dir
+        handle Fail txt => Exn.reraise (Fail txt);
     val filepath = OS.Path.joinDirFile {dir=dir, file=name};
   in
-    if file_exists filepath andalso not force then () else
+    if file_exists filepath andalso not forced then () else
       let val outstream = TextIO.openOut filepath; in
         TextIO.output (outstream, content);
         TextIO.closeOut outstream end

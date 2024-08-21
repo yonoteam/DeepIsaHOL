@@ -468,37 +468,37 @@ fun pretty_json debug ctxt0 data=
 val _ = ML_system_pp (fn _ => fn _ 
   => Pretty.to_polyml o pretty_json true (Context.the_local_context ()))
 
-(* string -> int -> Data.T list -> unit *)
-(* TODO: Make IO operations safer to use. *)
+(* write_proof: string -> int -> Data.T list -> unit *)
 fun write_proof dir i proof =
   let
-    val _ = if Ops.is_directory dir then () else OS.FileSys.mkDir dir
-      handle OS.SysErr txt => (raise Fail ("write_proof: directory is too nested: " ^ (#1 txt)));
+    (* IO operartions *)
     val env = get_env proof;
     val thy_name = Context.theory_name {long=false} (Toplevel.theory_of (s1_of env))
-    val _ = writeln (dir ^ thy_name ^ "/");
-    val _ = 
-      let 
-        val dir' = dir ^ thy_name ^ "/" 
-      in if Ops.is_directory dir' then () else OS.FileSys.mkDir dir'
-      handle OS.SysErr txt => (raise Fail ("write_proof: directory is too nested: " ^ (#1 txt))) end;
-    val dir_name = dir ^ thy_name ^ "/" ^ "proof" ^ Value.print_int i;
+    val dir_name = dir ^ "/" ^ thy_name ^ "/" ^ "proof" ^ Value.print_int i;
+      (* extra "/"s are no issue for OS.FileSys.mkDir *)
+    val _ = Ops.create_directory {force=true} dir_name
+        handle Fail txt => Exn.reraise (Fail txt);
     fun fname j = ("step" ^ Value.print_int j ^ ".json");
-    val _ = writeln (OS.Path.joinDirFile {dir=dir_name, file=fname 0});
 
+    (* Data.T operartions *)
     val start = init env (Sections.get_first proof);
     val proof_data = Sections.do_one_then_fold true start (next env) proof
     val trace = Sections.recover_trace proof_data;
     
+    (* String operartions *)
+    val backslash = "\\";
+    val start_quote = backslash ^ "<";
+    fun rewrite_quote txt = Ops.replace_all start_quote (backslash ^ start_quote) txt
+    
+    (* Main *)
     fun write_next data j =
       let
-        val _ = writeln ("Reached step " ^ Value.print_int j);
-        val _ = Ops.create_file false dir_name (fname j) "";
-        val _ = writeln ("Created file in step " ^ Value.print_int j);
+        val _ = Ops.create_file {force=false} dir_name (fname j) "";
         val _ =
           data
           |> pretty_json true (ctxt_of env)
           |> Print.string_of_pretty
+          |> rewrite_quote
           |> Print.write_to (Print.FILE (OS.Path.joinDirFile {dir=dir_name, file=fname j}))
       in j+1 end;
     val _ = if null trace 
@@ -506,11 +506,11 @@ fun write_proof dir i proof =
       else fold write_next (tl trace) (write_next (hd trace) 0)
   in () end;
 
-(* string -> Data.T Sections.T list -> unit *)
+(* write_proofs: string -> Data.T Sections.T list -> unit *)
 fun write_proofs dir proofs =
   let
     fun writting _ [] = []
-      | writting n (p :: ps) = write_proof dir (n+1) p :: writting (n+1) ps
+      | writting n (p :: ps) = write_proof dir n p :: writting (n+1) ps
     val _ = writting 0 proofs
   in () end;
 
