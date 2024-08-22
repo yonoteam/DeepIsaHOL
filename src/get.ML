@@ -146,7 +146,8 @@ fun deps thy thms =
   let
     val lookup = Global_Theory.lookup_thm_id thy;
     fun thm_of_name thm_name = Global_Theory.get_thm_name thy (thm_name, Position.none);
-    fun make_name_thm id_name = (snd id_name, thm_of_name (snd id_name));
+    fun name_of (_, namep:Thm_Name.P) = fst namep;
+    fun make_name_thm entry = (name_of entry, thm_of_name (name_of entry));
     fun deps (i, thm_node) res =
       if Inttab.defined res i then res
       else

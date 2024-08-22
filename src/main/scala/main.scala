@@ -14,9 +14,9 @@ import de.unruh.isabelle.pure.Implicits._
 
 object Main {
 
-  
+
   def main (args: Array[String]): Unit = {
-    val setup = Isabelle.Setup(isabelleHome = Path.of("/Applications/Isabelle2023.app"), logic = "HOL")
+    val setup = Isabelle.Setup(isabelleHome = Path.of("/~/Programs/deepIsaHOL/isabelle"), logic = "HOL")
     implicit val isabelle: Isabelle = new Isabelle(setup)
     println("Testing SBT")
   }
