@@ -9,6 +9,24 @@ lazy val root = project
     name := "isabelle-rl",
     version := "0.1.0-SNAPSHOT",
 
-    libraryDependencies += "de.unruh" %% "scala-isabelle" % "master-SNAPSHOT", // development snapshot
-    resolvers ++= Resolver.sonatypeOssRepos("snapshots")
+    libraryDependencies += "de.unruh" %% "scala-isabelle" % "master-SNAPSHOT" from "file:~/Programs/deepIsaHOL/lib/scala-isabelle/target/scala-2.13/scala-isabelle_2.13-master-SNAPSHOT.jar", // development snapshot
+    resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
+
+    /* From scala-isabelle and PISA */
+    // https://mvnrepository.com/artifact/org.log4s/log4s
+    libraryDependencies += "org.log4s" %% "log4s" % "1.10.0",
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
+    libraryDependencies += "org.slf4j" % "slf4j-simple" % "2.0.13",
+    // https://mvnrepository.com/artifact/commons-io/commons-io
+    libraryDependencies += "commons-io" % "commons-io" % "2.16.1",
+    // https://mvnrepository.com/artifact/org.scalaz/scalaz-core
+    libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.3.8",
+    // https://mvnrepository.com/artifact/org.apache.commons/commons-lang3
+    libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.14.0",
+    // https://mvnrepository.com/artifact/org.apache.commons/commons-text
+    libraryDependencies += "org.apache.commons" % "commons-text" % "1.12.0",
+    // https://mvnrepository.com/artifact/com.google.guava/guava
+    libraryDependencies += "com.google.guava" % "guava" % "33.2.1-jre",
+    libraryDependencies += "org.jetbrains" % "annotations" % "24.1.0",
+    libraryDependencies += "com.ibm.icu" % "icu4j" % "75.1",
   )
