@@ -22,13 +22,19 @@ object Transition extends AdHocConverter("Toplevel.transition")
 class TheoryManager {
   def getTheorySource(name: String): Source = Heap(name)
   def getTheory(source: Source)(implicit isabelle: Isabelle): Theory = source match {
-    case Heap(name) => Theory(name)
+    case Heap(name) => 
+      println("Heap " + name)
+      Theory(name)
     case Text(text, path, position) =>
+      println("Doing init toplevel")
       var toplevel = Ops.init_toplevel().force.retrieveNow
+      println("Starting beginTheory")
       val thy0 = beginTheory(source)
+      println("Just did beginTheory")
       for ((transition, text) <- Ops.parse_text(thy0, text).force.retrieveNow) {
         toplevel = Ops.command_exception(true, transition, toplevel).retrieveNow.force
       }
+      println("Passed the for loop and starting end theory")
       Ops.toplevel_end_theory(toplevel).retrieveNow.force
   }
 
@@ -44,12 +50,17 @@ class TheoryManager {
 
 object TheoryManager extends OperationCollection {
 
-  trait Source { def path : Path }
+  trait Source { 
+    def path : Path 
+    def print = println(path.toString)
+  }
   case class Heap(name: String) extends Source {
     override def path: Path = Paths.get("INVALID")
   }
   case class File(path: Path) extends Source
-  case class Text(text: String, path: Path, position: Position) extends Source
+  case class Text(text: String, path: Path, position: Position) extends Source {
+    override def print = println("The text to read is " + text + "\n and the path is " + path.toString)
+  }
   object Text {
     def apply(text: String, path: Path)(implicit isabelle: Isabelle): Text = new Text(text, path, Position.none)
   }
@@ -61,7 +72,7 @@ object TheoryManager extends OperationCollection {
       "fn (path, header, parents) => Resources.begin_theory path header parents")
     val command_exception = compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
       "fn (int, tr, st) => Toplevel.command_exception int tr st")
-    val init_toplevel = compileFunction0[ToplevelState]("Toplevel.init_toplevel")
+    val init_toplevel = compileFunction0[ToplevelState]("fn () => Toplevel.make_state NONE")
     val parse_text = compileFunction[Theory, String, List[(Transition.T, String)]](
     """fn (thy, text) => let
       |  val transitions = Outer_Syntax.parse_text thy (K thy) Position.start text
