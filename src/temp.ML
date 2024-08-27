@@ -82,4 +82,36 @@ fun query_thms_goal ctxt n goal =
       in fold (Ops.insert_if (Pred.neg in_names)) results nthms end;
   in fold add_thms queries [] end;
 
+
+(** FINDING PARENTS OF A THEORY **)
+
+(* get_parents: string -> theory list *)
+fun get_parents thy_file =
+  let
+    fun header_from dir =
+      let
+        val thy_text = Ops.read_file dir;
+        val header = Thy_Header.read Position.start thy_text;
+      in header end;
+    fun theory_from (import_name, _) = 
+      (case Basics.try Thy_Info.get_theory import_name of
+        SOME thy => thy
+        | NONE => 
+          (case Resources.find_theory_file import_name of
+            SOME (path: Path.T) =>
+              let
+                val dir = Path.implode path;
+              in Resources.begin_theory path (header_from dir) (get_parents dir) end
+            | NONE => 
+              let 
+                val dir = import_name ^ ".thy";
+                val path = Path.explode dir;
+              in (case Basics.try get_parents dir of 
+                  SOME thys => Resources.begin_theory path (header_from dir) thys
+                  | NONE => raise Fail ("get_parents: not found " ^ dir)) 
+              end
+          ))
+    val result = List.map theory_from (#imports (header_from thy_file));
+  in result end;
+
 end;

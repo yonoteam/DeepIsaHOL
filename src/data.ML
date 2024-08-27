@@ -3,6 +3,7 @@ signature DATA =
 sig
   (* Environment *)
   type env
+  val s1_of: env -> Toplevel.state
   val ctxt_of: env -> Proof.context
   val mthds_of: env -> string list
   val deps_of: env -> (Thm_Name.T * thm) list
