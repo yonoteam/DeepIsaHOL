@@ -27,7 +27,7 @@ sig
   val init: env -> Toplevel.state * Actions.T -> T
   val next: env -> (Toplevel.state * Actions.T) -> T -> T
   val extract: (Toplevel.state * Actions.T) Sections.T -> T Sections.T
-  val extract_proofs: (Toplevel.state * Actions.T) Sections.T -> (T Sections.T) list
+  val extract_proofs: string -> (T Sections.T) list
   val from: Toplevel.state -> T
   val apply: string -> T -> T
 
@@ -43,9 +43,8 @@ sig
   val pretty_json: bool -> Proof.context -> T -> Pretty.T
 
   (* Writing *)
-  val write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit
   val write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit
-  val retrieve_to: theory -> Toplevel.state -> string -> string -> unit
+  val retrieve_from_to: string -> string -> unit
 end;
 
 
@@ -212,11 +211,19 @@ fun extract proof =
     val data0 = init env (s0, a0);
   in Sections.do_one_then_fold true data0 (next env) proof end;
 
-(* extract_proofs: (Toplevel.state * Actions.T) Sections.T -> Data.T Sections.T list *)
-fun extract_proofs sections =
-  sections
-  |> Sections.get_topmost Sections.proof_tag
-  |> map extract;
+(* extract_proofs: string -> Data.T Sections.T list *)
+fun extract_proofs thy_file =
+  let
+    val thy0 = Get.thy_from_file thy_file;
+    val state0 = Toplevel.make_state (SOME thy0);
+    val proofs =
+      thy_file
+      |> Ops.read_file
+      |> Actions.make' thy0
+      |> Actions.segmentate state0 (Actions.theory_separators thy0)
+      |> Sections.get_topmost Sections.proof_tag
+      |> map extract;
+  in proofs end;
 
 
 (** INTERACTIVE EXTRACTION **)
@@ -253,7 +260,7 @@ fun from s =
 fun apply txt old_data = 
   let 
     val s = state_of old_data;
-    val a = hd (Actions.make (Toplevel.theory_of s) txt);
+    val a = Actions.make_one (Toplevel.theory_of s) txt;
     val s' = Actions.apply a s;
     val cmmnds = Get.grouped_commands (Toplevel.theory_of s');
     val prop = Proof.goal (Toplevel.proof_of s');
@@ -480,7 +487,7 @@ end;
 val _ = ML_system_pp (fn _ => fn _ 
   => Pretty.to_polyml o pretty_json true (Context.the_local_context ()))
 
-(* write_proof: string -> int -> Data.T list -> unit *)
+(* write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit *)
 fun write_proof dir i proof =
   let
     (* IO operartions *)
@@ -518,7 +525,7 @@ fun write_proof dir i proof =
       else fold write_next (tl trace) (write_next (hd trace) 0)
   in () end;
 
-(* write_proofs: string -> Data.T Sections.T list -> unit *)
+(* write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit *)
 fun write_proofs dir proofs =
   let
     fun writting _ [] = []
@@ -526,15 +533,16 @@ fun write_proofs dir proofs =
     val _ = writting 0 proofs
   in () end;
 
-(* retrieve_to: theory -> Toplevel.state -> string -> string -> unit *)
-(* TODO: Replace by more robust approach: no thy, and no state *)
-fun retrieve_to thy state thy_file dir =
+(* retrieve_from_to: string -> string -> unit *)
+fun retrieve_from_to thy_file dir =
   let
+    val thy0 = Get.thy_from_file thy_file;
+    val state0 = Toplevel.make_state (SOME thy0);
     val proofs =
       thy_file
       |> Ops.read_file
-      |> Actions.make' thy
-      |> Actions.segmentate state (Actions.theory_separators thy)
+      |> Actions.make' thy0
+      |> Actions.segmentate state0 (Actions.theory_separators thy0)
       |> Sections.get_topmost Sections.proof_tag;
   in write_proofs dir proofs end;
 

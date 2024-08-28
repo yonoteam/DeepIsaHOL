@@ -1,6 +1,11 @@
 
 signature GET =
 sig
+  (* FILE INFORMATION *)
+  val header: string -> Thy_Header.header
+  val parents: string -> theory list
+  val thy_from_file: string -> theory
+
   (* THEORY INFORMATION *)
   val transitions: theory -> Position.T -> string -> Toplevel.transition list
   val minor_keywords: theory -> string list
@@ -32,6 +37,48 @@ end;
 
 structure Get: GET =
 struct
+(** FILE INFORMATION **)
+(* The functions in this section should be called from the appropriate logic:
+if your input .thy file loads better from a prebuilt AFP session, the functions
+should be called from it.
+*)
+
+(* header: string -> Thy_Header.header *)
+fun header thy_file =
+  thy_file
+  |> Ops.read_file
+  |> Thy_Header.read Position.start;
+
+(* parents: string -> theory list *)
+fun parents thy_file =
+  let
+    fun theory_from (import_name, _) = 
+      (case Basics.try Thy_Info.get_theory import_name of
+        SOME thy => thy
+        | NONE => 
+          (case Resources.find_theory_file import_name of
+            SOME (path: Path.T) =>
+              let
+                val dir = Path.implode path;
+              in Resources.begin_theory path (header dir) (parents dir) end
+            | NONE => 
+              let 
+                val dir = import_name ^ ".thy";
+                val path = Path.explode dir;
+              in (case Basics.try parents dir of 
+                  SOME thys => Resources.begin_theory path (header dir) thys
+                  | NONE => raise Fail ("Get.parents: File " ^ dir ^ " not found in setup. ")) 
+              end
+          ))
+    val result = List.map theory_from (#imports (header thy_file));
+  in result end;
+
+(* thy_from_file: string -> theory *)
+fun thy_from_file thy_file =
+  let
+    val path = Path.explode thy_file;
+    val thys = parents thy_file;
+  in Resources.begin_theory path (header thy_file) thys end;
 
 
 (** THEORY INFORMATION **)
