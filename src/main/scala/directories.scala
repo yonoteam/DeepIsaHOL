@@ -1,3 +1,10 @@
+/*  
+  Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Isabelle/RL directories: Adjust for your specific setup
+*/
+
 package isabelle_rl
 
 object Directories {

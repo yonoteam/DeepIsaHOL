@@ -1,6 +1,9 @@
-/* Mantainers: 
- * Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
- */
+/*  
+  Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Main entrypoint
+*/
 
 package isabelle_rl
 

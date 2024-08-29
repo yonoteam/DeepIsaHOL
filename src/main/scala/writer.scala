@@ -1,6 +1,9 @@
-/* Mantainers: 
- * Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
- */
+/*  
+  Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Writes proof data from input theory file
+*/
 
 package isabelle_rl
 import java.nio.file.{Path}
