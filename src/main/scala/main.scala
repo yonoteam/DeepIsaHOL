@@ -24,9 +24,9 @@ import de.unruh.isabelle.pure.Implicits._
 
 object Main {
   def main (args: Array[String]): Unit = {
-    val writer = Py4j_Gateway.get_writer(args(0), Directories.test_dir)
+    val writer = Py4j_Gateway.get_writer(args(0))
     implicit val isabelle = writer.isabelle
-    val write_dir = ""
+    val write_dir = Directories.test_dir + "scala_test/"
     val _ = writer.data_from_to("Test_Thy3.thy", write_dir)
     println("You should see the result now.")
   }

@@ -36,10 +36,10 @@ class Writer (val logic: String, val work_dir: String) {
   private val isa_rl_data = isabelle_rl_thy.importMLStructureNow("Data")
 
   private val ml_retrieve_from_to = "fn (thy_file, write_dir) => " + s"${isa_rl_data}.retrieve_from_to (\"" + work_dir + "\" ^ thy_file) write_dir"
-  final val retrieve_from_to : MLFunction2[String, String, Unit] = compileFunction[String, String, Unit](ml_retrieve_from_to)(isabelle, StringConverter, StringConverter, UnitConverter)
+  private final val retrieve_from_to : MLFunction2[String, String, Unit] = compileFunction[String, String, Unit](ml_retrieve_from_to)(isabelle, StringConverter, StringConverter, UnitConverter)
 
-  def data_from_to (logic: String, write_dir: String): Unit = {
-    val mlunit = retrieve_from_to(logic, write_dir)(isabelle, StringConverter, StringConverter)
+  def data_from_to (thy_file: String, write_dir: String): Unit = {
+    val mlunit = retrieve_from_to(thy_file, write_dir)(isabelle, StringConverter, StringConverter)
     mlunit.retrieveNow(UnitConverter, isabelle)
   }
 }

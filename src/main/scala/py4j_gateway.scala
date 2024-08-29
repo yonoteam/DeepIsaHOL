@@ -11,7 +11,7 @@ import isabelle_rl.Writer
 import py4j.GatewayServer
 
 object Py4j_Gateway {
-  def get_writer(logic: String, read_dir: String): Writer = new Writer(logic, read_dir)
+  def get_writer(logic: String): Writer = new Writer(logic, Directories.test_dir)
 
   val gateway_server = new GatewayServer(Py4j_Gateway)
 
