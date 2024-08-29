@@ -29,4 +29,6 @@ lazy val root = project
     libraryDependencies += "com.google.guava" % "guava" % "33.2.1-jre",
     libraryDependencies += "org.jetbrains" % "annotations" % "24.1.0",
     libraryDependencies += "com.ibm.icu" % "icu4j" % "75.1",
+    // https://mvnrepository.com/artifact/net.sf.py4j/py4j
+    libraryDependencies += "net.sf.py4j" % "py4j" % "0.10.9.7"
   )

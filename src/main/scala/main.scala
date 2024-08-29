@@ -1,3 +1,7 @@
+/* Mantainers: 
+ * Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+ */
+
 package isabelle_rl
 
 import java.nio.file.{Path, Paths}
@@ -8,6 +12,7 @@ import de.unruh.isabelle.mlvalue.{MLValue, MLFunction, MLFunction0, MLFunction2,
 import de.unruh.isabelle.pure.{Abs, App, Const, Term, Transition, Context, Theory}
 import isabelle_rl.Directories
 import isabelle_rl.Writer
+import isabelle_rl.Py4j_Gateway
 
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
@@ -16,10 +21,10 @@ import de.unruh.isabelle.pure.Implicits._
 
 object Main {
   def main (args: Array[String]): Unit = {
-    val writer = Writer(args(0), Directories.test_dir)
-    val write_dir = "/Users/jonathan/Programs/isabelle/learning/ML_Programming/scala_print_test/"
+    val writer = Py4j_Gateway.get_writer(args(0), Directories.test_dir)
     implicit val isabelle = writer.isabelle
-    val _ = writer.data_from_to("Test_Thy3.thy", write_dir).retrieveNow
+    val write_dir = ""
+    val _ = writer.data_from_to("Test_Thy3.thy", write_dir)
     println("You should see the result now.")
   }
 }
