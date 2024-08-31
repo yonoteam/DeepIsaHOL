@@ -403,7 +403,7 @@ fun pretty_facts ctxt debug lvl named_thms =
       [Print.pretty_json_elem "thm"
         (Print.pretty_json_attribs false "{" "}" (~2) (pretty_fact ctxt fact))]
     val prts = map jsonify named_thms
-  in Print.pretty_json_elem "thms" (Print.pretty_json_attribs debug "[" "]" lvl prts) end;
+  in Print.pretty_json_elem "facts" (Print.pretty_json_attribs debug "[" "]" lvl prts) end;
 
 (* pretty_list: (Data.T -> 'a) -> ('a -> Pretty.T list) 
   -> bool -> int -> string -> Data.T -> Pretty.T *)
@@ -478,7 +478,7 @@ fun pretty_json debug lvl ctxt0 data =
     val act = pretty_json_action data;
     val pretty_state = Print.pretty_json_attribs debug "{" "}" (lvl+2) 
       [act, goal, hs, seen, vs, cs, Ts, ks, ms, lems]
-  in Print.pretty_json_attrib debug lvl "state" pretty_state end;
+  in Print.pretty_json_attrib debug lvl "step" pretty_state end;
 
 (* pretty_json_proof: bool -> int -> Data.env -> Data.T Sections.T -> Pretty.T *)
 fun pretty_json_proof debug lvl env proof =
@@ -488,7 +488,6 @@ fun pretty_json_proof debug lvl env proof =
     fun prettifier data = 
       data
       |> pretty_json debug (lvl+2) ctxt
-      |> Print.pretty_json_attrib false lvl "step"
     val prt_prf =
       trace
       |> map prettifier
