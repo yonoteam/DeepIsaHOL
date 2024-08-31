@@ -10,6 +10,7 @@ sig
   val pretty_out: Pretty.T -> unit
   val pretty_json_elem: string -> Pretty.T -> Pretty.T
   val pretty_json_attribs: bool -> string -> string -> int -> Pretty.T list -> Pretty.T
+  val pretty_json_attrib: bool -> int -> string -> Pretty.T -> Pretty.T
 end;
 
 
@@ -79,5 +80,12 @@ let
     else Pretty.block (Pretty.str encl1 :: 
       (Ops.intersp [Pretty.str ",", Pretty.brk 1] prts) @ [Pretty.str encl2])
 in jblock end;
+
+(* pretty_json_attrib: bool -> int -> string -> Pretty.T -> Pretty.T *)
+fun pretty_json_attrib debug lvl name prt =
+  prt
+  |> pretty_json_elem name
+  |> Library.single
+  |> pretty_json_attribs debug "{" "}" lvl;
 
 end;

@@ -40,7 +40,8 @@ sig
   val pretty_json_types: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_facts: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_methods: bool -> int -> T -> Pretty.T
-  val pretty_json: bool -> Proof.context -> T -> Pretty.T
+  val pretty_json: bool -> int -> Proof.context -> T -> Pretty.T
+  val pretty_json_proof: bool -> int -> env -> T Sections.T -> Pretty.T
 
   (* Writing *)
   val write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit
@@ -142,7 +143,7 @@ fun init env (s, a) =
     proven = [],
     keywords = kwrds,
     methods = mthds_of env,
-    facts = deps_of env}
+    facts = []}
   end;
 
 (* next: Data.env -> (Toplevel.state * Actions.T) -> Data.T *)
@@ -379,7 +380,7 @@ fun pretty_types ctxt typs = pretty_alist ctxt
   Syntax.pretty_sort Syntax.pretty_typ "Sort" (alist_by types_info typs);
 
 (* pretty_keywords: unit -> string list -> Pretty.T list *)
-fun pretty_keywords () = (map (Print.pretty_json_elem "name" o Pretty.quote o Pretty.str));
+val pretty_keywords = (map (Print.pretty_json_elem "name" o Pretty.quote o Pretty.str));
 
 (* pretty_hyps: Proof.context -> string list -> Pretty.T list *)
 fun pretty_hyps ctxt 
@@ -404,12 +405,12 @@ fun pretty_facts ctxt debug lvl named_thms =
     val prts = map jsonify named_thms
   in Print.pretty_json_elem "thms" (Print.pretty_json_attribs debug "[" "]" lvl prts) end;
 
-(* pretty_list: (Data.T -> 'a) -> ('b -> 'a -> Pretty.T list) 
-  -> bool -> int -> 'b -> string -> Data.T -> Pretty.T *)
-fun pretty_list retriever prettyfier debug lvl ctxt name (data: T) =
+(* pretty_list: (Data.T -> 'a) -> ('a -> Pretty.T list) 
+  -> bool -> int -> string -> Data.T -> Pretty.T *)
+fun pretty_list retriever prettyfier debug lvl name (data: T) =
   let
     fun wrap elem = Print.pretty_json_attribs false "{" "}" 0 [elem]
-    val jattribs = Print.pretty_json_attribs debug "[" "]" lvl (map wrap (prettyfier ctxt (retriever data)))
+    val jattribs = Print.pretty_json_attribs debug "[" "]" lvl (map wrap (prettyfier (retriever data)))
   in Print.pretty_json_elem name jattribs end;
 
 in 
@@ -431,31 +432,31 @@ fun pretty_json_goal ctxt data =
   Print.pretty_json_elem "term" (Pretty.quote (Syntax.pretty_term ctxt (goal_of data)));
 
 fun pretty_json_hyps debug lvl ctxt = 
-  pretty_list hyps_of pretty_hyps debug lvl ctxt "hyps";
+  pretty_list hyps_of (pretty_hyps ctxt) debug lvl "hyps";
 
 fun pretty_json_proven debug lvl ctxt = 
-  pretty_list proven_of pretty_hyps debug lvl ctxt "proven";
+  pretty_list proven_of (pretty_hyps ctxt) debug lvl "proven";
 
 fun pretty_json_consts debug lvl ctxt = 
-  pretty_list consts_of pretty_consts debug lvl ctxt "constants";
+  pretty_list consts_of (pretty_consts ctxt) debug lvl "constants";
 
 fun pretty_json_vars debug lvl ctxt = 
-  pretty_list vars_of pretty_vars debug lvl ctxt "variables";
+  pretty_list vars_of (pretty_vars ctxt) debug lvl "variables";
 
 fun pretty_json_types debug lvl ctxt = 
-  pretty_list types_of pretty_types debug lvl ctxt "type variables";
+  pretty_list types_of (pretty_types ctxt) debug lvl "type variables";
 
 fun pretty_json_keywords debug lvl = 
-  pretty_list keywords_of pretty_keywords debug lvl () "keywords";
+  pretty_list keywords_of pretty_keywords debug lvl "keywords";
 
 fun pretty_json_methods debug lvl = 
-  pretty_list methods_of pretty_keywords debug lvl () "methods";
+  pretty_list methods_of pretty_keywords debug lvl "methods";
 
 fun pretty_json_facts debug lvl ctxt data = 
   pretty_facts ctxt debug lvl (facts_of data);
 
-(* pretty_json: bool -> data -> Pretty.T *)
-fun pretty_json debug ctxt0 data = 
+(* pretty_json: bool -> int -> data -> Pretty.T *)
+fun pretty_json debug lvl ctxt0 data = 
   let
     val state = state_of data;
     val ctxt0' = if Toplevel.is_proof state 
@@ -466,18 +467,34 @@ fun pretty_json debug ctxt0 data =
       |> Config.put show_sorts false
       |> Config.put show_types false 
     val goal = pretty_json_goal ctxt data;
-    val hs = pretty_json_hyps debug 4 ctxt data;
-    val seen = pretty_json_proven debug 4 ctxt data;
-    val cs = pretty_json_consts debug 4 ctxt data;
-    val vs = pretty_json_vars debug 4 ctxt data;
-    val Ts = pretty_json_types debug 4 ctxt data;
-    val ks = pretty_json_keywords debug 4 data;
-    val ms = pretty_json_methods debug 4 data;
-    val lems = pretty_json_facts debug 4 ctxt data;
+    val hs = pretty_json_hyps debug (lvl+4) ctxt data;
+    val seen = pretty_json_proven debug (lvl+4) ctxt data;
+    val cs = pretty_json_consts debug (lvl+4) ctxt data;
+    val vs = pretty_json_vars debug (lvl+4) ctxt data;
+    val Ts = pretty_json_types debug (lvl+4) ctxt data;
+    val ks = pretty_json_keywords debug (lvl+4) data;
+    val ms = pretty_json_methods debug (lvl+4) data;
+    val lems = pretty_json_facts debug (lvl+4) ctxt data;
     val act = pretty_json_action data;
-    val pretty_state = Print.pretty_json_attribs debug "{" "}" 2 
-      [goal, hs, seen, vs, cs, Ts, ks, ms, lems, act]
-  in Print.pretty_json_attribs debug "{" "}" 0 [Print.pretty_json_elem "state" pretty_state] end;
+    val pretty_state = Print.pretty_json_attribs debug "{" "}" (lvl+2) 
+      [act, goal, hs, seen, vs, cs, Ts, ks, ms, lems]
+  in Print.pretty_json_attrib debug lvl "state" pretty_state end;
+
+(* pretty_json_proof: bool -> int -> Data.env -> Data.T Sections.T -> Pretty.T *)
+fun pretty_json_proof debug lvl env proof =
+  let
+    val ctxt = ctxt_of env
+    val trace = Sections.recover_trace proof;
+    fun prettifier data = 
+      data
+      |> pretty_json debug (lvl+2) ctxt
+      |> Print.pretty_json_attrib false lvl "step"
+    val prt_prf =
+      trace
+      |> map prettifier
+      |> Print.pretty_json_attribs debug "[" "]" lvl
+      |> Print.pretty_json_attrib false lvl "proof"
+  in prt_prf end;
 
 end;
 
@@ -485,10 +502,10 @@ end;
 (** WRITING OPERATIONS **)
 
 val _ = ML_system_pp (fn _ => fn _ 
-  => Pretty.to_polyml o pretty_json true (Context.the_local_context ()))
+  => Pretty.to_polyml o pretty_json true 0 (Context.the_local_context ()))
 
 (* write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit *)
-fun write_proof dir i proof =
+fun write_proof' dir i proof =
   let
     (* IO operartions *)
     val env = get_env proof;
@@ -515,7 +532,7 @@ fun write_proof dir i proof =
         val _ = Ops.create_file {force=false} dir_name (fname j) "";
         val _ =
           data
-          |> pretty_json true (ctxt_of env)
+          |> pretty_json true 0 (ctxt_of env)
           |> Print.string_of_pretty
           |> rewrite_quote
           |> Print.write_to (Print.FILE (OS.Path.joinDirFile {dir=dir_name, file=fname j}))
@@ -523,6 +540,35 @@ fun write_proof dir i proof =
     val _ = if null trace 
       then raise Fail "Data.write_proof: empty proof" 
       else fold write_next (tl trace) (write_next (hd trace) 0)
+  in () end;
+
+(* write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit *)
+fun write_proof dir i proof =
+  let
+    (* IO operartions *)
+    val env = get_env proof;
+    val thy_name = Context.theory_name {long=false} (Toplevel.theory_of (s1_of env))
+    val dir_name = dir ^ "/" ^ thy_name ^ "/";
+      (* extra "/"s are no issue for OS.FileSys.mkDir *)
+    val _ = Ops.create_directory {force=true} dir_name
+        handle Fail txt => Exn.reraise (Fail txt);
+    fun fname j = ("proof" ^ Value.print_int j ^ ".json");
+
+    (* Data.T operartions *)
+    val start = init env (Sections.get_first proof);
+    val proof_data = Sections.do_one_then_fold true start (next env) proof
+    val prt_prf = pretty_json_proof true 0 env proof_data;
+    
+    (* String operartions *)
+    val backslash = "\\";
+    val start_quote = backslash ^ "<";
+    fun rewrite_quote txt = Ops.replace_all start_quote (backslash ^ start_quote) txt
+    
+    val _ =
+      prt_prf
+      |> Print.string_of_pretty
+      |> rewrite_quote
+      |> Print.write_to (Print.FILE (OS.Path.joinDirFile {dir=dir_name, file=fname i}))
   in () end;
 
 (* write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit *)
