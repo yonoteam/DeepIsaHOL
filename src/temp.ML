@@ -6,8 +6,7 @@ sig
   val sub_apps_of: term -> term list
   val replace_vars: term -> term
   val generate_queries: Proof.context -> term -> (bool * string Find_Theorems.criterion) list list
-  val query_thms: Proof.context -> int -> term -> (Thm_Name.T * thm) list
-  val query_thms_goal: Proof.context -> int -> thm -> (Thm_Name.T * thm) list
+  val query_thms: Proof.context -> int -> term -> (string * thm) list
 end;
 
 
@@ -61,22 +60,7 @@ fun query_thms ctxt n t =
     val queries = generate_queries ctxt t;
     fun add_thms q nthms = 
       let
-        val results = snd (find q);
-        val names = map fst nthms;
-        fun in_names (name_cnt, _) = member (op =) names name_cnt
-      in fold (Ops.insert_if (Pred.neg in_names)) results nthms end;
-  in fold add_thms queries [] end;
-
-(* context -> int -> thm -> (Thm_Name.T * thm) list *)
-(* ISSUE: list of theorems is too long *)
-fun query_thms_goal ctxt n goal =
-  let
-    val t = Thm.prop_of goal;
-    val find = Find_Theorems.find_theorems_cmd ctxt (SOME goal) (SOME n) true;
-    val queries = generate_queries ctxt t;
-    fun add_thms q nthms = 
-      let
-        val results = snd (find q);
+        val results = map (Library.apfst Facts.ref_name) (snd (find q));
         val names = map fst nthms;
         fun in_names (name_cnt, _) = member (op =) names name_cnt
       in fold (Ops.insert_if (Pred.neg in_names)) results nthms end;

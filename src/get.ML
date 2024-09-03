@@ -139,7 +139,7 @@ fun named_thms nthms =
   in maps (fn (name, thms) => distrib name 1 thms) nthms end;
 
 (* name_of_thm: thm -> Thm_Name.T (c.f. Thm.derivation_name) *)
-val name_of_thm = Thm.derivation_name
+fun name_of_thm t = (Thm.derivation_name t, 0)
 
 (* get_all_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T} *)
 fun get_all_facts ctxt =
@@ -193,8 +193,7 @@ fun deps thy thms =
   let
     val lookup = Global_Theory.lookup_thm_id thy;
     fun thm_of_name thm_name = Global_Theory.get_thm_name thy (thm_name, Position.none);
-    fun name_of (_, namep:Thm_Name.P) = fst namep;
-    fun make_name_thm entry = (name_of entry, thm_of_name (name_of entry));
+    fun make_name_thm id_name = (snd id_name, thm_of_name (snd id_name));
     fun deps (i, thm_node) res =
       if Inttab.defined res i then res
       else

@@ -391,7 +391,7 @@ fun pretty_fact ctxt ((name, i),thm) = [
   Print.pretty_json_elem "name" (
     Pretty.quote (Pretty.block [
       Pretty.marks_str (#1 (Proof_Context.markup_extern_fact ctxt name), name),
-      Pretty.str (Thm_Name.print_suffix (name, i))])
+      Pretty.str (Thm_Name.print (name, i))])
   ),
   Print.pretty_json_elem "term" (Pretty.quote (Thm.pretty_thm ctxt thm))
   ];
