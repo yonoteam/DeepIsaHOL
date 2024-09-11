@@ -73,7 +73,11 @@ fun get_env proof =
     let 
       val (s0, a0) = Sections.get_first proof;
       val (sN, aN) = Sections.get_last proof;
-      val s1' = Actions.apply a0 s0;
+      val (s1', err') = Actions.apply_safe a0 s0;
+      val _ = (case err' of 
+        SOME (_, str) => raise Fail ("Data.get_env: Failed after " ^ Actions.text_of a0 ^ ".\n" ^ str)
+        | NONE => ()
+      );
       val sN' = Actions.apply aN sN;
       val ctxtN' = Toplevel.context_of sN';
       val thyN' = Toplevel.theory_of sN';

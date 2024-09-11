@@ -60,7 +60,8 @@ fun parents thy_file =
             SOME (path: Path.T) =>
               let
                 val dir = Path.implode path;
-              in Resources.begin_theory path (header dir) (parents dir) end
+                val elders = parents dir;
+              in Resources.begin_theory path (header dir) elders end
             | NONE => 
               let 
                 val dir = import_name ^ ".thy";

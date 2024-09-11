@@ -8,7 +8,7 @@ Isabelle/RL directories: Adjust for your specific setup
 package isabelle_rl
 
 object Directories {
-  private val run_main = "runMain isabelle_rl.Main"
+  private val run_main = ""
   val isabelle_repo = ""
   val isabelle_app = ""
   val isabelle_afp = ""
