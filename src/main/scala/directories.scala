@@ -13,5 +13,6 @@ object Directories {
   val isabelle_app = ""
   val isabelle_afp = ""
   val test_dir = ""
+  private val test_dir2 = ""
   val isabelle_rl = ""
 }
