@@ -30,7 +30,7 @@ sig
   val extract_proofs: theory -> string -> (env * (T Sections.T)) list
   val from: Toplevel.state -> T
   val apply: string -> T -> T
-  val extract: theory * string -> string list
+  val extract: theory * string -> string
 
   (* Pretty printing *)
   val pretty_json_action: T -> Pretty.T
@@ -495,14 +495,14 @@ fun pretty_json_proof debug lvl env proof =
       |> Print.pretty_json_attrib false lvl "proof"
   in prt_prf end;
 
-(* extract: theory * string -> string list *)
+(* extract: theory * string -> string *)
 fun extract (thy0, thy_file) =
   let 
     val proofs = extract_proofs thy0 thy_file;
     fun string_proof (env, proof) = 
       pretty_json_proof true 0 env proof
       |> Print.string_of_pretty
-  in map string_proof proofs end;
+  in String.concatWith " ISA_RL_SEP " (map string_proof proofs) end;
 
 end;
 

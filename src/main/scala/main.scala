@@ -33,8 +33,11 @@ object Main {
 
   def main (args: Array[String]): Unit = {
     val logic = args(0)
+    val writer = Py4j_Gateway_Writer.get_writer(args(0))
+    implicit val isabelle:de.unruh.isabelle.control.Isabelle = writer.isabelle
+
     val loader = new isabelle_rl.TheoryLoader(logic, Directories.isabelle_app, Directories.test_dir)
-    implicit val isabelle:de.unruh.isabelle.control.Isabelle = loader.isabelle
+    // implicit val isabelle:de.unruh.isabelle.control.Isabelle = loader.isabelle
     val source = scala.io.Source.fromFile(Directories.test_dir + "HS_Preliminaries.thy")
     val hs_prelim_text = try source.mkString finally source.close()
     val hs_preliminaries = TheoryLoader.Text(hs_prelim_text, loader.setup.workingDirectory)
