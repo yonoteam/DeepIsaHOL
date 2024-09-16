@@ -26,10 +26,11 @@ sig
   (* Extraction *)
   val init: env -> Toplevel.state * Actions.T -> T
   val next: env -> (Toplevel.state * Actions.T) -> T -> T
-  val extract: (Toplevel.state * Actions.T) Sections.T -> T Sections.T
-  val extract_proofs: string -> (T Sections.T) list
+  val extract_proof: (Toplevel.state * Actions.T) Sections.T -> env * T Sections.T
+  val extract_proofs: theory -> string -> (env * (T Sections.T)) list
   val from: Toplevel.state -> T
   val apply: string -> T -> T
+  val extract: theory * string -> string list
 
   (* Pretty printing *)
   val pretty_json_action: T -> Pretty.T
@@ -208,18 +209,17 @@ fun next env (s_new, act_to_do) old_data =
       facts = new_facts}
     end end;
 
-(* extract: (Toplevel.state * Actions.T) Sections.T -> Data.T Sections.T *)
-fun extract proof =
+(* extract_proof: (Toplevel.state * Actions.T) Sections.T -> Data.T Sections.T *)
+fun extract_proof proof =
   let
     val (s0, a0) = Sections.get_first proof;
     val env = get_env proof;
     val data0 = init env (s0, a0);
-  in Sections.do_one_then_fold true data0 (next env) proof end;
+  in (env, Sections.do_one_then_fold true data0 (next env) proof) end;
 
-(* extract_proofs: string -> Data.T Sections.T list *)
-fun extract_proofs thy_file =
+(* extract_proofs: theory -> string -> (Data.env * (Data.T Sections.T)) list *)
+fun extract_proofs thy0 thy_file =
   let
-    val thy0 = Get.thy_from_file thy_file;
     val state0 = Toplevel.make_state (SOME thy0);
     val proofs =
       thy_file
@@ -227,7 +227,7 @@ fun extract_proofs thy_file =
       |> Actions.make' thy0
       |> Actions.segmentate state0 (Actions.theory_separators thy0)
       |> Sections.get_topmost Sections.proof_tag
-      |> map extract;
+      |> map extract_proof;
   in proofs end;
 
 
@@ -489,15 +489,20 @@ fun pretty_json_proof debug lvl env proof =
   let
     val ctxt = ctxt_of env
     val trace = Sections.recover_trace proof;
-    fun prettifier data = 
-      data
-      |> pretty_json debug (lvl+2) ctxt
     val prt_prf =
-      trace
-      |> map prettifier
+      map (pretty_json debug (lvl+2) ctxt) trace
       |> Print.pretty_json_attribs debug "[" "]" lvl
       |> Print.pretty_json_attrib false lvl "proof"
   in prt_prf end;
+
+(* extract: theory * string -> string list *)
+fun extract (thy0, thy_file) =
+  let 
+    val proofs = extract_proofs thy0 thy_file;
+    fun string_proof (env, proof) = 
+      pretty_json_proof true 0 env proof
+      |> Print.string_of_pretty
+  in map string_proof proofs end;
 
 end;
 

@@ -24,7 +24,7 @@ class Writer (val logic: String, val work_dir: String) {
     "Writer(logic=" + logic + ", work_dir=" + work_dir + ")"
   }
 
-  private val setup = Isabelle.Setup(
+  private val loader = Isabelle.Setup(
     isabelleHome = Path.of(Directories.isabelle_app), 
     logic = this.logic,
     workingDirectory = Path.of(work_dir)
