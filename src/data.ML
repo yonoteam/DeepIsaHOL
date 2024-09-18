@@ -45,7 +45,6 @@ sig
   val pretty_json_proof: bool -> int -> env -> T Sections.T -> Pretty.T
 
   (* Writing *)
-  val write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit
   val retrieve_from_to: string -> string -> unit
 end;
 
@@ -69,6 +68,7 @@ fun mthds_of e = #methods (rep_env e);
 fun deps_of e = #deps (rep_env e);
 fun grp_cmmnds_of e = #grp_cmmnds (rep_env e);
 
+(* TODO: Generalise *)
 fun get_env proof =
   if Sections.get_top_tag proof = SOME Sections.proof_tag then
     let 
@@ -218,12 +218,11 @@ fun extract_proof proof =
   in (env, Sections.do_one_then_fold true data0 (next env) proof) end;
 
 (* extract_proofs: theory -> string -> (Data.env * (Data.T Sections.T)) list *)
-fun extract_proofs thy0 thy_file =
+fun extract_proofs thy0 thy_text =
   let
     val state0 = Toplevel.make_state (SOME thy0);
     val proofs =
-      thy_file
-      |> Ops.read_file
+      thy_text
       |> Actions.make' thy0
       |> Actions.segmentate state0 (Actions.theory_separators thy0)
       |> Sections.get_topmost Sections.proof_tag
@@ -496,11 +495,11 @@ fun pretty_json_proof debug lvl env proof =
   in prt_prf end;
 
 (* extract: theory * string -> string *)
-fun extract (thy0, thy_file) =
+fun extract (thy0, thy_text) =
   let 
-    val proofs = extract_proofs thy0 thy_file;
+    val proofs = extract_proofs thy0 thy_text;
     fun string_proof (env, proof) = 
-      pretty_json_proof true 0 env proof
+      pretty_json_proof false 0 env proof
       |> Print.string_of_pretty
   in String.concatWith " ISA_RL_SEP " (map string_proof proofs) end;
 
@@ -593,8 +592,7 @@ fun retrieve_from_to thy_file dir =
     val thy0 = Get.thy_from_file thy_file;
     val state0 = Toplevel.make_state (SOME thy0);
     val proofs =
-      thy_file
-      |> Ops.read_file
+      Ops.read_file thy_file
       |> Actions.make' thy0
       |> Actions.segmentate state0 (Actions.theory_separators thy0)
       |> Sections.get_topmost Sections.proof_tag;

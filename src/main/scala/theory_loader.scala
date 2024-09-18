@@ -1,4 +1,7 @@
 /*
+  Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
 This file is adapted from Dominique Unruh's scala-isabelle library's 
 TheoryManager.scala at https://github.com/dominique-unruh/scala-isabelle
  */
@@ -10,8 +13,8 @@ import de.unruh.isabelle.control.{Isabelle, OperationCollection}
 import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader, ToplevelState}
 import de.unruh.isabelle.mlvalue.{AdHocConverter, MLFunction, MLFunction0, MLFunction2, MLFunction3}
-import isabelle_rl.TheoryLoader.{Heap, Source, Text}
-import TheoryLoader.Ops
+import isabelle_rl.Theory_Loader.{Heap, Source, Text}
+import isabelle_rl.Theory_Loader.Ops
 
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
@@ -20,7 +23,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 object Transition extends AdHocConverter("Toplevel.transition")
 
-class TheoryLoader(val isa_logic: String, var path_to_isa: String, var work_dir : String) {
+class Theory_Loader(val isa_logic: String, var path_to_isa: String, var work_dir : String) {
   // Start the scala-isabelle setup
   val setup: Isabelle.Setup = Isabelle.Setup(isabelleHome = Path.of(path_to_isa),
     sessionRoots = Nil,
@@ -30,29 +33,31 @@ class TheoryLoader(val isa_logic: String, var path_to_isa: String, var work_dir 
   implicit val isabelle: Isabelle = new Isabelle(setup)
   
   // recursive construction of a theory 
-  def getTheorySource(name: String): Source = Heap(name)
-  def getTheory(source: Source)(implicit isabelle: Isabelle): Theory = source match {
+  private def make_source(name: String): Source = Heap(name)
+
+  private def get_end_theory(source: Source)(implicit isabelle: Isabelle): Theory = source match {
     case Heap(name) => Theory(name)
     case Text(text, path, position) =>
       var toplevel = Ops.init_toplevel().force.retrieveNow
-      var thy0 = beginTheory(source)
+      var thy0 = begin_theory(source)
       for ((transition, text) <- Ops.parse_text(thy0, text).force.retrieveNow) {
         toplevel = Ops.command_exception(true, transition, toplevel).retrieveNow.force
       }
       Ops.toplevel_end_theory(toplevel).retrieveNow.force
   }
 
-  def beginTheory(source: Source)(implicit isabelle: Isabelle): Theory = {
-    val header = getHeader(source)
+  def begin_theory(source: Source)(implicit isabelle: Isabelle): Theory = {
+    val header = get_header(source)
     val masterDir = source.path.getParent
-    Ops.begin_theory(masterDir, header, header.imports.map(getTheorySource).map(getTheory)).retrieveNow
+    Ops.begin_theory(masterDir, header, header.imports.map(make_source).map(get_end_theory)).retrieveNow
   }
-  def getHeader(source: Source)(implicit isabelle: Isabelle): TheoryHeader = source match {
+
+  private def get_header(source: Source)(implicit isabelle: Isabelle): TheoryHeader = source match {
     case Text(text, path, position) => Ops.header_read(text, position).retrieveNow
   }
 }
 
-object TheoryLoader extends OperationCollection {
+object Theory_Loader extends OperationCollection {
   
   // 2 kinds of Sources
   trait Source { def path : Path }
@@ -60,7 +65,7 @@ object TheoryLoader extends OperationCollection {
   case class Heap(name: String) extends Source {
     override def path: Path = Paths.get("INVALID")
   }
-  
+
   case class Text(text: String, path: Path, position: Position) extends Source
   object Text {
     def apply(text: String, path: Path)(implicit isabelle: Isabelle): Text = new Text(text, path, Position.none)

@@ -14,7 +14,7 @@ sig
   val is_apply_step: (string * string list) list -> string -> bool
   val is_isar_step: (string * string list) list -> string -> bool
   val is_document_step: (string * string list) list -> string -> bool
-  val for_theory: (string * string list) list -> (string * (string -> bool) * (string -> bool)) list
+  val make: (string * string list) list -> (string * (string -> bool) * (string -> bool)) list
 end;
 
 
@@ -40,18 +40,18 @@ val ends_thy_section = Pred.is endN
 val thy_decl_blockN = "thy_decl_block" (* e.g. locale, instantiation *)
 val notepadN = "notepad"
 
-(* theory -> (string -> bool) -> string -> bool *)
-fun is_in_group_where grouped_commands P command = 
+(* is_in_group_where: commands -> (string -> bool) -> string -> bool *)
+fun is_in_group_where grpd_cmmnds P command = 
   let
-    val kwds = maps snd (filter (Pred.on_fst P) grouped_commands);
+    val kwds = maps snd (filter (Pred.on_fst P) grpd_cmmnds);
   in member (op =) kwds command end;
 
 val starts_notepad = Pred.starts_with notepadN
 
-fun starts_thy_block grp_cmmnds = is_in_group_where grp_cmmnds (Pred.is thy_decl_blockN);
+fun starts_thy_block grpd_cmmnds = is_in_group_where grpd_cmmnds (Pred.is thy_decl_blockN);
 
-fun ends_thy_block grp_cmmnds = ends_thy_section
-  orf (starts_thy_block grp_cmmnds andf (Pred.neg starts_notepad))
+fun ends_thy_block grpd_cmmnds = ends_thy_section
+  orf (starts_thy_block grpd_cmmnds andf (Pred.neg starts_notepad))
 
 (* THEORY ADDITIONS *)
 (* 
@@ -70,7 +70,7 @@ val thy_goal_stmtN = "thy_goal_stmt" (* e.g. lemma *)
 val thy_goal_defnN = "thy_goal_defn" (* e.g. termination *)
 val goalN = "goal"
 
-fun declares_proof grp_cmmnds = is_in_group_where grp_cmmnds (
+fun declares_proof grpd_cmmnds = is_in_group_where grpd_cmmnds (
   Pred.is thy_goalN 
   orf Pred.is thy_goal_stmtN
   orf Pred.is thy_goal_defnN)
@@ -90,15 +90,15 @@ val unfoldingN = "unfolding"
 val usingN = "using"
 val includingN = "including"
 
-fun starts_proof grp_cmmnds = (Pred.is_not lemmasN)
-  andf (is_in_group_where grp_cmmnds (Pred.contains goalN))
+fun starts_proof grpd_cmmnds = (Pred.is_not lemmasN)
+  andf (is_in_group_where grpd_cmmnds (Pred.contains goalN))
 
-fun ends_proof grp_cmmnds = is_in_group_where grp_cmmnds (Pred.contains qedN)
+fun ends_proof grpd_cmmnds = is_in_group_where grpd_cmmnds (Pred.contains qedN)
 
-fun is_apply_step grp_cmmnds = 
+fun is_apply_step grpd_cmmnds = 
   (Pred.is_not qedN)
   andf (
-    is_in_group_where grp_cmmnds (Pred.disjunct [
+    is_in_group_where grpd_cmmnds (Pred.disjunct [
       Pred.contains prf_scriptN, 
       Pred.contains qedN])
     orf (Pred.is unfoldingN)
@@ -120,9 +120,9 @@ val qed_blockN = "qed_block" (* i.e. qed *)
 val next_blockN = "next_block" (* i.e. next *)
 val prfN = "prf"
 
-fun is_isar_step grp_cmmnds = 
-  is_in_group_where grp_cmmnds (Pred.contains prfN orf Pred.is next_blockN)
-  andf (Pred.neg (is_apply_step grp_cmmnds));
+fun is_isar_step grpd_cmmnds = 
+  is_in_group_where grpd_cmmnds (Pred.contains prfN orf Pred.is next_blockN)
+  andf (Pred.neg (is_apply_step grpd_cmmnds));
 
 (* DOCUMENT PREPARATION *)
 (* 
@@ -132,14 +132,14 @@ val document_rawN = "document_raw" (* i.e. text_raw *)
 *)
 val documentN = "document"
 
-fun is_document_step grp_cmmnds = 
-  is_in_group_where grp_cmmnds (Pred.contains documentN)
+fun is_document_step grpd_cmmnds = 
+  is_in_group_where grpd_cmmnds (Pred.contains documentN)
 
 
 (** DATA PREPARATION **)
 
-(* theory_separators: theory -> (string * (string -> bool) * (string -> bool)) list *)
-fun for_theory cmmnds =
+(* make: commands -> (string * (string -> bool) * (string -> bool)) list *)
+fun make cmmnds =
   let 
     val thy_seps = (Sections.theory_tag, begins_thy, ends_thy_section);
     val thy_block_seps = (Sections.thy_block_tag, starts_thy_block cmmnds, ends_thy_block cmmnds);

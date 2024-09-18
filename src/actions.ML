@@ -16,7 +16,6 @@ sig
   val apply: T -> Toplevel.state -> Toplevel.state
    
   (* Data preparation *)
-  val begin_thy_from: Toplevel.state -> T list -> theory
   val make': theory -> string -> T list
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
@@ -83,14 +82,6 @@ fun apply act st = fst (apply_safe act st);
 
 (** DATA PREPARATION **)
 
-(* begin_thy_from: Toplevel.state -> Actions.T list -> theory *)
-fun begin_thy_from state acts = 
-  let
-    fun begins_thy a = on_kind Seps.begins_thy a;
-  in state
-  |> fold apply (Pred.take_until begins_thy acts)
-  |> Toplevel.theory_of end;
-
 (* make': theory -> string -> Actions.T list *)
 fun make' thy0 thy_text =
   let
@@ -103,7 +94,7 @@ fun make' thy0 thy_text =
 fun theory_separators thy =
   let 
     val cmmnds = Get.grouped_commands thy;
-    val seps = Seps.for_theory cmmnds
+    val seps = Seps.make cmmnds
   in map (fn (tag, starts, ends) => (tag, on_kind starts, on_kind ends)) seps end;
 
 (* next_state: Actions.T Sections.T -> Toplevel.state -> Toplevel.state *)
