@@ -11,6 +11,7 @@ sig
   val has_many: 'a list -> bool
   val nth_letter_is: int -> string -> string -> bool
   val starts_with: string -> string -> bool
+  val ends_with: string -> string -> bool
   val contains: string -> string -> bool
   val is_dynamic: Proof.context -> string * thm list -> bool
   val find_first: ('a -> bool) -> 'a list -> 'a option
@@ -48,6 +49,9 @@ fun has_many xs = length xs > 1;
 
 (* starts_with: string -> string -> bool *)
 fun starts_with str name = String.isPrefix str name;
+
+(* ends_with: string -> string -> bool *)
+fun ends_with str name = String.isSuffix str name;
 
 (* nth_letter_is: int -> string -> string -> bool *)
 fun nth_letter_is n str name = nth_string name n = str;
