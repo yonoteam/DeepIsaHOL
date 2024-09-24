@@ -19,6 +19,7 @@ sig
   val consts_of: T -> term list
   val vars_of: T -> term list
   val types_of: T -> typ list
+  val proven_of: T -> term list
   val keywords_of: T -> string list
   val methods_of: T -> string list
   val facts_of: T -> (Thm_Name.T * thm) list
@@ -153,9 +154,9 @@ fun init env (s, a) =
 
 (* next: Data.env -> (Toplevel.state * Actions.T) -> Data.T *)
 fun next env (s_new, act_to_do) old_data = 
-  let val cmmnds = grp_cmmnds_of env; in
+  let val cmmnds = grp_cmmnds_of env in
   if Actions.on_kind (Seps.is_apply_step cmmnds) act_to_do then
-    let
+    (let
       val prop = Proof.goal (Toplevel.proof_of s_new);
       val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
       val new_goal = hd goal_hyps;
@@ -167,21 +168,25 @@ fun next env (s_new, act_to_do) old_data =
       val cs = Get.consts goal_hyps;
       val Ts = Get.atomic_types goal_hyps;
       val kwrds = filter (Seps.is_apply_step cmmnds orf Pred.is "proof") (maps snd cmmnds);
-    in Data {
+      val fs = facts_of old_data
+      val hs = tl goal_hyps
+    in let
+      val result = Data {
       state = s_new, 
       action = act_to_do,
       goal = new_goal,
-      hyps = tl goal_hyps,
+      hyps = hs,
       consts = cs,
       vars = xs,
       types = Ts,
       proven = new_proven,
       keywords = kwrds,
       methods = mthds_of env,
-      facts = facts_of old_data}
-    end
+      facts = fs}
+     in result end
+    end)
   else 
-    let
+    (let
       val prop = Proof.goal (Toplevel.proof_of s_new);
       val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);
       val new_goal = hd goal_hyps;
@@ -207,7 +212,7 @@ fun next env (s_new, act_to_do) old_data =
       keywords = kwrds,
       methods = [],
       facts = new_facts}
-    end end;
+    end) end;
 
 (* extract_proof: (Toplevel.state * Actions.T) Sections.T -> Data.T Sections.T *)
 fun extract_proof proof =
@@ -220,7 +225,7 @@ fun extract_proof proof =
 (* extract_proofs: theory -> string -> (Data.env * (Data.T Sections.T)) list *)
 fun extract_proofs thy0 thy_text =
   let
-    val state0 = Toplevel.make_state (SOME thy0);
+    val state0 = Toplevel.make_state NONE;
     val proofs =
       thy_text
       |> Actions.make' thy0
@@ -470,15 +475,22 @@ fun pretty_json debug lvl ctxt0 data =
       |> Config.put show_sorts false
       |> Config.put show_types false 
     val goal = pretty_json_goal ctxt data;
+    val _ = tracing "finished the context"
     val hs = pretty_json_hyps debug (lvl+4) ctxt data;
     val seen = pretty_json_proven debug (lvl+4) ctxt data;
+    val _ = tracing "finished the hyps"
     val cs = pretty_json_consts debug (lvl+4) ctxt data;
+    val _ = tracing "finished the constants"
     val vs = pretty_json_vars debug (lvl+4) ctxt data;
+    val _ = tracing "finished the vars"
     val Ts = pretty_json_types debug (lvl+4) ctxt data;
+    val _ = tracing "finished the constants, vars and types"
     val ks = pretty_json_keywords debug (lvl+4) data;
     val ms = pretty_json_methods debug (lvl+4) data;
+    val _ = tracing "finished the methods and keywords"
     val lems = pretty_json_facts debug (lvl+4) ctxt data;
     val act = pretty_json_action data;
+    val _ = tracing "finished the facts and actions"
     val pretty_state = Print.pretty_json_attribs debug "{" "}" (lvl+2) 
       [act, goal, hs, seen, vs, cs, Ts, ks, ms, lems]
   in Print.pretty_json_attrib debug lvl "step" pretty_state end;
@@ -508,8 +520,8 @@ end;
 
 (** WRITING OPERATIONS **)
 
-val _ = ML_system_pp (fn _ => fn _ 
-  => Pretty.to_polyml o pretty_json true 0 (Context.the_local_context ()))
+(* val _ = ML_system_pp (fn _ => fn _ 
+  => Pretty.to_polyml o pretty_json true 0 (Context.the_local_context ())) *)
 
 (* write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit *)
 fun write_proof' dir i proof =

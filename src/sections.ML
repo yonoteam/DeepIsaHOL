@@ -6,6 +6,8 @@ sig
   val thy_block_tag: string
   val proof_tag: string
   val other_tag: string
+  val make_single: 'a -> 'a T
+  val get_subsects: 'a T -> 'a T list
   val map: ('a -> 'b) -> 'a T -> 'b T
   val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a T -> 'b T
   val is_closed: 'a T -> bool
@@ -38,6 +40,13 @@ val theory_tag = "THEORY"
 val thy_block_tag = "THY_BLOCK"
 val proof_tag = "PROOF"
 val other_tag = "OTHER"
+
+fun make_single x = Single x;
+
+(* get_subsects: 'a Sections.T -> ('a Sections.T) list *)
+fun get_subsects Empty = []
+  | get_subsects (Single _) = []
+  | get_subsects (Block (_, _, sects)) = sects
 
 (* map: ('a -> 'b) -> 'a Sections.T -> 'b Sections.T *)
 fun map _ Empty = Empty
