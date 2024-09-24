@@ -55,17 +55,15 @@ class Data_Reader (val logic: String, val read_dir: String) {
       if (path.isAbsolute) path 
       else Paths.get(this.read_dir, thy_file)
     if (!Files.exists(full_thy_file_path) || !Files.isRegularFile(full_thy_file_path)) {
-      throw new IllegalArgumentException(s"File not found or is not a regular file: $full_thy_file_path")
+      throw new IllegalArgumentException(s"File not found or is not a file: $full_thy_file_path")
     }
 
     // theory processing
-    val thy_text = Using(scala.io.Source.fromFile(full_thy_file_path.toFile)) {
-      source => source.mkString
-    }.getOrElse(throw new RuntimeException(s"Error reading file: $full_thy_file_path"))
-    val thy0 = loader.begin_theory(Theory_Loader.Text(thy_text, loader.setup.workingDirectory))
+    val source = Theory_Loader.Text.from_file(full_thy_file_path)
+    val thy0 = loader.begin_theory(source)
 
     // extract data
-    val jsons = ML_Functions.extract(thy0, thy_text)
+    val jsons = ML_Functions.extract(thy0, source.get_text)
     jsons.retrieveNow.split(" ISA_RL_SEP ").toList.asJava
   }
 

@@ -12,6 +12,8 @@ lazy val root = project
     libraryDependencies += "de.unruh" %% "scala-isabelle" % "master-SNAPSHOT" from "file:~/Programs/deepIsaHOL/lib/scala-isabelle/target/scala-2.13/scala-isabelle_2.13-master-SNAPSHOT.jar", // development snapshot
     resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
 
+    scalacOptions += "-deprecation",
+    
     /* From scala-isabelle and PISA */
     // https://mvnrepository.com/artifact/org.log4s/log4s
     libraryDependencies += "org.log4s" %% "log4s" % "1.10.0",
