@@ -37,6 +37,7 @@ sig
   val pretty_json_action: T -> Pretty.T
   val pretty_json_goal: Proof.context -> T -> Pretty.T
   val pretty_json_hyps: bool -> int -> Proof.context -> T -> Pretty.T
+  val pretty_json_proven: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_consts: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_vars: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_types: bool -> int -> Proof.context -> T -> Pretty.T
@@ -475,22 +476,15 @@ fun pretty_json debug lvl ctxt0 data =
       |> Config.put show_sorts false
       |> Config.put show_types false 
     val goal = pretty_json_goal ctxt data;
-    val _ = tracing "finished the context"
     val hs = pretty_json_hyps debug (lvl+4) ctxt data;
     val seen = pretty_json_proven debug (lvl+4) ctxt data;
-    val _ = tracing "finished the hyps"
     val cs = pretty_json_consts debug (lvl+4) ctxt data;
-    val _ = tracing "finished the constants"
     val vs = pretty_json_vars debug (lvl+4) ctxt data;
-    val _ = tracing "finished the vars"
     val Ts = pretty_json_types debug (lvl+4) ctxt data;
-    val _ = tracing "finished the constants, vars and types"
     val ks = pretty_json_keywords debug (lvl+4) data;
     val ms = pretty_json_methods debug (lvl+4) data;
-    val _ = tracing "finished the methods and keywords"
     val lems = pretty_json_facts debug (lvl+4) ctxt data;
     val act = pretty_json_action data;
-    val _ = tracing "finished the facts and actions"
     val pretty_state = Print.pretty_json_attribs debug "{" "}" (lvl+2) 
       [act, goal, hs, seen, vs, cs, Ts, ks, ms, lems]
   in Print.pretty_json_attrib debug lvl "step" pretty_state end;
