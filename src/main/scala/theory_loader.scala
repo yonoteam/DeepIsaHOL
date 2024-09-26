@@ -17,6 +17,7 @@ import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader, ToplevelState}
 import de.unruh.isabelle.mlvalue.{AdHocConverter, MLFunction, MLFunction0, MLFunction2, MLFunction3}
 import isabelle_rl.Theory_Loader.{Heap, Source, Text}
 import isabelle_rl.Theory_Loader.Ops
+import isabelle_rl.Graph
 
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
@@ -38,7 +39,7 @@ class Theory_Loader(val isa_logic: String, var path_to_isa: String, var work_dir
     val files = Files.walk(setup.workingDirectory).iterator().asScala
     val filteredFiles = files.filter { path => Files.isRegularFile(path) && path.toString.endsWith(".thy")}
     filteredFiles.toList
-  } 
+  }  
   
   def make_source(name: String): Source = {
     // look for import in the heap
@@ -100,7 +101,10 @@ object Theory_Loader extends OperationCollection {
   case class File(path: Path) extends Source
   case class Text(text: String, path: Path, position: Position) extends Source {
     def get_text: String = {return text}
+
+    def get_imports(implicit isabelle: Isabelle): List[String] = Ops.header_read(text, position).retrieveNow.imports
   }
+
   object Text {
     def from_file(path: Path)(implicit isabelle: Isabelle): Text = {
       val content = Files.readString(path)
@@ -140,6 +144,8 @@ object Theory_Loader extends OperationCollection {
     val can_get_thy: MLFunction[String, Boolean] = compileFunction[String, Boolean]("Basics.can Thy_Info.get_theory")
 
     val can_get_thy_file: MLFunction[String, Boolean] = compileFunction[String, Boolean]("Basics.can Resources.find_theory_file")
+
+    val find_thy_file: MLFunction[String, Option[Path]] = compileFunction[String, Option[Path]]("Resources.find_theory_file")
 
     val get_base_name: MLFunction[String, String] = compileFunction("Long_Name.base_name")
   }
