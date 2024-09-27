@@ -5,7 +5,7 @@ signature IMPORTS =
 sig
   val locate: 'a Path_Graph.T -> Path.T -> string -> Path.T
   val init_dep_graph: {debug: bool} -> Path.T -> string list Path_Graph.T -> string list Path_Graph.T
-  val complete_dep_graph: {debug: bool} -> string list Path_Graph.T -> string list Path_Graph.T
+  val complete_dep_graph: {debug: bool, ignore_errors:bool} -> string list Path_Graph.T -> string list Path_Graph.T
 end;
 
 
@@ -89,6 +89,7 @@ fun carefully_add new_val path graph =
 
 in
 
+(* TODO: Make it of type theory Path_Graph.T and account for theories outside of work_dir not in Isabelle libraries *)
 (* init_dep_graph: {debug: bool} -> Path.T -> string list Path_Graph.T -> string list Path_Graph.T *)
 fun init_dep_graph {debug=debugging} work_dir dep_graph =
   let
@@ -109,9 +110,9 @@ fun init_dep_graph {debug=debugging} work_dir dep_graph =
       in carefully_add thy_name thy_path graph end;
   in fold (init_dep_graph {debug=debugging}) dirs (fold add_thy_dir thy_paths dep_graph) end;
 
-(* TODO: Create a {unsafe} mode for ignoring malformed subdirectories *)
+(* TODO: Make less spaguetti. *)
 (* complete_dep_graph: {debug: bool} -> string list Path_Graph.T -> string list Path_Graph.T *)
-fun complete_dep_graph {debug=debugging} dep_graph =
+fun complete_dep_graph {debug=debugging, ignore_errors=ignoring_errors} dep_graph =
   let
     val thy_paths = Path_Graph.keys dep_graph;
     fun process_imports thy_path graphA =
@@ -120,11 +121,21 @@ fun complete_dep_graph {debug=debugging} dep_graph =
         val work_dir = Path.dir thy_path
         fun expand_graph import graph =
           let
-            val location = locate graph work_dir import;
-            val graph' = 
-              carefully_add import location graph
-              |> Path_Graph.add_edge (thy_path, location);
-          in graph' end;
+            val result = if ignoring_errors
+              then let
+                val location = Basics.try (locate graph work_dir) import;
+                val graph' = (case location of 
+                  SOME loc => 
+                    carefully_add import loc graph
+                    |> Path_Graph.add_edge (thy_path, loc)
+                  | NONE => ((if debugging then tracing ("Skipping due to error: " ^ import) else ()); graph))
+              in graph' end 
+              else let
+                val location = locate graph work_dir import;
+                val graph' = carefully_add import location graph
+                  |> Path_Graph.add_edge (thy_path, location)
+              in graph' end;
+          in result end;
       in fold expand_graph (imports_of thy_path) graphA end;
   in fold process_imports thy_paths dep_graph end;
 

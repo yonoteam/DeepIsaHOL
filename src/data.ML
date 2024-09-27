@@ -595,7 +595,7 @@ fun write_proofs dir proofs =
 (* retrieve_from_to: string -> string -> unit *)
 fun retrieve_from_to thy_file dir =
   let
-    val thy0 = Get.thy_from_file thy_file;
+    val thy0 = Get.start_thy_from_file (Get.parents thy_file) thy_file;
     val state0 = Toplevel.make_state (SOME thy0);
     val proofs =
       Ops.read_file thy_file

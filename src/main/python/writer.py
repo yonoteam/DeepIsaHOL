@@ -6,12 +6,12 @@ import json
 import os
 import logging
 
-gateway = JavaGateway()
 # usage:
 # entrypoint = gateway.entry_point
 # reader = entrypoint.get_reader(logic, work_dir) # from data_reader.scala
 # gateway.help(reader)
 # gateway.shutdown() # when done
+gateway = JavaGateway()
 
 def get_theory_file_path (read_dir, read_file):
     if os.path.isfile(read_file):

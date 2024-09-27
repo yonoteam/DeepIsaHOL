@@ -41,27 +41,28 @@ class Theory_Loader(val isa_logic: String, var path_to_isa: String, var work_dir
     filteredFiles.toList
   }  
   
-  def make_source(name: String): Source = {
+  def make_source(import_name: String): Source = {
     // look for import in the heap
-    if (Ops.can_get_thy(name).retrieveNow) {
-      return Theory_Loader.Heap(name)
+    if (Ops.can_get_thy(import_name).retrieveNow) {
+      return Theory_Loader.Heap(import_name)
     }
     // look for import in working directory
-    val file_name = if (name.contains(".")) (Ops.get_base_name(name).retrieveNow + ".thy") else (name + ".thy")
+    val file_name = if (import_name.contains(".")) {
+      Ops.get_base_name(import_name).retrieveNow + ".thy"
+    } else if (import_name.contains("/")) {
+      Path.of(import_name + ".thy").getFileName.toString
+    } else {
+      import_name + ".thy"
+    }
     local_thy_files.find(_.getFileName.toString == file_name) match {
       case Some(result_path) => return Theory_Loader.Text.from_file(result_path)
       case None => ()
     }
-    val result_path = setup.workingDirectory.resolve(file_name)
-    if (Files.exists(result_path)) {
-      return Theory_Loader.Text.from_file(result_path)
-    } 
-    
     // look for import in Isabelle's reach
-    if (Ops.can_get_thy_file(name).retrieveNow) {
-      return Theory_Loader.Heap(name)
+    if (Ops.can_get_thy_file(import_name).retrieveNow) {
+      return Theory_Loader.Heap(import_name)
     } else {
-      throw new FileNotFoundException(s"Theory_Loader.make_source: Import $name not found.")
+      throw new FileNotFoundException(s"Theory_Loader.make_source: Import $import_name not found.")
     }
   }
 
@@ -98,7 +99,6 @@ object Theory_Loader extends OperationCollection {
   case class Heap(name: String) extends Source {
     override def path: Path = Paths.get("INVALID")
   }
-  case class File(path: Path) extends Source
   case class Text(text: String, path: Path, position: Position) extends Source {
     def get_text: String = {return text}
 

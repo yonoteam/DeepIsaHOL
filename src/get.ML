@@ -4,7 +4,8 @@ sig
   (* FILE INFORMATION *)
   val header: string -> Thy_Header.header
   val parents: string -> theory list
-  val thy_from_file: string -> theory
+  val start_thy_from_file: theory list -> string -> theory
+  val final_thy_from_file: theory list -> string -> theory option
 
   (* THEORY INFORMATION *)
   val transitions: theory -> Position.T -> string -> Toplevel.transition list
@@ -74,12 +75,22 @@ fun parents thy_file =
     val result = List.map theory_from (#imports (header thy_file));
   in result end;
 
-(* thy_from_file: string -> theory *)
-fun thy_from_file thy_file =
+(* start_thy_from_file: theory list -> string -> theory *)
+fun start_thy_from_file thy_parents thy_file =
+  Resources.begin_theory (Path.dir (Path.explode thy_file)) (header thy_file) thy_parents;
+
+(* final_thy_from_file: theory list -> string -> theory option *)
+fun final_thy_from_file thy_parents thy_file =
   let
-    val path = Path.explode thy_file;
-    val thys = parents thy_file;
-  in Resources.begin_theory path (header thy_file) thys end;
+    val thy0 = start_thy_from_file thy_parents thy_file;
+    val transitions = 
+      Ops.read_file thy_file
+      |> Outer_Syntax.parse_text thy0 (K thy0) Position.start 
+      |> filter_out (fn tr => Toplevel.name_of tr = "<ignored>")
+    val final_state = 
+      Toplevel.make_state NONE
+      |> fold (Toplevel.command_exception true) transitions;
+  in Toplevel.previous_theory_of final_state end;
 
 
 (** THEORY INFORMATION **)
