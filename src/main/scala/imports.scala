@@ -13,7 +13,7 @@ import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader, ToplevelState}
 import de.unruh.isabelle.mlvalue.{AdHocConverter, MLFunction, MLFunction0, MLFunction2, MLFunction3}
 import isabelle_rl.Theory_Loader.{Heap, Source, Text}
-import isabelle_rl.Theory_Loader.Ops
+import Theory_Loader.Ops
 import isabelle_rl.Graph
 
 // Implicits
@@ -22,6 +22,8 @@ import de.unruh.isabelle.pure.Implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
+  private val debug = true
+
   val local_thy_files: List[Path] = {
     val files = Files.walk(work_dir).iterator().asScala
     val filtered_files = files.filter { path => Files.isRegularFile(path) && path.toString.endsWith(".thy")}
@@ -37,11 +39,13 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     }
   }
 
-  def locate_via_thy(import_name: String): Option[Path] = {
-    if (Ops.can_get_thy(import_name).retrieveNow) Some(Path.of("ISABELLE/" + import_name)) else None
+  def locate_via_thy(import_name: String): Option[(Path,String)] = {
+    if (Ops.can_get_thy(import_name).retrieveNow) {
+        Some(Path.of("ISABELLE=" + import_name), "THY=" + import_name)
+    } else None
   }
 
-  def locate_locally(import_name: String): Option[Path] = {
+  def locate_locally(import_name: String): Option[(Path,String)] = {
     val file_name = if (import_name.contains(".")) {
       Ops.get_base_name(import_name).retrieveNow + ".thy"
     } else if (import_name.contains("/")) {
@@ -50,26 +54,29 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
       import_name + ".thy"
     }
     local_thy_files.find(_.getFileName.toString == file_name) match {
-      case Some(result_path) => return Some(result_path)
+      case Some(result_path) => return Some(result_path, "LOCALLY")
       case None => None
     }
   }
 
-  def locate_via_thy_file(import_name: String): Option[Path] = {
-    Ops.find_thy_file(import_name).retrieveNow
-  }
-
-  def locate(import_name: String): Path = {
-    val file_path: Option[Path] = locate_locally(import_name)
-      .orElse(locate_via_thy(import_name))
-      .orElse(locate_via_thy_file(import_name))
-    file_path match {
-      case Some(path) => path
-      case None => throw new Exception(s"Imports.locate could not find $import_name in $work_dir")
+  def locate_remotely(import_name: String): Option[(Path,String)] = {
+    Ops.find_thy_file(import_name).retrieveNow match {
+      case Some(result_path) => return Some(result_path, "REMOTE=" + import_name)
+      case None => None
     }
   }
 
-  def init_deps(debug: Boolean): Graph[Path, Option[Theory]] = {
+  def locate(import_name: String): (Path, String) = {
+    val file_path: Option[(Path,String)] = locate_locally(import_name)
+      .orElse(locate_via_thy(import_name))
+      .orElse(locate_remotely(import_name))
+    file_path match {
+      case Some(result) => result
+      case None => throw new Exception(s"Imports.locate: could not find $import_name in $work_dir")
+    }
+  }
+
+  def init_deps(): Graph[Path, Option[Theory]] = {
     var file_dep_graph: Graph[Path, Option[Theory]] = Graph.empty
 
     local_thy_files.foreach { thy_file_path =>
@@ -79,51 +86,84 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
 
     local_thy_files.foreach { thy_file_path =>
       if (debug) println(s"Processing parents of ${thy_file_path.toString}")
-      val parents = Text.from_file(thy_file_path).get_imports.map(locate) 
-      // TODO: we get the imports, if the import can be loaded via can_get_thy or can_get_thy_file add node (locate(import), Some(Theory(import)))
-      parents.foreach{ parent =>
+      val parents = Text.from_file(thy_file_path).get_imports.map(locate)
+      parents.foreach{ case (parent, location_method) =>
         if (debug) println(s"Processing parent ${parent.toString}")
-        file_dep_graph = file_dep_graph.default_node(parent, None)
+        val init_parent_thy = if (location_method.startsWith("THY") || location_method.startsWith("REMOTE")) {
+          val import_name = location_method.split("=").last
+          Some(Theory(import_name))
+        } else {
+            None
+        }
+        file_dep_graph = file_dep_graph.default_node(parent, init_parent_thy)
         file_dep_graph = file_dep_graph.add_edge(thy_file_path, parent)
       }
     }
-
+    
     file_dep_graph
   }
+
+  var dep_graph = init_deps()
+
+  // assumption: all parent paths of thy_file_path already have value Some(thy)
+  private def update_node(thy_file_path: Path): Unit = {
+    val parent_paths = dep_graph.imm_succs(thy_file_path).toList
+    val parent_thys = parent_paths.map(dep_graph.get_node) match {
+      case thys if thys.forall(_.isDefined) => thys.flatten
+      case _ => throw new Exception(s"Imports.update_node: None parent for theory $thy_file_path")
+    }
+
+    val thy_text = Files.readString(thy_file_path)
+    val master_dir = thy_file_path.getParent()
+    val header = Ops.header_read(thy_text, Position.none).retrieveNow
+    val thy0 = Ops.begin_theory(master_dir, header, parent_thys).retrieveNow
+    val final_thy = Ops.get_final_thy(thy0, thy_text).retrieveNow
+
+    dep_graph = dep_graph.map_node(thy_file_path, {_ => final_thy})
+  }
+
+  // assumption: thy_paths is in topological order from oldest to youngest
+  private def update_nodes(thy_paths: List[Path]): Unit = {
+    thy_paths.foreach { ancester =>
+      if (debug) println(s"Imports.update_nodes: Processing theory $ancester")
+      dep_graph.get_node(ancester) match {
+        case Some(thy) => ()
+        case None => update_node(ancester)
+      }
+    }
+  }
+
+  def get_parents(thy_file_path: Path): List[Theory] = {
+    val all_ancesters = dep_graph.all_succs(List(thy_file_path)).reverse
+    update_nodes(all_ancesters)
+    dep_graph.imm_succs(thy_file_path).toList.map(dep_graph.get_node).flatten
+  }
+
+  def load_all_deps(): Unit = {
+    val eldests = dep_graph.maximals
+    eldests.map{ elder => dep_graph.get_node(elder) match {
+        case Some(thy) => ()
+        case None => throw new Exception(s"Imports.load_all_deps: undefined elder $elder")
+      }
+    }
+    val all_nodes = dep_graph.all_preds(eldests)
+    update_nodes(all_nodes)
+  }
+
+  def get_start_theory(thy_file_path: Path): Theory = {
+    val thy_text = Files.readString(thy_file_path)
+    val master_dir = thy_file_path.getParent()
+    val header = Ops.header_read(thy_text, Position.none).retrieveNow
+    val thy0 = Ops.begin_theory(master_dir, header, get_parents(thy_file_path)).retrieveNow
+    thy0
+  }
+
+  def get_end_theory(thy_file_path: Path): Theory = {
+    dep_graph.get_node(thy_file_path) match {
+        case Some(thy) => thy
+        case None => 
+          val _ = get_parents(thy_file_path)
+          dep_graph.get_node(thy_file_path).get
+    }
+  }
 }
-
-/*
-def load_deps(original: Graph[Path, Option[Theory]], debug: Boolean): Graph[Path, Option[Theory]] = {
-    val eldests = original.maximals
-
-    def update_eldests(original: Graph[Path, Option[Theory]]) {
-    var updated = original
-    eldests.foreach { elder =>
-        if (elder.startsWith(Path.of("ISABELLE"))) {
-        updated = updated.map_node(elder, (_ => Some(Theory(file_name_without_extension(elder)))))
-        } else {
-        throw Exception(s"Imports.load_deps input graph is  $import_name in $work_dir")
-        }
-    }
-    updated
-    }
-
-    def update_node(thy_file_path: Path, graph: Graph[Path, Option[Theory]]): Graph[Path, Option[Theory]] = {
-    // Get the parent nodes and retrieve their theories
-    val parent_paths = graph.imm_succs(thy_file_path).toList
-    val parent_theories = parent_paths.map(graph.get_node) match {
-        case theories if theories.forall(_.isDefined) => theories.flatten // Get all Some(theory)
-        case _ => throw new Exception(s"Missing theory for one of the parents of $thy_file_path")
-    }
-    // Compute the current theory using Ops.begin_theory
-    val thy_header = get_header(thy_file_path) // Assuming this is a provided function
-    val master_dir = thy_file_path.getParent
-    val current_theory = Ops.begin_theory(master_dir, thy_header, parent_theories).retrieveNow
-    
-    // Update the graph with the computed theory for this node
-    graph.map_entry(thy_file_path, {
-        case (_, (preds, succs)) => (Some(current_theory), (preds, succs))
-    })
-    }
-    val all_nodes = original.all_preds(eldests)
-} } */ 

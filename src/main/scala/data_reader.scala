@@ -26,7 +26,7 @@ object Data_Reader {
 
 class Data_Reader (val logic: String, val read_dir: String) {
   override def toString(): String = {
-    "Writer(logic=" + logic + ", read_dir=" + read_dir + ")"
+    "Reader(logic=" + logic + ", read_dir=" + read_dir + ")"
   }
 
   private val loader = new Theory_Loader(logic, Directories.isabelle_app, read_dir)

@@ -127,6 +127,17 @@ object Theory_Loader extends OperationCollection {
     
     val init_toplevel: MLFunction0[ToplevelState] = compileFunction0[ToplevelState]("fn () => Toplevel.make_state NONE")
 
+    val get_final_thy: MLFunction2[Theory, String, Option[Theory]] =
+      compileFunction[Theory, String, Option[Theory]](
+      """fn (thy0, thy_text) => let
+        |  val transitions =  
+        |    Outer_Syntax.parse_text thy0 (K thy0) Position.start thy_text
+        |    |> filter_out (fn tr => Toplevel.name_of tr = "<ignored>");
+        |  val final_state = 
+        |    Toplevel.make_state NONE
+        |    |> fold (Toplevel.command_exception true) transitions;
+        |  in Toplevel.previous_theory_of final_state end""".stripMargin)
+
     val parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] =
       compileFunction[Theory, String, List[(Transition.T, String)]](
       """fn (thy, text) => let
