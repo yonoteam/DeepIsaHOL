@@ -22,7 +22,7 @@ import de.unruh.isabelle.pure.Implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
-  private val debug = true
+  private val debug = false
 
   val local_thy_files: List[Path] = {
     val files = Files.walk(work_dir).iterator().asScala
@@ -110,7 +110,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     val parent_paths = dep_graph.imm_succs(thy_file_path).toList
     val parent_thys = parent_paths.map(dep_graph.get_node) match {
       case thys if thys.forall(_.isDefined) => thys.flatten
-      case _ => throw new Exception(s"Imports.update_node: None parent for theory $thy_file_path")
+      case _ => throw new Exception(s"Imports: None parent for theory $thy_file_path")
     }
 
     val thy_text = Files.readString(thy_file_path)
@@ -124,11 +124,11 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
 
   // assumption: thy_paths is in topological order from oldest to youngest
   private def update_nodes(thy_paths: List[Path]): Unit = {
-    thy_paths.foreach { ancester =>
-      if (debug) println(s"Imports.update_nodes: Processing theory $ancester")
-      dep_graph.get_node(ancester) match {
+    thy_paths.foreach { thy_path =>
+      if (debug) println(s"Imports: Processing theory $thy_path")
+      dep_graph.get_node(thy_path) match {
         case Some(thy) => ()
-        case None => update_node(ancester)
+        case None => update_node(thy_path)
       }
     }
   }
