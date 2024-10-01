@@ -18,6 +18,8 @@ import isabelle_rl.Graph
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
+object Transition extends AdHocConverter("Toplevel.transition")
+
 class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   private val debug = true
 

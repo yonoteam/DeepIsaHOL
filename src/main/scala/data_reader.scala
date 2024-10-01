@@ -14,7 +14,7 @@ import de.unruh.isabelle.mlvalue.MLValue.{compileValue, compileFunction, compile
 import de.unruh.isabelle.mlvalue.{MLValue, MLFunction, MLFunction0, MLFunction2, MLFunction3}
 import de.unruh.isabelle.mlvalue.{StringConverter, UnitConverter}
 import de.unruh.isabelle.pure.{Context, Theory}
-import isabelle_rl.{Directories, Theory_Loader}
+import isabelle_rl.{Directories}
 
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
