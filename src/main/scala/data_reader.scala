@@ -25,12 +25,17 @@ object Data_Reader {
 }
 
 class Data_Reader (val logic: String, val read_dir: String) {
+  val setup: Isabelle.Setup = Isabelle.Setup(isabelleHome = Path.of(Directories.isabelle_app),
+    sessionRoots = Nil,
+    logic = logic,
+    workingDirectory = Path.of(read_dir)
+  )
+  implicit val isabelle: Isabelle = new Isabelle(setup)
+  val imports = Imports(read_dir)(isabelle)
+
   override def toString(): String = {
     "Reader(logic=" + logic + ", read_dir=" + read_dir + ")"
   }
-
-  private val loader = new Theory_Loader(logic, Directories.isabelle_app, read_dir)
-  implicit val isabelle: Isabelle = loader.isabelle
 
   private object ML_Functions {
     final val isa_rl_thy_file = Directories.isabelle_rl + "Isabelle_RL.thy"
@@ -43,11 +48,6 @@ class Data_Reader (val logic: String, val read_dir: String) {
     final val extract : MLFunction2[Theory, String, String] = compileFunction[Theory, String, String](ml_extract)
   }
 
-  private def resolvePath(file: String): Path = {
-    val path = Paths.get(file)
-    if (path.isAbsolute) path else Paths.get(this.read_dir, file)
-  }
-
   def extract (thy_file: String): java.util.List[String] = {
     // well-formed input
     val path = Paths.get(thy_file)
@@ -55,15 +55,15 @@ class Data_Reader (val logic: String, val read_dir: String) {
       if (path.isAbsolute) path 
       else Paths.get(this.read_dir, thy_file)
     if (!Files.exists(full_thy_file_path) || !Files.isRegularFile(full_thy_file_path)) {
-      throw new IllegalArgumentException(s"File not found or is not a file: $full_thy_file_path")
+      throw new IllegalArgumentException(s"Reader.extract: File not found or is not a file: $full_thy_file_path")
     }
 
     // theory processing
-    val source = Theory_Loader.Text.from_file(full_thy_file_path)
-    val thy0 = loader.begin_theory(source)
+    val thy0 = imports.get_start_theory(full_thy_file_path)
+    val thy_text = imports.get_file_text(full_thy_file_path)
 
     // extract data
-    val jsons = ML_Functions.extract(thy0, source.get_text)
+    val jsons = ML_Functions.extract(thy0, thy_text)
     jsons.retrieveNow.split(" ISA_RL_SEP ").toList.asJava
   }
 

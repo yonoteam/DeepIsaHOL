@@ -11,7 +11,7 @@ import isabelle_rl.Data_Reader
 import py4j.GatewayServer
 
 object Py4j_Gateway {
-  def get_reader(logic: String, work_dir: String): Data_Reader = new Data_Reader(logic, work_dir)
+  def get_reader(logic: String, work_dir: String): Data_Reader = Data_Reader(logic, work_dir)
 
   val gateway_server = new GatewayServer(Py4j_Gateway)
 

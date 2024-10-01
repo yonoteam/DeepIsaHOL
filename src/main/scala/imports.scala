@@ -12,24 +12,36 @@ import de.unruh.isabelle.control.{Isabelle, OperationCollection}
 import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader, ToplevelState}
 import de.unruh.isabelle.mlvalue.{AdHocConverter, MLFunction, MLFunction0, MLFunction2, MLFunction3}
-import isabelle_rl.Theory_Loader.{Heap, Source, Text}
-import Theory_Loader.Ops
 import isabelle_rl.Graph
 
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
-import scala.concurrent.ExecutionContext.Implicits.global
 
 class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   private val debug = false
+
+  override def toString(): String = {
+    "Imports(read_dir=" + work_dir + ")"
+  }
 
   val local_thy_files: List[Path] = {
     val files = Files.walk(work_dir).iterator().asScala
     val filtered_files = files.filter { path => Files.isRegularFile(path) && path.toString.endsWith(".thy")}
     filtered_files.toList
   }
-  
+
+  def get_file_text(path: Path): String = {
+    if (Files.isRegularFile(path) && path.toString.endsWith(".thy")) {
+      return Files.readString(path)
+    } else throw new Exception(s"Imports.get_file_text: input $path is not a .thy file")
+  }
+
+  def get_import_names(path: Path): List[String] = {
+    val content = get_file_text(path)
+    return Imports.Ops.get_header(content, Position.none).retrieveNow.imports
+  }
+
   private def file_name_without_extension(file_path: Path): String = {
     val file_name = file_path.getFileName.toString
     if (file_name.contains(".")) {
@@ -40,14 +52,14 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   }
 
   def locate_via_thy(import_name: String): Option[(Path,String)] = {
-    if (Ops.can_get_thy(import_name).retrieveNow) {
+    if (Imports.Ops.can_get_thy(import_name).retrieveNow) {
         Some(Path.of("ISABELLE=" + import_name), "THY=" + import_name)
     } else None
   }
 
   def locate_locally(import_name: String): Option[(Path,String)] = {
     val file_name = if (import_name.contains(".")) {
-      Ops.get_base_name(import_name).retrieveNow + ".thy"
+      Imports.Ops.get_base_name(import_name).retrieveNow + ".thy"
     } else if (import_name.contains("/")) {
       Path.of(import_name + ".thy").getFileName.toString
     } else {
@@ -60,7 +72,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   }
 
   def locate_remotely(import_name: String): Option[(Path,String)] = {
-    Ops.find_thy_file(import_name).retrieveNow match {
+    Imports.Ops.find_thy_file(import_name).retrieveNow match {
       case Some(result_path) => return Some(result_path, "REMOTE=" + import_name)
       case None => None
     }
@@ -76,7 +88,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     }
   }
 
-  def init_deps(): Graph[Path, Option[Theory]] = {
+  private def init_deps(): Graph[Path, Option[Theory]] = {
     var file_dep_graph: Graph[Path, Option[Theory]] = Graph.empty
 
     local_thy_files.foreach { thy_file_path =>
@@ -86,7 +98,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
 
     local_thy_files.foreach { thy_file_path =>
       if (debug) println(s"Processing parents of ${thy_file_path.toString}")
-      val parents = Text.from_file(thy_file_path).get_imports.map(locate)
+      val parents = get_import_names(thy_file_path).map(locate)
       parents.foreach{ case (parent, location_method) =>
         if (debug) println(s"Processing parent ${parent.toString}")
         val init_parent_thy = if (location_method.startsWith("THY") || location_method.startsWith("REMOTE")) {
@@ -103,7 +115,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     file_dep_graph
   }
 
-  var dep_graph = init_deps()
+  private var dep_graph = init_deps()
 
   // assumption: all parent paths of thy_file_path already have value Some(thy)
   private def update_node(thy_file_path: Path): Unit = {
@@ -115,9 +127,9 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
 
     val thy_text = Files.readString(thy_file_path)
     val master_dir = thy_file_path.getParent()
-    val header = Ops.header_read(thy_text, Position.none).retrieveNow
-    val thy0 = Ops.begin_theory(master_dir, header, parent_thys).retrieveNow
-    val final_thy = Ops.get_final_thy(thy0, thy_text).retrieveNow
+    val header = Imports.Ops.get_header(thy_text, Position.none).retrieveNow
+    val thy0 = Imports.Ops.begin_theory(master_dir, header, parent_thys).retrieveNow
+    val final_thy = Imports.Ops.get_final_thy(thy0, thy_text).retrieveNow
 
     dep_graph = dep_graph.map_node(thy_file_path, {_ => final_thy})
   }
@@ -153,8 +165,8 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   def get_start_theory(thy_file_path: Path): Theory = {
     val thy_text = Files.readString(thy_file_path)
     val master_dir = thy_file_path.getParent()
-    val header = Ops.header_read(thy_text, Position.none).retrieveNow
-    val thy0 = Ops.begin_theory(master_dir, header, get_parents(thy_file_path)).retrieveNow
+    val header = Imports.Ops.get_header(thy_text, Position.none).retrieveNow
+    val thy0 = Imports.Ops.begin_theory(master_dir, header, get_parents(thy_file_path)).retrieveNow
     thy0
   }
 
@@ -165,5 +177,49 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
           val _ = get_parents(thy_file_path)
           dep_graph.get_node(thy_file_path).get
     }
+  }
+}
+
+object Imports extends OperationCollection {
+  def apply(work_dir: String)(implicit isabelle: Isabelle): Imports = new Imports(Path.of(work_dir))(isabelle)
+
+  // c.f. OperationCollection
+  protected final class Ops(implicit isabelle: Isabelle) {
+    val get_header = compileFunction[String, Position, TheoryHeader]("fn (text,pos) => Thy_Header.read pos text")
+
+    val begin_theory = compileFunction[Path, TheoryHeader, List[Theory], Theory](
+      "fn (path, header, parents) => Resources.begin_theory path header parents")
+    
+    val command_exception: MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] =
+      compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
+      "fn (int, tr, st) => Toplevel.command_exception int tr st")
+    
+    val init_toplevel: MLFunction0[ToplevelState] = compileFunction0[ToplevelState]("fn () => Toplevel.make_state NONE")
+
+    val get_final_thy: MLFunction2[Theory, String, Option[Theory]] =
+      compileFunction[Theory, String, Option[Theory]](
+      """fn (thy0, thy_text) => let
+        |  val transitions =  
+        |    Outer_Syntax.parse_text thy0 (K thy0) Position.start thy_text
+        |    |> filter_out (fn tr => Toplevel.name_of tr = "<ignored>");
+        |  val final_state = 
+        |    Toplevel.make_state NONE
+        |    |> fold (Toplevel.command_exception true) transitions;
+        |  in Toplevel.previous_theory_of final_state end""".stripMargin)
+    
+    val toplevel_end_theory: MLFunction[ToplevelState, Theory] = compileFunction[ToplevelState, Theory]("Toplevel.end_theory Position.none")
+
+    val can_get_thy: MLFunction[String, Boolean] = compileFunction[String, Boolean]("Basics.can Thy_Info.get_theory")
+
+    val can_get_thy_file: MLFunction[String, Boolean] = compileFunction[String, Boolean]("Basics.can Resources.find_theory_file")
+
+    val find_thy_file: MLFunction[String, Option[Path]] = compileFunction[String, Option[Path]]("Resources.find_theory_file")
+
+    val get_base_name: MLFunction[String, String] = compileFunction("Long_Name.base_name")
+  }
+
+  // c.f. OperationCollection
+  override protected def newOps(implicit isabelle: Isabelle) = {
+    new this.Ops
   }
 }
