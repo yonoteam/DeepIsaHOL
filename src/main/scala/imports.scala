@@ -19,7 +19,7 @@ import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
 class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
-  private val debug = false
+  private val debug = true
 
   override def toString(): String = {
     "Imports(read_dir=" + work_dir + ")"
