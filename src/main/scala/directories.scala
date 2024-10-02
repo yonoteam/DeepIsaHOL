@@ -8,11 +8,11 @@ Isabelle/RL directories: Adjust for your specific setup
 package isabelle_rl
 
 object Directories {
-  private val run_main = ""
-  val isabelle_repo = ""
-  val isabelle_app = ""
-  val isabelle_afp = ""
-  val test_dir = ""
-  val test_dir2 = ""
-  val isabelle_rl = ""
+  private val run_main = "runMain isabelle_rl.Main"
+  val isabelle_repo = "/Users/jonathan/Programs/deepIsaHOL/lib/isabelle/"
+  val isabelle_app = "/Applications/Isabelle2024.app/"
+  val isabelle_afp = "/Users/jonathan/Programs/isabelle/afp/thys/"
+  val test_dir = "/Users/jonathan/Programs/isabelle/learning/ML_Programming/"
+  val test_dir2 = "/Users/jonathan/Programs/isabelle/utp/Hybrid-Verification/"
+  val isabelle_rl = "/Users/jonathan/Programs/deepIsaHOL/src/"
 }
