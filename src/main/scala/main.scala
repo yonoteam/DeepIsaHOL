@@ -8,6 +8,7 @@ Main entrypoint
 package isabelle_rl
 
 import java.nio.file.{Path, Paths}
+import scala.jdk.CollectionConverters._
 
 import de.unruh.isabelle.control.{Isabelle, OperationCollection}
 import de.unruh.isabelle.mlvalue.MLValue.{compileValue, compileFunction, compileFunction0}
@@ -35,7 +36,7 @@ object Main {
     val reader = Py4j_Gateway.get_reader(logic, Directories.test_dir2)
     implicit val isabelle:de.unruh.isabelle.control.Isabelle = reader.isabelle
     println("Reading file...")
-    val jsons = reader.extract("HS_Preliminaries.thy")
+    val jsons = reader.extract("HS_Preliminaries.thy").asJava
     println("The problematic theorem can be printed and it is: \n" + jsons.get(10))
   }
 }

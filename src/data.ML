@@ -505,7 +505,7 @@ fun extract (thy0, thy_text) =
   let 
     val proofs = extract_proofs thy0 thy_text;
     fun string_proof (env, proof) = 
-      pretty_json_proof false 0 env proof
+      pretty_json_proof true 0 env proof
       |> Print.string_of_pretty
   in String.concatWith " ISA_RL_SEP " (map string_proof proofs) end;
 

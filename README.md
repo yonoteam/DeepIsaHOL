@@ -45,20 +45,20 @@ end
 ```
 
 ### Scala level
-This level is handled by `scala-isabelle`. The project provides a `data_reader.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. The data reader can use the `data.ML` function `Data.extract` to produce a string of `json`'s with proof data from a `.thy` file:
+This level is handled by `scala-isabelle`. The project provides a `reader.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. The data reader can use the `data.ML` function `Data.extract` to produce a string of `json`'s with proof data from a `.thy` file:
 
 ```scala
 import isabelle_rl._
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
-val reader = new Data_Reader("HOL", "/path/to/a/directory/where/a/thy/file/resides")
+val reader = new Reader("HOL", "/path/to/a/directory/where/a/thy/file/resides")
 
 val string_of_jsons = reader.extract("your_thy_file.thy")
 ```
 
 ### Python level
-Finally, to exemplify the interaction with Python, the project provides a Python class in `writer.py` that uses a reader from `data_reader.scala` (via `Py4j`) to copy the structure of a directory holding an Isabelle project and write the `json`s of the project's proof data into another directory with the same structure as the original one:
+Finally, to exemplify the interaction with Python, the project provides a Python class in `writer.py` that uses a reader from `reader.scala` (via `Py4j`) to copy the structure of a directory holding an Isabelle project and write the `json`s of the project's proof data into another directory with the same structure as the original one:
 ```python
 import sys
 sys.path.append('/path/to/this/projects/src/main/python')

@@ -153,6 +153,10 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     dep_graph.imm_succs(thy_file_path).toList.map(dep_graph.get_node).flatten
   }
 
+  def list_all_deps(): List[Path] = {
+    return dep_graph.all_preds(dep_graph.maximals)
+  }
+
   def load_all_deps(): Unit = {
     val eldests = dep_graph.maximals
     eldests.map{ elder => dep_graph.get_node(elder) match {

@@ -2,7 +2,7 @@
   Mantainers: 
     Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
 
-Writes proof data from input theory file
+Reads proof data from theory files in the working directory
 */
 
 package isabelle_rl
@@ -20,11 +20,11 @@ import isabelle_rl.{Directories}
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
-object Data_Reader {
-  def apply(logic: String, work_dir: String): Data_Reader = new Data_Reader(logic, work_dir)
+object Reader {
+  def apply(logic: String, work_dir: String): Reader = new Reader(logic, work_dir)
 }
 
-class Data_Reader (val logic: String, val read_dir: String) {
+class Reader (val logic: String, val read_dir: String) {
   val setup: Isabelle.Setup = Isabelle.Setup(isabelleHome = Path.of(Directories.isabelle_app),
     sessionRoots = Nil,
     logic = logic,
@@ -48,7 +48,7 @@ class Data_Reader (val logic: String, val read_dir: String) {
     final val extract : MLFunction2[Theory, String, String] = compileFunction[Theory, String, String](ml_extract)
   }
 
-  def extract (thy_file: String): java.util.List[String] = {
+  def extract (thy_file: String): List[String] = {
     // well-formed input
     val path = Paths.get(thy_file)
     val full_thy_file_path =
@@ -64,7 +64,7 @@ class Data_Reader (val logic: String, val read_dir: String) {
 
     // extract data
     val jsons = ML_Functions.extract(thy0, thy_text)
-    jsons.retrieveNow.split(" ISA_RL_SEP ").toList.asJava
+    jsons.retrieveNow.split(" ISA_RL_SEP ").toList
   }
 
   // brittle on the Isabelle/ML side, better to use extract above
