@@ -1,5 +1,5 @@
 # Isabelle/RL
-This is the repository of the Isabelle/RL project. It is backed by the DeepIsaHOL MSCA Fellowship (number: 101102608) titled Reinforcement learning to improve proof-automation in theorem proving. The project's long-term objective is to use Isabelle as a reinforcement learning (RL) environment for training RL algorithms.
+This is the repository of the Isabelle/RL project. It is supported by the DeepIsaHOL MSCA Fellowship (number: 101102608) titled Reinforcement learning to improve proof-automation in theorem proving. The project's long-term objective is to use Isabelle as a reinforcement learning (RL) environment for training RL algorithms.
 
 The project currently offers proof data retrieving capabilities using the [Isabelle proof assistant](https://isabelle.in.tum.de/) and the [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) library.
 
@@ -7,18 +7,18 @@ The project currently offers proof data retrieving capabilities using the [Isabe
 
 1. Prerequisites:
   * The [Isabelle2024](https://isabelle.in.tum.de/) proof assistant
-  * The [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) library
-  * The [sbt](https://www.scala-sbt.org/) build tool for Java and Scala.
-  * The [Py4J](https://www.py4j.org/install.html) library.
+  * The [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) library (see "Scala level" below)
+  * The [sbt](https://www.scala-sbt.org/) build tool for Java and Scala
+  * The [Py4J](https://www.py4j.org/install.html) library (see "Python level" below)
 2. Pull this repository.
-3. Adapt this project's `build.sbt` file to your needs (e.g. correct the location of `scala-isabele`).
+3. Adapt this project's `build.sbt` file to your needs (e.g. correct the location of `scala-isabelle`).
 4. Adapt this project's `directories.scala` to your needs. Specifically, you will need to update the location of this project's `src` directory and paste it to `isabelle_rl`, and the location of your Isabelle application `isabelle_app`.
 4. [Compile](https://www.scala-sbt.org/1.x/docs/Running.html) the project.
 5. Set-up a [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for your needs that includes the `Py4J` library.
 
 ## How it works?
 
-You can retrieve data at three levels: Isabelle, Scala and Python. They are linearly ordered with Isabelle being the lowest level, and Python being the highest. The Isabelle proof assistant is in charge of retrieving all data from its sources. The other 2 levels simply interact with functions from the level immediately below. Each level satisfies a need that the previous level cannot. Scala enables a programmatic interaction with Isabelle data while also having more features than the ML programming language. Python enables the possibility of interacting with popular machine learning, deep learning, and reinforcement learning libaries.
+You can retrieve data at three levels: Isabelle, Scala and Python. They are linearly ordered with Isabelle being the lowest level, and Python being the highest. The Isabelle proof assistant is in charge of retrieving all data from its sources. The other 2 levels interact with functions, structures and/or methods from the level immediately below. Each level satisfies a need that the previous level cannot. Scala enables a programmatic interaction with Isabelle while also having more features than the `Isabelle/ML` programming language. Python enables the possibility of interacting with popular machine learning, deep learning, and reinforcement learning libaries.
 
 ## How to use?
 
@@ -58,7 +58,7 @@ val string_of_jsons = reader.extract("your_thy_file.thy")
 ```
 
 ### Python level
-Finally, to exemplify the interaction with Python, the project provides a Python class in `writer.py` that uses a reader from `data_reader.scala` to copy the structure of a directory holding an Isabelle project and write the `json`s of the project's proof data into another directory with the same structure as the original one:
+Finally, to exemplify the interaction with Python, the project provides a Python class in `writer.py` that uses a reader from `data_reader.scala` (via `Py4j`) to copy the structure of a directory holding an Isabelle project and write the `json`s of the project's proof data into another directory with the same structure as the original one:
 ```
 import sys
 sys.path.append('/path/to/this/projects/src/main/python')
