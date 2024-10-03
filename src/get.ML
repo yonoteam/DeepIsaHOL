@@ -9,6 +9,12 @@ sig
 
   (* THEORY INFORMATION *)
   val transitions: theory -> Position.T -> string -> Toplevel.transition list
+  val stateful_transitions: theory -> string 
+    -> {error: (exn * string) option, 
+      state:Toplevel.state, 
+      text: string, 
+      transition: Toplevel.transition} list
+  val user_output: Toplevel.state -> string
   val minor_keywords: theory -> string list
   val major_keywords: theory -> string list
   val command_keywords: theory -> string list
@@ -97,6 +103,32 @@ fun final_thy_from_file thy_parents thy_file =
 
 (* transitions: theory -> Position.T -> string -> Toplevel.transition list *)
 fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
+
+(* stateful_transitions: theory -> string -> Toplevel.transition list *)
+fun stateful_transitions thy0 thy_file_name =
+  let
+    val thy_text = File.read (Path.explode thy_file_name)
+    val trs = Outer_Syntax.parse_text thy0 (K thy0) Position.start thy_text;
+    val st0 = Toplevel.make_state NONE;
+    fun tr_dist tr1 tr2 =
+      Position.distance_of (Toplevel.pos_of tr1, Toplevel.pos_of tr2)
+      |> Option.valOf;
+    fun do_next st syms tr =
+      let
+        val txt' = implode syms;
+        val (st', err') = Toplevel.transition true tr st;
+      in {text=txt', transition=tr, state=st', error=err'} end;
+    fun process st syms [tr] = [do_next st syms tr]
+      | process _ _ [] = []
+      | process st syms (tr1 :: tr2 :: trs) = 
+          let 
+           val (syms1, syms2) = Library.chop (tr_dist tr1 tr2) syms;
+           val result = do_next st syms1 tr1;
+          in result :: process (#state result) syms2 (tr2 :: trs) end;
+  in process st0 (Symbol.explode thy_text) trs end;
+
+(* user_output: Toplevel.state -> string *)
+fun user_output state = YXML.content_of (Toplevel.string_of_state state);
 
 (* minor_keywords: theory -> string list *)
 fun minor_keywords thy = Scan.dest_lexicon (Keyword.minor_keywords (Thy_Header.get_keywords thy));
