@@ -8,7 +8,7 @@ sig
   val mthds_of: env -> string list
   val deps_of: env -> (Thm_Name.T * thm) list
   val grp_cmmnds_of: env -> (string * string list) list
-  val get_env: (Toplevel.state * Actions.T) Sections.T -> env
+  val get_env: ('a -> Toplevel.state * Actions.T) -> 'a Sections.T -> env
 
   (* Data.T *)
   type T
@@ -70,12 +70,11 @@ fun mthds_of e = #methods (rep_env e);
 fun deps_of e = #deps (rep_env e);
 fun grp_cmmnds_of e = #grp_cmmnds (rep_env e);
 
-(* TODO: Generalise *)
-fun get_env proof =
+fun get_env get_state_action proof =
   if Sections.get_top_tag proof = SOME Sections.proof_tag then
     let 
-      val (s0, a0) = Sections.get_first proof;
-      val (sN, aN) = Sections.get_last proof;
+      val (s0, a0) = get_state_action (Sections.get_first proof);
+      val (sN, aN) = get_state_action (Sections.get_last proof);
       val (s1', err') = Actions.apply_safe a0 s0;
       val _ = (case err' of 
         SOME (_, str) => raise Fail ("Data.get_env: Failed after " ^ Actions.text_of a0 ^ ".\n" ^ str)
@@ -219,7 +218,7 @@ fun next env (s_new, act_to_do) old_data =
 fun extract_proof proof =
   let
     val (s0, a0) = Sections.get_first proof;
-    val env = get_env proof;
+    val env = get_env I proof;
     val data0 = init env (s0, a0);
   in (env, Sections.do_one_then_fold true data0 (next env) proof) end;
 
@@ -521,7 +520,7 @@ end;
 fun write_proof' dir i proof =
   let
     (* IO operartions *)
-    val env = get_env proof;
+    val env = get_env I proof;
     val thy_name = Context.theory_name {long=false} (Toplevel.theory_of (s1_of env))
     val dir_name = dir ^ "/" ^ thy_name ^ "/" ^ "proof" ^ Value.print_int i;
       (* extra "/"s are no issue for OS.FileSys.mkDir *)
@@ -559,7 +558,7 @@ fun write_proof' dir i proof =
 fun write_proof dir i proof =
   let
     (* IO operartions *)
-    val env = get_env proof;
+    val env = get_env I proof;
     val thy_name = Context.theory_name {long=false} (Toplevel.theory_of (s1_of env))
     val dir_name = dir ^ "/" ^ thy_name ^ "/";
       (* extra "/"s are no issue for OS.FileSys.mkDir *)
