@@ -5,6 +5,7 @@
 Writes proof data from input read directory to output write directory
 */
 
+package isabelle_rl
 import java.io.{File, FileWriter, IOException}
 import java.nio.file.{Path, Files, Paths}
 import scala.util.{Failure, Success, Try}

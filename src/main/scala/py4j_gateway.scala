@@ -8,10 +8,13 @@ Py4j's gateway server for connecting python with Scala's JVM
 package isabelle_rl
 
 import isabelle_rl.Reader
+import isabelle_rl.Writer
 import py4j.GatewayServer
 
 object Py4j_Gateway {
   def get_reader(logic: String, work_dir: String): Reader = Reader(logic, work_dir)
+
+  def get_writer(read_dir: String, write_dir: String, logic: String): Writer = new Writer(read_dir, write_dir, logic)
 
   val gateway_server = new GatewayServer(Py4j_Gateway)
 

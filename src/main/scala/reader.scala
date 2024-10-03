@@ -41,11 +41,7 @@ class Reader (val logic: String, val read_dir: String) {
     final val isa_rl_thy_file = Directories.isabelle_rl + "Isabelle_RL.thy"
     val isabelle_rl_thy : Theory = Theory(Path.of(isa_rl_thy_file))
     val isa_rl_data = isabelle_rl_thy.importMLStructureNow("Data")
-
-    final val ml_retrieve_from_to = "fn (thy_file, write_dir) => " + s"${isa_rl_data}.retrieve_from_to (\"" + read_dir + "\" ^ thy_file) write_dir"
-    final val retrieve_from_to : MLFunction2[String, String, Unit] = compileFunction[String, String, Unit](ml_retrieve_from_to)
-    final val ml_extract = s"${isa_rl_data}.extract"
-    final val extract : MLFunction2[Theory, String, String] = compileFunction[Theory, String, String](ml_extract)
+    final val extract : MLFunction2[Theory, String, String] = compileFunction[Theory, String, String](s"${isa_rl_data}.extract")
   }
 
   def extract (thy_file: String): List[String] = {
@@ -65,12 +61,6 @@ class Reader (val logic: String, val read_dir: String) {
     // extract data
     val jsons = ML_Functions.extract(thy0, thy_text)
     jsons.retrieveNow.split(" ISA_RL_SEP ").toList
-  }
-
-  // brittle on the Isabelle/ML side, better to use extract above
-  def data_from_to (thy_file: String, write_dir: String): Unit = {
-    val mlunit = ML_Functions.retrieve_from_to(thy_file, write_dir)(isabelle, StringConverter, StringConverter)
-    mlunit.retrieveNow(UnitConverter, isabelle)
   }
 
 }
