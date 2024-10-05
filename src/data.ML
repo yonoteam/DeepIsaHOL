@@ -48,6 +48,7 @@ sig
 
   (* interface *)
   val extract: theory * string -> string
+  val write_proof: string -> (env * T Sections.T) -> unit
   val write_proofs: (string * theory * string) -> unit
 end;
 
@@ -485,7 +486,7 @@ fun pretty_json_proof debug lvl env proof =
     val prt_steps =
       map (pretty_json_step debug (lvl+4) ctxt) trace
       |> Print.pretty_json_attribs debug "[" "]" (lvl+4)
-      |> Print.pretty_json_attrib false (lvl+4) "steps"
+      |> Print.pretty_json_elem "steps"
     val methods = pretty_json_methods debug (lvl+4) env;
     val ds = pretty_json_deps debug (lvl+4) ctxt env;
     val applys = pretty_json_apply_kwrds debug (lvl+4) env;
@@ -520,7 +521,7 @@ fun extract (thy0, thy_text) =
   |> map json_proof
   |> String.concatWith " ISA_RL_SEP "
 
-(* write_proofs: string -> (Data.env * Data.T Sections.T) -> unit *)
+(* write_proof: string -> (Data.env * Data.T Sections.T) -> unit *)
 fun write_proof file_path proof =
   json_proof proof
   |> Print.write_to (Print.FILE file_path)

@@ -1,6 +1,8 @@
 /*
   Mantainers: 
     Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Manages the theory-dependency of a given work directory 
  */
 
 package isabelle_rl
@@ -24,7 +26,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   private val debug = true
 
   override def toString(): String = {
-    "Imports(read_dir=" + work_dir + ")"
+    "Imports(work_dir=" + work_dir + ")"
   }
 
   val local_thy_files: List[Path] = {

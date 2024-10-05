@@ -16,8 +16,8 @@ object Main {
     val logic = "Framed_ODEs"
     val writer = Py4j_Gateway.get_writer(Directories.test_dir2, Directories.test_dir, logic)
     println("Initialised writer")
-    val reader = writer.get_reader()
-    implicit val isabelle:de.unruh.isabelle.control.Isabelle = reader.isabelle
+    val minion = writer.get_minion()
+    implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
     writer.write_all()
   }
 }

@@ -2,7 +2,7 @@
 # Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
 # usage:
 # entrypoint = gateway.entry_point
-# reader = entrypoint.get_reader(logic, work_dir) # from data_reader.scala
+# reader = entrypoint.get_minion(logic, work_dir) # from data_minion.scala
 # gateway.help(reader)
 # gateway.shutdown() # when done
 
@@ -14,30 +14,30 @@ from py4j.java_gateway import JavaGateway, GatewayParameters, Py4JNetworkError
 class Writer:
     _gateway = None
     _entrypoint = None
-    _reader = None
+    _minion = None
 
     def __init__(self, read_dir, write_dir, logic="HOL"):
         self.read_dir = read_dir
         self.write_dir = write_dir
         self.logic = logic
-        self._initialize_reader()
+        self._initialize_minion()
 
         os.makedirs(write_dir, exist_ok=True)
         log_file = os.path.join(write_dir, 'error.log')
         logging.basicConfig(filename=log_file, level=logging.ERROR, 
                             format='%(asctime)s - %(levelname)s - %(message)s')
     
-    def _initialize_reader(self):
+    def _initialize_minion(self):
         if self._gateway is None:
             self._gateway = JavaGateway()
         self._entrypoint = self._gateway.entry_point
-        self._reader = self._entrypoint.get_reader(self.logic, self.read_dir)
+        self._minion = self._entrypoint.get_minion(self.logic, self.read_dir)
         print(f"Initialized reader for directory: {self.read_dir}")
         
-    def get_reader(self):
-        if self._reader is None:
-            self._initialize_reader()
-        return self._reader
+    def get_minion(self):
+        if self._minion is None:
+            self._initialize_minion()
+        return self._minion
     
     @classmethod
     def shutdown(cls):
@@ -75,7 +75,7 @@ class Writer:
     def get_proofs_data (self, file_name):
         file_path = self.get_theory_file_path (file_name)
         try:
-            jsons = self.make_jsons(self._reader.extract(file_path))
+            jsons = self.make_jsons(self._minion.extract(file_path))
         except Py4JNetworkError as e:
             logging.error(f"Py4J Network Error: {str(e)}")
             raise ConnectionError(f"Py4J Network Error: {str(e)}")

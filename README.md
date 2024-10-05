@@ -45,20 +45,28 @@ end
 ```
 
 ### Scala level
-This level is handled by `scala-isabelle`. The project provides a `reader.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. The data reader can use the `data.ML` function `Data.extract` to produce a string of `json`'s with proof data from a `.thy` file:
+This level is handled by `scala-isabelle`. The project provides a `minion.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. The minion can use the `data.ML` function `Data.extract` to produce a string of `json`'s with proof data from a `.thy` file. Alternatively, a `writer.scala` uses the minion to retrieve the data and write it to a directory of your choice.
 
 ```scala
 import isabelle_rl._
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
-val reader = new Reader("HOL", "/path/to/a/directory/where/a/thy/file/resides")
+val logic = "Ordinary_Differential_Equations"
 
-val string_of_jsons = reader.extract("your_thy_file.thy")
+val writer = Py4j_Gateway.get_writer(Directories.test_dir2, Directories.test_dir, logic)
+  
+val minion = writer.get_minion()
+
+implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
+
+val jsons = minion.extract(Path.of("your/file.thy"))
+
+writer.write_all()
 ```
 
 ### Python level
-Finally, to exemplify the interaction with Python, the project provides a Python class in `writer.py` that uses a reader from `reader.scala` (via `Py4j`) to copy the structure of a directory holding an Isabelle project and write the `json`s of the project's proof data into another directory with the same structure as the original one:
+Finally, to exemplify the interaction with Python, the project provides a Python class in `writer.py` with the same functionality as `writer.scala` using itself a `minion.scala` (via `Py4j`). It copies the structure of a directory holding an Isabelle project and writes the `json`s of the project's proof data into another directory with the same structure as the original one:
 ```python
 import sys
 sys.path.append('/path/to/this/projects/src/main/python')
