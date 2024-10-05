@@ -113,53 +113,11 @@ fun write_proof' dir i proof =
       else fold write_next (tl trace) (write_next (hd trace) 0)
   in () end;
 
-(* write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit *)
-fun write_proof dir i proof =
-  let
-    (* IO operartions *)
-    val env = Data.get_env I proof;
-    val thy_name = Context.theory_name {long=false} (Toplevel.theory_of (Data.s1_of env))
-    val dir_name = dir ^ "/" ^ thy_name ^ "/";
-      (* extra "/"s are no issue for OS.FileSys.mkDir *)
-    val _ = Ops.create_directory {force=true} dir_name
-        handle Fail txt => Exn.reraise (Fail txt);
-    fun fname j = ("proof" ^ Value.print_int j ^ ".json");
-
-    (* Data.T operartions *)
-    val start = Data.init env (Sections.get_first proof);
-    val proof_data = Sections.do_one_then_fold true start (Data.next env) proof
-    val prt_prf = Data.pretty_json_proof true 0 env proof_data;
-    
-    (* String operartions *)
-    val backslash = "\\";
-    val start_quote = backslash ^ "<";
-    fun rewrite_quote txt = Ops.replace_all start_quote (backslash ^ start_quote) txt
-    
-    val _ =
-      prt_prf
-      |> Print.string_of_pretty
-      |> rewrite_quote
-      |> Print.write_to (Print.FILE (OS.Path.joinDirFile {dir=dir_name, file=fname i}))
-  in () end;
-
-(* write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit *)
-fun write_proofs dir proofs =
-  let
-    fun writting _ [] = []
-      | writting n (p :: ps) = write_proof dir n p :: writting (n+1) ps
-    val _ = writting 0 proofs
-  in () end;
-
 (* retrieve_from_to: string -> string -> unit *)
-fun retrieve_from_to thy_file dir =
+fun retrieve_from_to thy_file write_dir =
   let
     val thy0 = Get.start_thy_from_file (Get.parents thy_file) thy_file;
-    val state0 = Toplevel.make_state (SOME thy0);
-    val proofs =
-      Ops.read_file thy_file
-      |> Actions.make' thy0
-      |> Actions.segmentate state0 (Actions.theory_separators thy0)
-      |> Sections.get_topmost Sections.proof_tag;
-  in write_proofs dir proofs end;
+    val thy_text = Ops.read_file thy_file
+  in Data.write_proofs (write_dir, thy0, thy_text) end;
 
 end;

@@ -29,7 +29,6 @@ sig
   val extract_proofs: theory -> string -> (env * (T Sections.T)) list
   val from: Toplevel.state -> T
   val apply: string -> T -> T
-  val extract: theory * string -> string
 
   (* Pretty printing *)
   val pretty_json_action: T -> Pretty.T
@@ -46,6 +45,10 @@ sig
   val pretty_json_isar_kwrds: bool -> int -> env -> Pretty.T
   val pretty_json_step: bool -> int -> Proof.context -> T -> Pretty.T
   val pretty_json_proof: bool -> int -> env -> T Sections.T -> Pretty.T
+
+  (* interface *)
+  val extract: theory * string -> string
+  val write_proofs: (string * theory * string) -> unit
 end;
 
 
@@ -491,23 +494,48 @@ fun pretty_json_proof debug lvl env proof =
       [prt_steps, applys, isars, methods, ds];
   in Print.pretty_json_attrib debug lvl "proof" prty_prf end;
 
-(* extract: theory * string -> string *)
-fun extract (thy0, thy_text) =
-  let 
-    val proofs = extract_proofs thy0 thy_text;
-    fun string_proof (env, proof) = 
+(* json_proof: (Data.env * Data.T Sections.T) -> string *)
+fun json_proof (env, proof) =
+  let
+    val backslash = "\\";
+    val start_quote = backslash ^ "<";
+    fun rewrite_quote txt = Ops.replace_all start_quote (backslash ^ start_quote) txt
+    val prf = 
       pretty_json_proof true 0 env proof
       |> Print.string_of_pretty
-  in String.concatWith " ISA_RL_SEP " (map string_proof proofs) end;
+      |> rewrite_quote
+  in prf end;
 
 end;
 
 
-(** WRITING OPERATIONS **)
+(** INTERFACT **)
 
 (* val _ = ML_system_pp (fn _ => fn _ 
   => Pretty.to_polyml o pretty_json true 0 (Context.the_local_context ())) *)
 
+(* extract: theory * string -> string *)
+fun extract (thy0, thy_text) =
+  extract_proofs thy0 thy_text
+  |> map json_proof
+  |> String.concatWith " ISA_RL_SEP "
 
+(* write_proofs: string -> (Data.env * Data.T Sections.T) -> unit *)
+fun write_proof file_path proof =
+  json_proof proof
+  |> Print.write_to (Print.FILE file_path)
+
+(* write_proofs: (string * theory * string) -> unit *)
+fun write_proofs (write_dir, thy0, thy_text) =
+  let 
+    val proofs = extract_proofs thy0 thy_text;
+    fun fname j = ("proof" ^ Value.print_int j ^ ".json");
+    fun write_next proof i =
+      let
+        val file_path = OS.Path.joinDirFile {dir=write_dir, file=fname i}
+        val _ = write_proof file_path proof
+      in i+1 end;
+    val _ = fold write_next proofs 0
+  in () end;
 
 end;
