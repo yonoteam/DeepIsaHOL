@@ -141,10 +141,11 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   // assumption: thy_paths is in topological order from oldest to youngest
   private def update_nodes(thy_paths: List[Path]): Unit = {
     thy_paths.foreach { thy_path =>
-      if (debug) println(s"Imports: Processing theory $thy_path")
       dep_graph.get_node(thy_path) match {
         case Some(thy) => ()
-        case None => update_node(thy_path)
+        case None => 
+          if (debug) println(s"Imports: Processing theory $thy_path")
+          update_node(thy_path)
       }
     }
   }
