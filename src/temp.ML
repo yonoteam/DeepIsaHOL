@@ -9,9 +9,7 @@ sig
   val query_thms: Proof.context -> int -> term -> (string * thm) list
 
   (* DATA WRITING OPS *)
-  val write_proof: string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit
   val write_proof': string -> int -> (Toplevel.state * Actions.T) Sections.T -> unit
-  val write_proofs: string -> ((Toplevel.state * Actions.T) Sections.T) list -> unit
   val retrieve_from_to: string -> string -> unit
 end;
 

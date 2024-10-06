@@ -6,14 +6,14 @@ sig
   val parents: string -> theory list
   val start_thy_from_file: theory list -> string -> theory
   val final_thy_from_file: theory list -> string -> theory option
-
-  (* THEORY INFORMATION *)
-  val transitions: theory -> Position.T -> string -> Toplevel.transition list
   val stateful_transitions: theory -> string 
     -> {error: (exn * string) option, 
       state:Toplevel.state, 
       text: string, 
       transition: Toplevel.transition} list
+
+  (* THEORY INFORMATION *)
+  val transitions: theory -> Position.T -> string -> Toplevel.transition list
   val user_output: Toplevel.state -> string
   val minor_keywords: theory -> string list
   val major_keywords: theory -> string list
@@ -31,6 +31,7 @@ sig
   val filtered_thms: (string * thm list -> bool) list 
     -> Proof.context -> (string * thm list) list
   val thms: Proof.context -> string -> thm list
+  val local_facts: bool -> Proof.context -> (string * thm list) list
 
   (* TERM INFORMATION *)
   val vars_of: term -> term list
@@ -98,12 +99,6 @@ fun final_thy_from_file thy_parents thy_file =
       |> fold (Toplevel.command_exception true) transitions;
   in Toplevel.previous_theory_of final_state end;
 
-
-(** THEORY INFORMATION **)
-
-(* transitions: theory -> Position.T -> string -> Toplevel.transition list *)
-fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
-
 (* stateful_transitions: theory -> string -> Toplevel.transition list *)
 fun stateful_transitions thy0 thy_file_name =
   let
@@ -126,6 +121,12 @@ fun stateful_transitions thy0 thy_file_name =
            val result = do_next st syms1 tr1;
           in result :: process (#state result) syms2 (tr2 :: trs) end;
   in process st0 (Symbol.explode thy_text) trs end;
+
+
+(** THEORY INFORMATION **)
+
+(* transitions: theory -> Position.T -> string -> Toplevel.transition list *)
+fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
 
 (* user_output: Toplevel.state -> string *)
 fun user_output state = YXML.content_of (Toplevel.string_of_state state);
@@ -254,8 +255,18 @@ fun deps thy thms =
       |-> Inttab.fold_rev (fn (_, SOME entry) => cons (make_name_thm entry) | _ => I)
   end;
 
+(* local_facts: bool -> Proof.context -> (string * thm list) list *)
+fun local_facts verbose ctxt =
+  let
+    val facts = Proof_Context.facts_of ctxt;
+    val props = map #1 (Facts.props facts);
+    val local_facts =
+      (if null props then [] else [("<unnamed>", props)]) @
+      Facts.dest_static verbose [Global_Theory.facts_of (Proof_Context.theory_of ctxt)] facts;
+  in local_facts end;
 
-(** THM INFORMATION **)
+
+(** TERM INFORMATION **)
 
 local
 
