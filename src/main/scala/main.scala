@@ -7,18 +7,87 @@ Main entrypoint
 
 package isabelle_rl
 
+import java.io.{File, FileOutputStream, PrintWriter, BufferedWriter}
+import scala.io.Source
+import scala.util.matching.Regex
+import scala.util.{Failure, Success, Try}
+
 import isabelle_rl.Directories
 import isabelle_rl._
 
 
 object Main {
+  val logic_rgx: Regex = """session\s+"?([^\"]+)"?\s+=""".r
+
+  // Finds the logic in the ROOT file
+  def find_logic(root_file: File): Option[String] = {
+    val root_src = Source.fromFile(root_file)
+    try {
+      val content = root_src.mkString
+      logic_rgx.findFirstMatchIn(content) match {
+        case Some(m) => Some(m.group(1))
+        case _ => None
+      }
+    } finally {
+      root_src.close()
+    }
+  }
+
+  // Load progress from file
+  def load_progress(): Set[String] = {
+    val progress_file = new File(Directories.progress_file)
+    if (progress_file.exists()) {
+      Source.fromFile(progress_file).getLines().toSet
+    } else {
+      Set.empty[String]
+    }
+  }
+
+  // Save progress to file
+  def save_progress(sub_dir: String): Unit = {
+    val writer = new BufferedWriter(new PrintWriter(new FileOutputStream(new File(Directories.progress_file), true)))
+    try {
+      writer.write(sub_dir + "\n")
+    } finally {
+      writer.close()
+    }
+  }
+
   def main (args: Array[String]): Unit = {
-    val logic = "Framed_ODEs"
-    val writer = Py4j_Gateway.get_writer(Directories.test_read_dir, Directories.test_write_dir, logic)
-    println("Initialised writer")
-    val minion = writer.get_minion()
-    implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
-    writer.write_all()
+    val afp_dir = new File(Directories.isabelle_afp)
+    val processed = load_progress()
+
+    afp_dir.listFiles().filter(_.isDirectory).foreach { sub_dir =>
+      if (! processed.contains(sub_dir.getName)) {
+        val rootFile = new File(sub_dir, "ROOT")
+        if (rootFile.exists()) {
+          find_logic(rootFile) match {
+            case Some(logic) =>
+              val read_dir = s"${Directories.isabelle_afp}/${sub_dir.getName}"
+              val write_dir = s"${Directories.test_write_dir}/${sub_dir.getName}"
+              Try {
+                println(s"Initialising writer with read_dir = ${read_dir} \nand write_dir ${write_dir}")
+                val writer = new Writer(read_dir, write_dir, logic)
+                // val minion = writer.get_minion()
+                // implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
+                writer.write_all()
+              } match {
+                case Failure(exception) =>
+                  println(s"Error starting writer for $read_dir: ${exception.getMessage}")
+                case Success(_) => ()
+              }
+              save_progress(sub_dir.getName)
+              println(s"Processed: ${sub_dir.getName}")
+            case None =>
+              println(s"No logic found in ROOT file for ${sub_dir.getName}")
+          }
+        } else {
+          println(s"No ROOT file found in ${sub_dir.getName}")
+        }
+      } else {
+        println(s"Skipping already processed sub_dir: ${sub_dir.getName}")
+      }
+    }
   }
 }
 

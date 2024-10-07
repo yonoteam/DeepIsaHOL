@@ -14,7 +14,7 @@ import java.util.logging.{Level, Logger, FileHandler, SimpleFormatter}
 import scala.jdk.CollectionConverters._
 import isabelle_rl.Isa_Minion
 
-class Writer(read_dir: String, write_dir: String, logic: String = "HOL") {
+class Writer(val read_dir: String, val write_dir: String, val logic: String = "HOL") {
 
   // write_dir
   Files.createDirectories(Paths.get(write_dir))

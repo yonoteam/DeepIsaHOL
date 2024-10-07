@@ -69,7 +69,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     } else {
       import_name + ".thy"
     }
-    local_thy_files.find(_.getFileName.toString == file_name) match {
+    local_thy_files.find(_.getFileName == Path.of(file_name).getFileName) match {
       case Some(result_path) => return Some(result_path, "LOCALLY")
       case None => None
     }
@@ -119,7 +119,11 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     file_dep_graph
   }
 
-  private var dep_graph = init_deps()
+  private var dep_graph: Graph[Path, Option[Theory]] = Graph.empty
+
+  def start(): Unit = {
+    this.dep_graph = init_deps()
+  }
 
   // assumption: all parent paths of thy_file_path already have value Some(thy)
   private def update_node(thy_file_path: Path): Unit = {

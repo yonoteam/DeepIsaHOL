@@ -32,7 +32,8 @@ class Isa_Minion (val logic: String, val work_dir: String) {
   )
   implicit val isabelle: Isabelle = new Isabelle(setup)
   val imports = Imports(work_dir)(isabelle)
-
+  imports.start()
+  
   override def toString(): String = {
     "Minion(logic=" + logic + ", work_dir=" + work_dir + ")"
   }

@@ -15,4 +15,5 @@ object Directories {
   val test_write_dir = ""
   val test_read_dir = ""
   val isabelle_rl = ""
+  val progress_file = test_write_dir + "progress.txt"
 }
