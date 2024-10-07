@@ -104,7 +104,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
       if (debug) println(s"Locating parents of ${thy_file_path.toString}")
       val parents = get_import_names(thy_file_path).map(locate)
       parents.foreach{ case (parent, location_method) =>
-        if (debug) println(s"Initialising parent ${parent.toString}")
+        if (debug) println(s"Adding parent ${parent.toString}")
         val init_parent_thy = if (location_method.startsWith("THY") || location_method.startsWith("REMOTE")) {
           val import_name = location_method.split("=").last
           Some(Theory(import_name))

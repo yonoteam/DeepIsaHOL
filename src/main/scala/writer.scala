@@ -29,7 +29,7 @@ class Writer(read_dir: String, write_dir: String, logic: String = "HOL") {
 
   // minion
   private val minion: Isa_Minion = Isa_Minion(logic, read_dir)
-  println(s"Initialized minion for directory: $read_dir")
+  println(s"Initialised minion for directory: $read_dir")
 
   def get_minion(): Isa_Minion = minion
 
@@ -70,25 +70,6 @@ class Writer(read_dir: String, write_dir: String, logic: String = "HOL") {
         logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")
       case Success(_) => ()
     }
-    // data_list.zipWithIndex.foreach { case (data, counter) =>
-    //   val json_name = s"proof$counter.json"
-    //   val target_file_path = target_dir.resolve(json_name)
-    //   if (Files.exists(target_file_path)) {
-    //     val message = s"File $target_file_path already exists. Aborting to avoid overwriting."
-    //     logger.severe(message)
-    //      throw new FileAlreadyExistsException(message)
-    //   } else {
-    //     Try {
-    //       val writer = new FileWriter(target_file_path.toFile)
-    //       try {writer.write(data)} 
-    //       finally {writer.close()}
-    //     } match {
-    //       case Failure(exception) =>
-    //         logger.severe(s"Error writing file $target_file_path: ${exception.getMessage}")
-    //       case Success(_) => ()
-    //     }
-    //   }
-    // }
   }
 
   // extract data from all .thy files in the read_dir into the write_dir
