@@ -10,6 +10,11 @@ package isabelle_rl
 import java.nio.file.{Path, Paths, Files}
 import java.io.FileNotFoundException
 import scala.jdk.CollectionConverters._
+import scala.concurrent.{Future, Await}
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Try, Success, Failure}
+
 import de.unruh.isabelle.control.{Isabelle, OperationCollection}
 import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader, ToplevelState}
@@ -125,6 +130,22 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     this.dep_graph = init_deps()
   }
 
+  private def get_final_thy(thy0: Theory, thy_file_path: Path, thy_text: String, timeout_min: Int): Option[Theory] = {
+    val final_thy_opt = Future {Imports.Ops.get_final_thy(thy0, thy_text).retrieveNow}
+
+    try {
+      val thy_result = Await.result(final_thy_opt, timeout_min.minutes)
+      thy_result
+    } catch {
+      case _: java.util.concurrent.TimeoutException =>
+        Failure(new Exception(s"Import ${thy_file_path} timed out after $timeout_min minutes"))
+        None
+      case e: Exception =>
+        Failure(e)
+        None
+    }
+  }
+
   // assumption: all parent paths of thy_file_path already have value Some(thy)
   private def update_node(thy_file_path: Path): Unit = {
     val parent_paths = dep_graph.imm_succs(thy_file_path).toList
@@ -137,7 +158,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     val master_dir = thy_file_path.getParent()
     val header = Imports.Ops.get_header(thy_text, Position.none).retrieveNow
     val thy0 = Imports.Ops.begin_theory(master_dir, header, parent_thys).retrieveNow
-    val final_thy = Imports.Ops.get_final_thy(thy0, thy_text).retrieveNow
+    val final_thy = get_final_thy(thy0, thy_file_path, thy_text, 5)
 
     dep_graph = dep_graph.map_node(thy_file_path, {_ => final_thy})
   }

@@ -59,25 +59,26 @@ object Main {
 
     afp_dir.listFiles().filter(_.isDirectory).foreach { sub_dir =>
       if (! processed.contains(sub_dir.getName)) {
-        val rootFile = new File(sub_dir, "ROOT")
-        if (rootFile.exists()) {
-          find_logic(rootFile) match {
+        val root_file = new File(sub_dir, "ROOT")
+        if (root_file.exists()) {
+          find_logic(root_file) match {
             case Some(logic) =>
-              val read_dir = s"${Directories.isabelle_afp}/${sub_dir.getName}"
-              val write_dir = s"${Directories.test_write_dir}/${sub_dir.getName}"
+              val read_dir = s"${Directories.isabelle_afp}" + s"${sub_dir.getName}"
+              val write_dir = s"${Directories.test_write_dir}" + s"${sub_dir.getName}"
               Try {
                 println(s"Initialising writer with read_dir = ${read_dir} \nand write_dir ${write_dir}")
                 val writer = new Writer(read_dir, write_dir, logic)
-                // val minion = writer.get_minion()
-                // implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
+                val minion = writer.get_minion()
+                implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
                 writer.write_all()
+                isabelle.destroy()
               } match {
                 case Failure(exception) =>
                   println(s"Error starting writer for $read_dir: ${exception.getMessage}")
                 case Success(_) => ()
               }
               save_progress(sub_dir.getName)
-              println(s"Processed: ${sub_dir.getName}")
+              println(s"Processed: ${sub_dir.getName}\n\n")
             case None =>
               println(s"No logic found in ROOT file for ${sub_dir.getName}")
           }
