@@ -101,15 +101,15 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     var file_dep_graph: Graph[Path, Option[Theory]] = Graph.empty
 
     local_thy_files.foreach { thy_file_path =>
-      if (debug) println(s"Adding local ${thy_file_path.toString}")
+      if (debug) println(s"Imports: Adding local ${thy_file_path.toString}")
       file_dep_graph = file_dep_graph.new_node(thy_file_path, None)
     }
 
     local_thy_files.foreach { thy_file_path =>
-      if (debug) println(s"Locating parents of ${thy_file_path.toString}")
+      if (debug) println(s"Imports: Locating parents of ${thy_file_path.toString}")
       val parents = get_import_names(thy_file_path).map(locate)
       parents.foreach{ case (parent, location_method) =>
-        if (debug) println(s"Adding parent ${parent.toString}")
+        if (debug) println(s"Imports: Adding parent ${parent.toString}")
         val init_parent_thy = if (location_method.startsWith("THY") || location_method.startsWith("REMOTE")) {
           val import_name = location_method.split("=").last
           Some(Theory(import_name))
@@ -138,10 +138,10 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
       thy_result
     } catch {
       case _: java.util.concurrent.TimeoutException =>
-        Failure(new Exception(s"Import ${thy_file_path} timed out after $timeout_min minutes"))
+        if (debug) println(s"Import ${thy_file_path.toString} timed out after $timeout_min minutes")
         None
       case e: Exception =>
-        Failure(e)
+        if (debug) println(s"An error occurred on import ${thy_file_path.toString}: ${e.getMessage}")
         None
     }
   }
@@ -167,7 +167,9 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   private def update_nodes(thy_paths: List[Path]): Unit = {
     thy_paths.foreach { thy_path =>
       dep_graph.get_node(thy_path) match {
-        case Some(thy) => ()
+        case Some(thy) => 
+          // if (debug) println(s"Imports: Parent $thy_path already in import-graph")
+          ()
         case None => 
           if (debug) println(s"Imports: Processing theory $thy_path")
           update_node(thy_path)
@@ -181,8 +183,8 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     dep_graph.imm_succs(thy_file_path).toList.map(dep_graph.get_node).flatten
   }
 
-  def list_all_deps(): List[Path] = {
-    return dep_graph.all_preds(dep_graph.maximals)
+  def to_local_list(): List[Path] = {
+    return dep_graph.all_preds(dep_graph.maximals).filter(local_thy_files.contains)
   }
 
   def load_all_deps(): Unit = {
@@ -230,6 +232,18 @@ object Imports extends OperationCollection {
     
     val init_toplevel: MLFunction0[ToplevelState] = compileFunction0[ToplevelState]("fn () => Toplevel.make_state NONE")
 
+    val get_final_thy_alt: MLFunction2[Theory, String, Option[Theory]] =
+      compileFunction[Theory, String, Option[Theory]](
+      """fn (thy0, thy_file) => let
+        |  val transitions =  
+        |    File.read (Path.explode thy_file)
+        |    |> Outer_Syntax.parse_text thy0 (K thy0) Position.start
+        |    |> filter_out (fn tr => Toplevel.name_of tr = "<ignored>");
+        |  val final_state = 
+        |    Toplevel.make_state NONE
+        |    |> fold (Toplevel.command_exception true) transitions;
+        |  in Toplevel.previous_theory_of final_state end""".stripMargin)
+    
     val get_final_thy: MLFunction2[Theory, String, Option[Theory]] =
       compileFunction[Theory, String, Option[Theory]](
       """fn (thy0, thy_text) => let

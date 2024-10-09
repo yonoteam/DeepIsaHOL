@@ -9,6 +9,10 @@ package isabelle_rl
 import java.io.{File, FileWriter, IOException}
 import java.nio.file.{Path, Files, Paths}
 import scala.util.{Failure, Success, Try}
+import scala.concurrent.{Future, Await}
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Try, Success, Failure}
 import java.nio.file.FileAlreadyExistsException
 import java.util.logging.{Level, Logger, FileHandler, SimpleFormatter}
 import scala.jdk.CollectionConverters._
@@ -72,11 +76,25 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
     }
   }
 
+  def write_data_with_timeout(file_name: String, timeout_min: Int): Try[Unit] = {
+    val write_cmnd = Future { write_data(file_name) }
+    try {
+      Await.result(write_cmnd, timeout_min.minutes)
+      Success(())
+    } catch {
+      case _: java.util.concurrent.TimeoutException =>
+        println(s"Writing the proof exceeded the timeout of $timeout_min minutes")
+        Failure(new Exception(s"Writing the proof exceeded the timeout of $timeout_min minutes"))
+      case e: Exception =>
+        Failure(e)
+    }
+  }
+
   // extract data from all .thy files in the read_dir into the write_dir
   def write_all(): Unit = {
-    minion.imports.local_thy_files.foreach { path =>
+    minion.imports.to_local_list().foreach { path =>
       println(s"Creating proofs for $path")
-      write_data(path.toString())
+      write_data_with_timeout(path.toString(), 5)
     }
     println("Done")
   }

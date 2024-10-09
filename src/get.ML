@@ -91,7 +91,7 @@ fun final_thy_from_file thy_parents thy_file =
   let
     val thy0 = start_thy_from_file thy_parents thy_file;
     val transitions = 
-      Ops.read_file thy_file
+      File.read (Path.explode thy_file)
       |> Outer_Syntax.parse_text thy0 (K thy0) Position.start 
       |> filter_out (fn tr => Toplevel.name_of tr = "<ignored>")
     val final_state = 
