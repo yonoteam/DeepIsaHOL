@@ -60,6 +60,8 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     }
   }
 
+  private var dep_graph: Graph[Path, Option[Theory]] = Graph.empty
+
   def locate_via_thy(import_name: String): Option[(Path,String)] = {
     if (Imports.Ops.can_get_thy(import_name).retrieveNow) {
         Some(Path.of("ISABELLE=" + import_name), "THY=" + import_name)
@@ -102,8 +104,12 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
 
     local_thy_files.foreach { thy_file_path =>
       if (debug) println(s"Imports: Adding local ${thy_file_path.toString}")
-      file_dep_graph = file_dep_graph.new_node(thy_file_path, None)
-    }
+      val import_name_attempt = work_dir.getFileName.toString + "." + file_name_without_extension(thy_file_path)
+      val opt_thy_to_add = if (Imports.Ops.can_get_thy(import_name_attempt).retrieveNow) {
+        Some(Theory(import_name_attempt))
+      } else None
+      file_dep_graph = file_dep_graph.new_node(thy_file_path, opt_thy_to_add)
+    }    
 
     local_thy_files.foreach { thy_file_path =>
       if (debug) println(s"Imports: Locating parents of ${thy_file_path.toString}")
@@ -114,7 +120,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
           val import_name = location_method.split("=").last
           Some(Theory(import_name))
         } else {
-            None
+          file_dep_graph.get_node(thy_file_path)
         }
         file_dep_graph = file_dep_graph.default_node(parent, init_parent_thy)
         file_dep_graph = file_dep_graph.add_edge(thy_file_path, parent)
@@ -124,14 +130,12 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     file_dep_graph
   }
 
-  private var dep_graph: Graph[Path, Option[Theory]] = Graph.empty
-
   def start(): Unit = {
     this.dep_graph = init_deps()
   }
 
   private def get_final_thy(thy0: Theory, thy_file_path: Path, thy_text: String, timeout_min: Int): Option[Theory] = {
-    val final_thy_opt = Future {Imports.Ops.get_final_thy(thy0, thy_text).retrieveNow}
+    val final_thy_opt = Future {Imports.Ops.get_final_thy(thy0, thy_text).force.retrieveNow}
 
     try {
       val thy_result = Await.result(final_thy_opt, timeout_min.minutes)
@@ -156,8 +160,8 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
 
     val thy_text = Files.readString(thy_file_path)
     val master_dir = thy_file_path.getParent()
-    val header = Imports.Ops.get_header(thy_text, Position.none).retrieveNow
-    val thy0 = Imports.Ops.begin_theory(master_dir, header, parent_thys).retrieveNow
+    val header = Imports.Ops.get_header(thy_text, Position.none).retrieveNow.force
+    val thy0 = Imports.Ops.begin_theory(master_dir, header, parent_thys).retrieveNow.force
     val final_thy = get_final_thy(thy0, thy_file_path, thy_text, 5)
 
     dep_graph = dep_graph.map_node(thy_file_path, {_ => final_thy})
@@ -202,7 +206,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     val thy_text = Files.readString(thy_file_path)
     val master_dir = thy_file_path.getParent()
     val header = Imports.Ops.get_header(thy_text, Position.none).retrieveNow
-    val thy0 = Imports.Ops.begin_theory(master_dir, header, get_parents(thy_file_path)).retrieveNow
+    val thy0 = Imports.Ops.begin_theory(master_dir, header, get_parents(thy_file_path)).retrieveNow.force
     thy0
   }
 
@@ -214,6 +218,8 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
           dep_graph.get_node(thy_file_path).get
     }
   }
+
+  def get_opt_theory(thy_file_path: Path): Option[Theory] = dep_graph.get_node(thy_file_path)
 }
 
 object Imports extends OperationCollection {
@@ -264,6 +270,8 @@ object Imports extends OperationCollection {
     val find_thy_file: MLFunction[String, Option[Path]] = compileFunction[String, Option[Path]]("Resources.find_theory_file")
 
     val get_base_name: MLFunction[String, String] = compileFunction("Long_Name.base_name")
+
+    val get_theory_name: MLFunction[Theory, String] = compileFunction("Context.theory_name {long=false}")
   }
 
   // c.f. OperationCollection

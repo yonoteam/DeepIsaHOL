@@ -25,8 +25,12 @@ object Isa_Minion {
 }
 
 class Isa_Minion (val logic: String, val work_dir: String) {
+  private val session_roots = if (work_dir.contains(Directories.isabelle_afp)) {
+    Seq(Path.of(Directories.isabelle_afp))
+  } else Nil
+
   val setup: Isabelle.Setup = Isabelle.Setup(isabelleHome = Path.of(Directories.isabelle_app),
-    sessionRoots = Nil,
+    sessionRoots = session_roots,
     logic = logic,
     workingDirectory = Path.of(work_dir)
   )
@@ -55,9 +59,9 @@ class Isa_Minion (val logic: String, val work_dir: String) {
     jsons.retrieveNow.split(" ISA_RL_SEP ").toList
   }
 
-  def write_proofs (write_dir: Path, thy_file_path: Path): Unit = {
+  def write_proofs (write_file_path: Path, thy_file_path: Path): Unit = {
     val thy0 = imports.get_start_theory(thy_file_path)
     val thy_text = imports.get_file_text(thy_file_path)
-    ML_Functions.write_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
+    ML_Functions.write_proofs(write_file_path.toString(), thy0, thy_text).retrieveNow
   }
 }
