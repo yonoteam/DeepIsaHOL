@@ -49,12 +49,13 @@ fun write_to mode str =
   let 
     val _ = (case mode of
         OUT => writeln str
-      | FILE name => let 
+      | FILE name => 
+        let 
           val file = TextIO.openAppend(name) 
-        in TextIO.output(file, str ^ "\n"); TextIO.closeOut(file)
-        end)
-  in () 
-  end;
+          val err = Exn.result TextIO.output (file, str ^ "\n")
+          val _ = TextIO.closeOut(file)
+        in Exn.release err end)
+  in () end;
 
 fun out str = write_to OUT str;
 

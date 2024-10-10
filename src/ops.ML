@@ -190,9 +190,10 @@ fun create_file {force=forced} dir name content =
 fun read_file fname = 
   let 
     val IO_instream = TextIO.openIn fname;
-    val content = TextIO.inputAll IO_instream;
+    val err = Exn.result TextIO.inputAll IO_instream;
     val _ = TextIO.closeIn IO_instream;
-  in content end;
+    val result = Exn.release err
+  in result end;
 
 
 end;

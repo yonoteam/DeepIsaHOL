@@ -94,7 +94,7 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
   def write_all(): Unit = {
     minion.imports.to_local_list().foreach { path =>
       println(s"Creating proofs for $path")
-      write_data_with_timeout(path.toString(), 5)
+      write_data_with_timeout(path.toString(), 2)
     }
     println("Done")
   }

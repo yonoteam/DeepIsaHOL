@@ -105,7 +105,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
     local_thy_files.foreach { thy_file_path =>
       if (debug) println(s"Imports: Adding local ${thy_file_path.toString}")
       val import_name_attempt = work_dir.getFileName.toString + "." + file_name_without_extension(thy_file_path)
-      val opt_thy_to_add = if (Imports.Ops.can_get_thy(import_name_attempt).retrieveNow) {
+      val opt_thy_to_add = if (Imports.Ops.can_get_thy(import_name_attempt).force.retrieveNow) {
         Some(Theory(import_name_attempt))
       } else None
       file_dep_graph = file_dep_graph.new_node(thy_file_path, opt_thy_to_add)
@@ -262,7 +262,7 @@ object Imports extends OperationCollection {
         |  in Toplevel.previous_theory_of final_state end""".stripMargin)
     
     val toplevel_end_theory: MLFunction[ToplevelState, Theory] = compileFunction[ToplevelState, Theory]("Toplevel.end_theory Position.none")
-
+    
     val can_get_thy: MLFunction[String, Boolean] = compileFunction[String, Boolean]("Basics.can Thy_Info.get_theory")
 
     val can_get_thy_file: MLFunction[String, Boolean] = compileFunction[String, Boolean]("Basics.can Resources.find_theory_file")

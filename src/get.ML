@@ -53,9 +53,8 @@ should be called from it.
 
 (* header: string -> Thy_Header.header *)
 fun header thy_file =
-  thy_file
-  |> Ops.read_file
-  |> Thy_Header.read Position.start;
+  Path.explode thy_file
+  |> File.read |> Thy_Header.read Position.start;
 
 (* parents: string -> theory list *)
 fun parents thy_file =
