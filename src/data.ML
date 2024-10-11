@@ -515,12 +515,12 @@ end;
 fun extract (thy0, thy_text) =
   extract_proofs thy0 thy_text
   |> map json_proof
-  |> String.concatWith " ISA_RL_SEP "
+  |> String.concatWith " ISA_RL_SEP ";
 
 (* write_proof: string -> (Data.env * Data.T Sections.T) -> unit *)
-fun write_proof file_path proof =
-  json_proof proof
-  |> Print.write_to (Print.FILE file_path)
+fun write_proof file_path proof = if Ops.file_exists file_path 
+  then warning ("write_proof: File " ^ file_path ^ " already exists (skipping)")
+  else json_proof proof |> Print.write_to (Print.FILE file_path);
 
 (* write_proofs: (string * theory * string) -> unit *)
 fun write_proofs (write_dir, thy0, thy_text) =

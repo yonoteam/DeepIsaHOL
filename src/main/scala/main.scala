@@ -17,14 +17,14 @@ import isabelle_rl._
 
 
 object Main {
-  val logic_rgx: Regex = """session\s+"?([^\"\=]+)"?\s+=""".r
+  val root_rgx: Regex = """session\s+"?([\w-]+)"?\s+(in\s+"?[\w\/-]+"?)?\s*=""".r
 
   // Finds the logic in the ROOT file
   def find_logic(root_file: File): Option[String] = {
     val root_src = Source.fromFile(root_file)
     try {
       val content = root_src.mkString
-      logic_rgx.findFirstMatchIn(content) match {
+      root_rgx.findFirstMatchIn(content) match {
         case Some(m) => 
           println(s"root match = ${m.group(1)}")
           Some(m.group(1))

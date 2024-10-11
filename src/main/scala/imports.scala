@@ -7,6 +7,9 @@ Manages the theory-dependency of a given work directory
 
 package isabelle_rl
 
+import scala.util.matching.Regex
+import java.io.{File, FileOutputStream, PrintWriter, BufferedWriter}
+import scala.io.Source
 import java.nio.file.{Path, Paths, Files}
 import java.io.FileNotFoundException
 import scala.jdk.CollectionConverters._
@@ -224,6 +227,31 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
 
 object Imports extends OperationCollection {
   def apply(work_dir: String)(implicit isabelle: Isabelle): Imports = new Imports(Path.of(work_dir))(isabelle)
+
+  val root_rgx: Regex = """session\s+"?([\w-]+)"?\s+(in\s+"?[\w\/-]+"?)?\s*=""".r
+
+  // find all logics in a root file and 
+  def find_logics(root_file: File): List[(String, File)] = {
+    var result: List[(String, File)] = List()
+    val parent_dir = root_file.getParentFile()
+    val root_src = Source.fromFile(root_file)
+    try {
+      val content = root_src.mkString
+      root_rgx.findAllMatchIn(content).foreach { m =>
+        val logic = m.group(1)
+        val logic_path = Option(m.group(2)) match {
+          case None => parent_dir
+          case Some(in_clause) => 
+            val stripped = in_clause.stripPrefix("in ").stripPrefix("\"").stripSuffix("\"")
+            new File(parent_dir, stripped)
+        }
+        result = result :+ (logic, logic_path)
+      }
+    } finally {
+      root_src.close()
+    }
+    result
+  }
 
   // c.f. OperationCollection
   protected final class Ops(implicit isabelle: Isabelle) {
