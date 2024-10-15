@@ -39,7 +39,7 @@ ML ‹Get.thms \<^context> "list_all2_eq"›
 ML ‹Get.grouped_commands \<^theory>›
 
 (* Returns a list of names and their corresponding list of theorems proved up to this point where the name contains the word "List" and the associated list has only one theorem *)
-ML ‹val list_thms = Get.filtered_thms [on_fst (Get.passes_fact_check \<^context>), Pred.neg (on_snd Pred.has_many), on_fst (Pred.contains "List")] \<^context>›
+ML ‹val list_thms = Get.filtered_thms [Pred.on_fst (Get.passes_fact_check \<^context>), Pred.neg (Pred.on_snd Pred.has_many), Pred.on_fst (Pred.contains "List")] \<^context>›
 
 end
 ```
