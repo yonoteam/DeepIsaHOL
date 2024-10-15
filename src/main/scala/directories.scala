@@ -12,8 +12,10 @@ object Directories {
   val isabelle_repo = ""
   val isabelle_app = ""
   val isabelle_afp = ""
-  val test_write_dir = ""
   val test_read_dir = ""
+  val test_write_dir = ""
+  val read_dir = ""
+  val write_dir = ""
   val isabelle_rl = ""
-  val progress_file = test_write_dir + "progress.txt"
+  val progress_file = write_dir + "progress.txt"
 }

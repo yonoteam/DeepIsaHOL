@@ -66,7 +66,7 @@ object Main {
           find_logic(root_file) match {
             case Some(logic) =>
               val read_dir = s"${Directories.isabelle_afp}" + s"${sub_dir.getName}"
-              val write_dir = s"${Directories.test_write_dir}" + s"${sub_dir.getName}"
+              val write_dir = s"${Directories.write_dir}" + s"${sub_dir.getName}"
               Try {
                 println(s"\nInitialising writer with read_dir = ${read_dir} \nand write_dir ${write_dir}")
                 val writer = new Writer(read_dir, write_dir, logic)
