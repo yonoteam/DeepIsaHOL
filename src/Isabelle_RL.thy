@@ -10,6 +10,7 @@ ML_file "~/Programs/deepIsaHOL/src/sections.ML"
 ML_file "~/Programs/deepIsaHOL/src/seps.ML"
 ML_file "~/Programs/deepIsaHOL/src/actions.ML"
 ML_file "~/Programs/deepIsaHOL/src/data.ML"
-ML_file "~/Programs/deepIsaHOL/src/imports.ML"
+ML_file "~/Programs/deepIsaHOL/src/json_maker.ML"
+ML_file "~/Programs/deepIsaHOL/src/writer.ML"
 
 end

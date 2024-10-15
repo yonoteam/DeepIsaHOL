@@ -101,7 +101,7 @@ fun write_proof' dir i proof =
         val _ = Ops.create_file {force=false} dir_name (fname j) "";
         val _ =
           data
-          |> Data.pretty_json_step true 0 (Data.ctxt_of env)
+          |> Json_Maker.pretty_step true 0 (Data.ctxt_of env)
           |> Print.string_of_pretty
           |> rewrite_quote
           |> Print.write_to (Print.FILE (OS.Path.joinDirFile {dir=dir_name, file=fname j}))
@@ -116,6 +116,6 @@ fun retrieve_from_to thy_file write_dir =
   let
     val thy0 = Get.start_thy_from_file (Get.parents thy_file) thy_file;
     val thy_text = Ops.read_file thy_file
-  in Data.write_proofs (write_dir, thy0, thy_text) end;
+  in Writer.write_proofs (write_dir, thy0, thy_text) end;
 
 end;

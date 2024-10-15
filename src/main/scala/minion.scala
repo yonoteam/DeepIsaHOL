@@ -45,11 +45,11 @@ class Isa_Minion (val logic: String, val work_dir: String) {
   private object ML_Functions {
     final val isa_rl_thy_file = Directories.isabelle_rl + "Isabelle_RL.thy"
     val isabelle_rl_thy : Theory = Theory(Path.of(isa_rl_thy_file))
-    val isa_rl_data = isabelle_rl_thy.importMLStructureNow("Data")
+    val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
     final val extract : MLFunction2[Theory, String, String] 
-      = compileFunction[Theory, String, String](s"${isa_rl_data}.extract")
+      = compileFunction[Theory, String, String](s"${ml_writer}.extract")
     final val write_proofs : MLFunction3[String, Theory, String, Unit] 
-      = compileFunction[String, Theory, String, Unit](s"${isa_rl_data}.write_proofs")
+      = compileFunction[String, Theory, String, Unit](s"${ml_writer}.write_proofs")
   }
   
   def extract (thy_file_path: Path): List[String] = {  
