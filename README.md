@@ -7,14 +7,19 @@ The project currently offers proof data retrieving capabilities using the [Isabe
 
 1. Prerequisites:
   * The [Isabelle2024](https://isabelle.in.tum.de/) proof assistant
+    - Optionally (see 7 below): Its [Archive of Formal Proofs](https://www.isa-afp.org/) (AFP)
   * The [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) library (see "Scala level" below)
   * The [sbt](https://www.scala-sbt.org/) build tool for Java and Scala
   * The [Py4J](https://www.py4j.org/install.html) library (see "Python level" below)
 2. Pull this repository.
 3. Adapt this project's `build.sbt` file to your needs (e.g. correct the location of `scala-isabelle`).
 4. Adapt this project's `directories.scala` to your needs. Specifically, you will need to update the location of this project's `src` directory and paste it to `isabelle_rl`, and the location of your Isabelle application `isabelle_app`.
-4. [Compile](https://www.scala-sbt.org/1.x/docs/Running.html) the project.
-5. Set-up a [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for your needs that includes the `Py4J` library.
+5. [Compile](https://www.scala-sbt.org/1.x/docs/Running.html) the project's scala sources. 
+6. Set-up a [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for your needs that includes the `Py4J` library.
+7. If you want to run this project's `main.scala`. You will need to:
+  * Download the AFP or create a directory with an Isabelle `ROOTS` file (with subdirectories with `ROOT` files)
+  * [Tell Isabelle](https://www.isa-afp.org/help/) of its existence
+  * Update the corresponding entry `isabelle_afp` on this project's `directories.scala`
 
 ## How it works?
 

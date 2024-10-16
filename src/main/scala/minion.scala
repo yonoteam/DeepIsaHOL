@@ -47,9 +47,9 @@ class Isa_Minion (val logic: String, val work_dir: String) {
     val isabelle_rl_thy : Theory = Theory(Path.of(isa_rl_thy_file))
     val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
     final val extract : MLFunction2[Theory, String, String] 
-      = compileFunction[Theory, String, String](s"${ml_writer}.extract")
+      = compileFunction[Theory, String, String](s"${ml_writer}.extract_jsons")
     final val write_proofs : MLFunction3[String, Theory, String, Unit] 
-      = compileFunction[String, Theory, String, Unit](s"${ml_writer}.write_proofs")
+      = compileFunction[String, Theory, String, Unit](s"${ml_writer}.write_json_proofs")
   }
   
   def extract (thy_file_path: Path): List[String] = {  

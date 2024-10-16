@@ -3,6 +3,7 @@ signature JSON_MAKER =
 sig
   (* Pretty printing *)
   val pretty_action: Data.T -> Pretty.T
+  val pretty_user_state: Toplevel.state -> Pretty.T
   val pretty_goal: Proof.context -> Data.T -> Pretty.T
   val pretty_hyps: bool -> int -> Proof.context -> Data.T -> Pretty.T
   val pretty_proven: bool -> int -> Proof.context -> Data.T -> Pretty.T
