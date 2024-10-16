@@ -116,6 +116,6 @@ fun retrieve_from_to thy_file write_dir =
   let
     val thy0 = Get.start_thy_from_file (Get.parents thy_file) thy_file;
     val thy_text = Ops.read_file thy_file
-  in Writer.write_proofs (write_dir, thy0, thy_text) end;
+  in Writer.write_json_proofs (write_dir, thy0, thy_text) end;
 
 end;

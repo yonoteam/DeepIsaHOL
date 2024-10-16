@@ -19,7 +19,6 @@ import scala.jdk.CollectionConverters._
 import isabelle_rl.Isa_Minion
 
 class Writer(val read_dir: String, val write_dir: String, val logic: String = "HOL") {
-
   // write_dir
   Files.createDirectories(Paths.get(write_dir))
 
@@ -36,6 +35,20 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
   println(s"Initialised minion for directory: $read_dir")
 
   def get_minion(): Isa_Minion = minion
+
+  // format
+  private val json_format = "JSON"
+  private val g2tac_format = "G2TAC"
+  private var format: String = json_format
+
+  def set_format(new_format: String): Unit = {
+    new_format match {
+      case `json_format` => format = new_format
+      case `g2tac_format` => format = new_format
+      case _ =>
+        println(s"Undefined writing format $new_format, defaulting to $format")
+    }
+  }
 
   // find the .thy file inside the minion's work directory or its subdirectories
   def get_theory_file_path(read_file_name: String): Option[Path] = {
@@ -63,16 +76,28 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
   // Write proof data from the corresponding file
   def write_data(file_name: String): Unit = {
     val read_file_path = get_theory_file_path(file_name).get
-    //val data_list = get_proofs_data(read_file_path)
-    val rel_path = Paths.get(read_dir).relativize(read_file_path).toString
-    val target_dir = Paths.get(write_dir, rel_path.toString().stripSuffix(".thy"))
-    Files.createDirectories(target_dir)
-    Try {
-      minion.write_proofs(target_dir, read_file_path)
-    } match {
-      case Failure(exception) =>
-        logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")
-      case Success(_) => ()
+    format match {
+      case `json_format` =>
+        val rel_path = Paths.get(read_dir).relativize(read_file_path).toString
+        val target_dir = Paths.get(write_dir, rel_path.toString().stripSuffix(".thy"))
+        Files.createDirectories(target_dir)
+        Try {
+          minion.write_json_proofs(target_dir, read_file_path)
+        } match {
+          case Failure(exception) =>
+            logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")
+          case Success(_) => ()
+        }
+      
+      case `g2tac_format` =>
+        val target_file_path = Path.of(write_dir).resolve("data.txt")
+        println(s"Writing to $target_file_path")
+        minion.write_g2tac_proofs(target_file_path, read_file_path)
+      
+      case some_other_format: String => 
+        val error_message = s"Unknown writing format: $some_other_format. Skipping $file_name."
+        logger.severe(error_message)
+        throw new IllegalArgumentException(error_message)
     }
   }
 

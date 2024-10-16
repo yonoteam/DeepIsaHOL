@@ -42,7 +42,8 @@ fun pretty_step env data =
     Pretty.str "OUTPUT", 
     pretty_action data, 
     Pretty.str "<END>", 
-    Pretty.str "\\n"]
+    Pretty.str "\\n",
+    Pretty.fbrk]
   |> Ops.intersp [Pretty.brk 1]
   |> Pretty.block
 

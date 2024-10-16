@@ -19,7 +19,7 @@ import isabelle_rl._
 object Main {
   val root_rgx: Regex = """session\s+"?([\w-]+)"?\s+(in\s+"?[\w\/-]+"?)?\s*=""".r
 
-  // Finds the logic in the ROOT file
+  // finds the logic in the ROOT file
   def find_logic(root_file: File): Option[String] = {
     val root_src = Source.fromFile(root_file)
     try {
@@ -35,7 +35,7 @@ object Main {
     }
   }
 
-  // Load progress from file
+  // load progress from progress file
   def load_progress(): Set[String] = {
     val progress_file = new File(Directories.progress_file)
     if (progress_file.exists()) {
@@ -45,7 +45,7 @@ object Main {
     }
   }
 
-  // Save progress to file
+  // save progress to progress file
   def save_progress(sub_dir: String): Unit = {
     val writer = new BufferedWriter(new PrintWriter(new FileOutputStream(new File(Directories.progress_file), true)))
     try {
@@ -60,6 +60,7 @@ object Main {
     val processed = load_progress()
 
     afp_dir.listFiles().filter(_.isDirectory).foreach { sub_dir =>
+      // if the sub_dir has not been processed according to progress file
       if (! processed.contains(sub_dir.getName)) {
         val root_file = new File(sub_dir, "ROOT")
         if (root_file.exists()) {
@@ -70,6 +71,10 @@ object Main {
               Try {
                 println(s"\nInitialising writer with read_dir = ${read_dir} \nand write_dir ${write_dir}")
                 val writer = new Writer(read_dir, write_dir, logic)
+                if (args.nonEmpty) { // TODO: document this behaviour
+                  val writing_format = args(0)
+                  writer.set_format(writing_format)
+                }
                 val minion = writer.get_minion()
                 implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
                 writer.write_all()
