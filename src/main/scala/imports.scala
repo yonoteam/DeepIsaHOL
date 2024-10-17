@@ -231,8 +231,8 @@ object Imports extends OperationCollection {
   val root_rgx: Regex = """session\s+"?([\w-]+)"?\s+(in\s+"?[\w\/-]+"?)?\s*=""".r
 
   // find all logics in a root file and 
-  def find_logics(root_file: File): List[(String, File)] = {
-    var result: List[(String, File)] = List()
+  def find_logics(root_file: File): Map[String, File] = {
+    var result: Map[String, File] = Map()
     val parent_dir = root_file.getParentFile()
     val root_src = Source.fromFile(root_file)
     try {
@@ -245,7 +245,7 @@ object Imports extends OperationCollection {
             val stripped = in_clause.stripPrefix("in ").stripPrefix("\"").stripSuffix("\"")
             new File(parent_dir, stripped)
         }
-        result = result :+ (logic, logic_path)
+        result += (logic -> logic_path)
       }
     } finally {
       root_src.close()

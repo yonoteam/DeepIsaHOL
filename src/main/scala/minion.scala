@@ -20,11 +20,7 @@ import isabelle_rl.{Directories}
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
-object Isa_Minion {
-  def apply(logic: String, work_dir: String): Isa_Minion = new Isa_Minion(logic, work_dir)
-}
-
-class Isa_Minion (val logic: String, val work_dir: String) {
+class Isa_Minion (val work_dir: String, val logic: String = "HOL") {
   private val session_roots = if (work_dir.contains(Directories.isabelle_afp)) {
     Seq(Path.of(Directories.isabelle_afp))
   } else Nil

@@ -8,7 +8,6 @@ Isabelle/RL directories: Adjust for your specific setup
 package isabelle_rl
 
 object Directories {
-  private val run_main = ""
   val isabelle_repo = ""
   val isabelle_app = ""
   val isabelle_afp = ""
@@ -17,5 +16,4 @@ object Directories {
   val read_dir = ""
   val write_dir = ""
   val isabelle_rl = ""
-  val progress_file = write_dir + "progress.txt"
 }

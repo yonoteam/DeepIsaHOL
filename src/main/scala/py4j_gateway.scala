@@ -12,7 +12,7 @@ import isabelle_rl.Writer
 import py4j.GatewayServer
 
 object Py4j_Gateway {
-  def get_minion(logic: String, work_dir: String): Isa_Minion = Isa_Minion(logic, work_dir)
+  def get_minion(logic: String, work_dir: String): Isa_Minion = new Isa_Minion(logic, work_dir)
 
   def get_writer(read_dir: String, write_dir: String, logic: String): Writer = new Writer(read_dir, write_dir, logic)
 

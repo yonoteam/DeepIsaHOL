@@ -31,20 +31,20 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
   logger.setLevel(Level.SEVERE)
 
   // minion
-  private val minion: Isa_Minion = Isa_Minion(logic, read_dir)
+  private val minion: Isa_Minion = new Isa_Minion(read_dir, logic)
   println(s"Initialised minion for directory: $read_dir")
 
   def get_minion(): Isa_Minion = minion
 
   // format
-  private val json_format = "JSON"
-  private val g2tac_format = "G2TAC"
-  private var format: String = json_format
+  private var format: String = Writer.json_format
+  private val json = Writer.json_format
+  private val g2tac = Writer.g2tac_format
 
   def set_format(new_format: String): Unit = {
     new_format match {
-      case `json_format` => format = new_format
-      case `g2tac_format` => format = new_format
+      case `json` => format = new_format
+      case `g2tac` => format = new_format
       case _ =>
         println(s"Undefined writing format $new_format, defaulting to $format")
     }
@@ -77,7 +77,7 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
   def write_data(file_name: String): Unit = {
     val read_file_path = get_theory_file_path(file_name).get
     format match {
-      case `json_format` =>
+      case `json` =>
         val rel_path = Paths.get(read_dir).relativize(read_file_path).toString
         val target_dir = Paths.get(write_dir, rel_path.toString().stripSuffix(".thy"))
         Files.createDirectories(target_dir)
@@ -89,11 +89,17 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
           case Success(_) => ()
         }
       
-      case `g2tac_format` =>
+      case `g2tac` =>
         val target_file_path = Path.of(write_dir).resolve("data.txt")
         println(s"Writing to $target_file_path")
-        minion.write_g2tac_proofs(target_file_path, read_file_path)
-      
+        Try {
+          minion.write_g2tac_proofs(target_file_path, read_file_path)
+        } match {
+          case Failure(exception) =>
+            logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")
+          case Success(_) => ()
+        }
+
       case some_other_format: String => 
         val error_message = s"Unknown writing format: $some_other_format. Skipping $file_name."
         logger.severe(error_message)
@@ -119,8 +125,13 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
   def write_all(): Unit = {
     minion.imports.to_local_list().foreach { path =>
       println(s"Creating proofs for $path")
-      write_data_with_timeout(path.toString(), 2)
+      write_data_with_timeout(path.toString(), 3)
     }
     println("Done")
   }
+}
+
+object Writer {
+  val json_format = "JSON"
+  val g2tac_format = "G2TAC"
 }
