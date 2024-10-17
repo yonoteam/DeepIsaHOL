@@ -17,26 +17,29 @@ import isabelle_rl._
 
 object Main {
   val root_rgx: Regex = """session\s+"?([\w-]+)"?\s+(in\s+"?[\w\/-]+"?)?\s*=""".r
-  var main_write_format = ""
-  var main_write_dir = ""
-  var main_progress_file = ""
   var main_read_dir = ""
+  var main_write_dir = ""
+  var main_write_format = "JSON"
+  var main_progress_file = ""
 
   def set_params(args: Array[String]): Unit = {
     args.length match {
+      case 2 =>
+        main_read_dir = args(0)
+        main_write_dir = args(1)
       case 3 =>
-        main_write_format = args(0)
+        main_read_dir = args(0)
         main_write_dir = args(1)
-        main_read_dir = args(2)
+        main_write_format = args(2)
       case 4 =>
-        main_write_format = args(0)
+        main_read_dir = args(0)
         main_write_dir = args(1)
-        main_read_dir = args(2)
+        main_write_format = args(2)
       case _: Int =>
         val usage_message = """Usage: 
-          1st input - write format. Options JSON and G2TAC.
+          1st input - read directory.
           2nd input - write directory.
-          3rd input - read directory.
+          3rd input - write format. Options JSON and G2TAC. Default JSON.
           4th input - logic. Not used if there is a ROOT file in the read directory. Default otherwise is HOL."""
         println(usage_message)
         sys.exit(1)
