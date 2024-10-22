@@ -40,7 +40,7 @@ object Main {
           1st input - read directory.
           2nd input - write directory.
           3rd input - write format. Options JSON and G2TAC. Default JSON.
-          4th input - logic. Not used if there is a ROOT file in the read directory. Default otherwise is HOL."""
+          4th input - logic. Not used if there is a ROOT file in the read directory. Otherwise default is HOL."""
         println(usage_message)
         sys.exit(1)
         return

@@ -90,10 +90,10 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
         }
       
       case `g2tac` =>
-        val target_file_path = Path.of(write_dir).resolve("data.txt")
-        println(s"Writing to $target_file_path")
+        val target_dir = Path.of(write_dir)
+        println(s"Writing to $target_dir")
         Try {
-          minion.write_g2tac_proofs(target_file_path, read_file_path)
+          minion.write_g2tac_proofs(target_dir, read_file_path)
         } match {
           case Failure(exception) =>
             logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")

@@ -57,15 +57,15 @@ class Isa_Minion (val work_dir: String, val logic: String = "HOL") {
     jsons.retrieveNow.split(" ISA_RL_SEP ").toList
   }
 
-  def write_json_proofs (write_file_path: Path, thy_file_path: Path): Unit = {
+  def write_json_proofs (write_dir: Path, thy_file_path: Path): Unit = {
     val thy0 = imports.get_start_theory(thy_file_path)
     val thy_text = imports.get_file_text(thy_file_path)
-    ML_Functions.write_json_proofs(write_file_path.toString(), thy0, thy_text).retrieveNow
+    ML_Functions.write_json_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
   }
 
-  def write_g2tac_proofs (write_file_path: Path, thy_file_path: Path): Unit = {
+  def write_g2tac_proofs (write_dir: Path, thy_file_path: Path): Unit = {
     val thy0 = imports.get_start_theory(thy_file_path)
     val thy_text = imports.get_file_text(thy_file_path)
-    ML_Functions.write_g2tac_proofs(write_file_path.toString(), thy0, thy_text).retrieveNow
+    ML_Functions.write_g2tac_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
   }
 }
