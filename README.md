@@ -49,7 +49,7 @@ end
 ```
 
 ### Scala level
-This level is handled by `scala-isabelle`. The project provides a `minion.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. The minion can use the `data.ML` function `Data.extract` to produce a string of `json`'s with proof data from a `.thy` file. Alternatively, a `writer.scala` uses the minion to retrieve the data and write it to a directory of your choice.
+This level is handled by `scala-isabelle`. The project provides a `minion.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. The minion can use the `data.ML` function `Data.extract_jsons` to produce a string of `json`'s with proof data from a `.thy` file. Alternatively, a `writer.scala` uses the minion to retrieve the data and write it to a directory of your choice.
 
 ```scala
 import isabelle_rl._
@@ -58,7 +58,7 @@ import de.unruh.isabelle.pure.Implicits._
 
 val logic = "Ordinary_Differential_Equations"
 
-val writer = Py4j_Gateway.get_writer(Directories.test_dir2, Directories.test_dir, logic)
+val writer = Py4j_Gateway.get_writer(Directories.test_read_dir, Directories.test_write_dir, logic)
   
 val minion = writer.get_minion()
 
@@ -67,6 +67,8 @@ implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
 val jsons = minion.extract(Path.of("your/file.thy"))
 
 writer.write_all()
+
+isabelle.destroy()
 ```
 
 ### Python level
