@@ -39,7 +39,7 @@ class Isa_Minion (val work_dir: String, val logic: String = "HOL") {
   }
 
   private object ML_Functions {
-    final val isa_rl_thy_file = Directories.isabelle_rl + "Isabelle_RL.thy"
+    final val isa_rl_thy_file = Directories.isabelle_rl
     val isabelle_rl_thy : Theory = Theory(Path.of(isa_rl_thy_file))
     val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
     final val extract : MLFunction2[Theory, String, String] 
