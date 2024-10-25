@@ -13,6 +13,7 @@ sig
   (* Formatting *)
   type format
   val all_formats: format list
+  val formats_to_use: format list
   val pretty_step_of: format -> Data.T -> Data.env -> Data.T -> Pretty.T
   val pretty_step_of': format -> Data.T -> Data.env -> Data.T -> Pretty.T
   val str_number_of: format -> string
@@ -71,9 +72,31 @@ fun pretty_ctxt env data =
 fun pretty_action data = Pretty.enclose "{" "}" 
   [Json_Maker.pretty_action data];
 
+(* pretty_bare_action: Data.T -> Pretty.T *)
+fun pretty_bare_action data = 
+  let
+    val backslash = "\\";
+    val new_line = "\n";
+    val quote = "\"";
+    val to_write = 
+      Data.action_of data
+      |> Actions.text_of
+      |> Ops.replace_all backslash (backslash ^ backslash) (* for LaTeX comments *)
+      |> Ops.replace_all new_line "\\n" (* need to write explicitly "\\n" *)
+      |> Ops.replace_all quote (backslash ^ quote)
+  in Pretty.str to_write end;
+
 (* pretty_user_state: Data.T -> Pretty.T *)
 fun pretty_user_state data = Pretty.enclose "{" "}" 
   [Json_Maker.pretty_user_state (Data.state_of data)]
+
+(* pretty_user_state: Data.T -> Pretty.T *)
+fun pretty_bare_user_state data =
+  Data.state_of data
+  |> Toplevel.pretty_state
+  |> Pretty.separate " " 
+  |> Pretty.block
+  |> Pretty.unbreakable
 
 (* pretty_methods: Data.env -> Pretty.T *)
 fun pretty_methods env = Pretty.enclose "{" "}" 
@@ -101,7 +124,6 @@ fun pretty_step prettifiers env data =
         Pretty.str "OUTPUT", 
         (Ops.ith 1 prettifiers) env data,
         Pretty.str "<END>", 
-        Pretty.str "\\n",
         Pretty.fbrk]
       | 3 => 
         [(Ops.ith 0 prettifiers) env data, 
@@ -110,14 +132,12 @@ fun pretty_step prettifiers env data =
         Pretty.str "OUTPUT", 
         (Ops.ith 2 prettifiers) env data,
         Pretty.str "<END>", 
-        Pretty.str "\\n",
         Pretty.fbrk]
       | _ =>
         [pretty_state env data, 
         Pretty.str "OUTPUT", 
         pretty_action data, 
         Pretty.str "<END>", 
-        Pretty.str "\\n",
         Pretty.fbrk])
   in Ops.intersp [Pretty.brk 1] prettys |> Pretty.block end;
 
@@ -125,8 +145,8 @@ fun pretty_step prettifiers env data =
 (** FORMATTING **)
 
 val pretty1 = [
-  (fn _ => pretty_user_state), 
-  (fn _ => pretty_action)];
+  (fn _ => pretty_bare_user_state), 
+  (fn _ => pretty_bare_action)];
 
 val pretty1' = [
   pretty_state, 
@@ -169,12 +189,13 @@ val pretty5' =
 
 
 datatype format = 
-  G2TAC1    (* {state} OUTPUT {action} <END> \n  *)
+  G2TAC1    (* state OUTPUT action <END> \n  *)
   | G2TAC2  (* {state_t-1} SEP {state_t} OUTPUT {action} <END> \n   *)
   | G2TAC3  (* {context, i.e. constants, variables, ...} SEP {state} OUTPUT {action} <END> \n   *)
   | G2TAC4  (* {list of available tactics} SEP {state} OUTPUT {action} <END> \n   *)
   | G2TAC5  (* {environment} SEP {state_t} OUTPUT {action} <END> \n   *)
 
+val formats_to_use = [G2TAC1]
 val all_formats = [G2TAC1, G2TAC2, G2TAC3, G2TAC4, G2TAC5]
 
 (* pretty_step_of: format -> Data.T -> Data.env -> Data.T -> Pretty.T *)

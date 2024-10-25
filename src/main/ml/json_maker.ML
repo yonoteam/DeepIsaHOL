@@ -124,7 +124,7 @@ fun pretty_list retriever prettyfier debug lvl name record =
 
 in 
 
-(* bool -> int -> _ -> Data.T -> Pretty.T *)
+(* pretty_action: Data.T -> Pretty.T *)
 fun pretty_action data = 
   let
     val backslash = "\\";

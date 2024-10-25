@@ -72,7 +72,7 @@ fun write_g2tac_proofs (write_dir, thy0, thy_text) =
         val file_path = OS.Path.joinDirFile {dir=write_dir, file=file_name}
         val file_stream = TextIO.openAppend file_path
       in (format, file_stream) end;
-    val file_streams = map mk_file_streams_of G2tac_Formatter.all_formats;
+    val file_streams = map mk_file_streams_of G2tac_Formatter.formats_to_use;
     fun write_next proof errs =
       (write_g2tac_proof' file_streams proof) @ errs;
     val errors = fold write_next proofs [];
