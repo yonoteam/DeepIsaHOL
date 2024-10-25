@@ -16,7 +16,7 @@ import scala.util.{Failure, Success, Try}
 import isabelle_rl._
 
 object Main {
-  val root_rgx: Regex = """session\s+"?([\w-]+)"?\s+(in\s+"?[\w\/-]+"?)?\s*=""".r
+  val root_rgx: Regex = Imports.root_rgx
   var main_read_dir = ""
   var main_write_dir = ""
   var main_write_format = "JSON"

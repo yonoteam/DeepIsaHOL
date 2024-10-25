@@ -21,7 +21,7 @@ import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
 class Isa_Minion (val work_dir: String, val logic: String = "HOL") {
-  private val session_roots = if (work_dir.contains(Directories.isabelle_afp)) {
+  private val session_roots = if (work_dir.contains(Directories.isabelle_afp) && Files.exists(Paths.get(Directories.isabelle_afp + "/ROOTS"))) {
     Seq(Path.of(Directories.isabelle_afp))
   } else Nil
 
