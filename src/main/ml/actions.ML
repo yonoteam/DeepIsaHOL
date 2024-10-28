@@ -12,13 +12,18 @@ sig
   val on_kind: (string -> 'a) -> T -> 'a
   val make: theory -> string -> T list
   val make_one: theory -> string -> T
+  val make': theory -> string -> T list
+
+  (* Application *)
   val apply_safe: T -> Toplevel.state -> Toplevel.state * (exn * string) option
   val apply: T -> Toplevel.state -> Toplevel.state
-   
-  (* Data preparation *)
-  val make': theory -> string -> T list
-  val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
+  val apply_all: T list -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
+  val timed_apply_all: {debug: bool, no_batches: int, timeout_in_secs: int} 
+    -> T list -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
+
+  (* Data preparation *)
+  val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
   val segmentate: Toplevel.state -> (string * (T -> bool) * (T -> bool)) list -> T list 
     -> (Toplevel.state * T) Sections.T
   val segmentate_triplets: Toplevel.state -> (string * (T -> bool) * (T -> bool)) list -> T list 
@@ -73,15 +78,6 @@ fun make thy0 thy_text =
 (* make_one: theory -> string -> Actions.T *)
 fun make_one thy0 thy_text = hd (make thy0 thy_text)
 
-(* apply_safe: Actions.T -> Toplevel.state -> Toplevel.state * (exn * string) option *)
-fun apply_safe (Action a) st = Toplevel.transition true (#transition a) st;
-
-(* apply: Actions.T -> Toplevel.state -> Toplevel.state *)
-fun apply act st = fst (apply_safe act st);
-
-
-(** DATA PREPARATION **)
-
 (* make': theory -> string -> Actions.T list *)
 fun make' thy0 thy_text =
   let
@@ -90,15 +86,93 @@ fun make' thy0 thy_text =
       andf Pred.neg (Seps.is_document_step (Get.grouped_commands thy0)))
   in void :: (filter does_something (make thy0 thy_text)) end;
 
+
+(** APPLICATION **)
+
+(* apply_safe: Actions.T -> Toplevel.state -> Toplevel.state * (exn * string) option *)
+fun apply_safe (Action a) st = Toplevel.transition true (#transition a) st;
+
+(* apply: Actions.T -> Toplevel.state -> Toplevel.state *)
+fun apply act st = fst (apply_safe act st);
+
+(* next_state: Actions.T Sections.T -> Toplevel.state -> Toplevel.state *)
+val next_state = Sections.next_state apply;
+
+(* (naive) apply_all: Actions.T list -> Toplevel.state 
+  -> (Actions.T * Toplevel.state * (exn * string) option) list *)
+fun apply_all [] st = [(void, st, NONE)]
+  | apply_all acts st =
+  let
+    fun do_next act' (_, st, _) =
+      let
+        val (st', err') = apply_safe act' st
+      in (act', st', err') end;
+  in Ops.log_fold do_next (void, st, NONE) acts end;
+
+(* timed_apply_all: {debug: bool, no_batches: int, timeout_in_secs: int} 
+  -> Actions.T list -> Toplevel.state 
+  -> (Actions.T * Toplevel.state * (exn * string) option) list *)
+fun timed_apply_all {timeout_in_secs=t, no_batches=n, debug=debugging} acts st =
+  if n < 2 orelse t < 0 then raise Fail "negative time or less than 2 batches"
+  else let
+    (* Preliminary defs *)
+    val timeout = Time.fromSeconds t
+    val is_sledgehammer_step = on_kind (Pred.is "apply") 
+      andf on_text (Pred.contains "smt" orf Pred.contains "metis")
+    fun get_last_st stateful_trs = #2 (Ops.last stateful_trs);
+
+    (* Single batch processing *)
+    fun debug_report batch = if debugging then
+      let
+        val report_size = n div 2
+        val text =
+          Ops.range 0 report_size (rev batch)
+          |> rev o map text_of
+          |> Library.cat_lines
+      in tracing ("Just processed\n" ^ text) end
+      else ()
+    fun do_next_batch batch (st, good_so_far, [], _) = 
+      let
+        val exn_result = Ops.apply_with_timeout timeout (apply_all batch) st;
+        val result  = (case exn_result of 
+          Exn.Exn _ => (st, good_so_far, batch, [])
+          | Exn.Res ress => (get_last_st ress, good_so_far @ ress, [], []))
+        val _ = debug_report batch;
+      in result end
+      (* if there is an error, do_next_batch stops processing the remaining batches *)
+      | do_next_batch batch (st, goods, some_errs, rest) = (st, goods, some_errs, rest @ batch);
+
+    (* Multiple batch processing *)
+    (* prev_sts: (Actions.T * Toplevel.state * (exn * string) option) list *)
+    fun process_in_batches st0 prev_sts [] [] = (st0, prev_sts, [], [])
+      | process_in_batches st0 prev_sts after_acts [] = process_in_batches st0 prev_sts [] after_acts
+      | process_in_batches st0 prev_sts after_acts [curr_act] = 
+        let
+          val new_sts = prev_sts @ [(curr_act, st0, SOME (Timeout.TIMEOUT timeout, "TIMEOUT_ERROR"))]
+        in process_in_batches st0 new_sts [] after_acts end
+      | process_in_batches st0 prev_sts after_acts curr_acts = 
+        (* Large processing *)
+        if length curr_acts > n
+        then let
+            val batches = Ops.split_into n curr_acts;
+            val (st', goods', bads, rest) = fold do_next_batch batches (st0, [], [], []);
+          in process_in_batches st' (prev_sts @ goods') (rest @ after_acts) bads end
+        (* Fine-grained processing *)
+        else let
+            val batches = Pred.split is_sledgehammer_step curr_acts;
+            val (st', goods', bads, rest) = fold do_next_batch batches (st0, [], [], []);
+          in process_in_batches st' (prev_sts @ goods') (rest @ after_acts) bads end
+  in #2 (process_in_batches st [] [] acts) end;
+
+
+(** DATA PREPARATION **)
+
 (* theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list *)
 fun theory_separators thy =
   let 
     val cmmnds = Get.grouped_commands thy;
     val seps = Seps.make cmmnds
   in map (fn (tag, starts, ends) => (tag, on_kind starts, on_kind ends)) seps end;
-
-(* next_state: Actions.T Sections.T -> Toplevel.state -> Toplevel.state *)
-val next_state = Sections.next_state apply
 
 (* segmentate: Toplevel.state -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list 
   -> Actions.T list -> (Toplevel.state * Actions.T) Sections.T *)

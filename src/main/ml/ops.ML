@@ -8,8 +8,12 @@ sig
   val intersp: 'a list -> 'a list -> 'a list
   val enumerate_from: int -> 'a list -> (int * 'a) list
   val enumerate: 'a list -> (int * 'a) list
+  val range: int -> int -> 'a list -> 'a list
   val uniques: ''a list -> ''a list
   val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list
+  
+  (* Grouping lists *)
+  val split_into: int -> 'a list -> 'a list list
   val chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
     -> 'a list -> (string * 'a list) list
   val bifurcate_at: ''a -> ''a list -> ''a list * ''a * ''a list
@@ -17,7 +21,8 @@ sig
   val split_at: string -> string -> string list
   val replace_all: string -> string -> string -> string
 
-  (* IO operations *)
+  (* System operations *)
+  val apply_with_timeout: Time.time -> ('a -> 'b) -> 'a -> 'b Exn.result
   val file_exists: string -> bool
   val is_directory: string -> bool
   val create_directory: {force: bool} -> string -> unit
@@ -53,12 +58,47 @@ fun enumerate_from _ [] = []
 (* enumerate: 'a list -> (int * 'a) list *)
 fun enumerate xs = enumerate_from 0 xs;
 
+(* range: int -> int -> 'a list -> 'a list *)
+fun range _ _ [] = []
+  | range m n (x :: xs) = 
+    if 0 <= m andalso m <= n andalso m <= length (x :: xs) then
+    let
+      fun process (so_far, count, []) = (so_far, count, [])
+        | process (so_far, count, y :: ys) = 
+          if count > n then
+            (so_far, count, [])
+          else if m <= count andalso count <= n then
+            process (y::so_far, count+1, ys)
+          else   
+            process (so_far, count+1, ys)
+    in rev (#1 (process ([], 0, x :: xs))) end
+    else raise Fail ("Ops.range: out of range input.")
+
 (* uniques: 'a list -> 'a list *)
 fun uniques xs = Library.distinct (op =) xs;
 
 (* log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list *)
 fun log_fold _ _ [] = []
   | log_fold f s (x :: xs) = let val v = f x s in v :: log_fold f v xs end;
+
+
+(** GROUPING LISTS **)
+
+(* split_into: int -> 'a list -> 'a list list *)
+fun split_into 1 xs = [xs]
+  | split_into n xs = 
+  let 
+    val total = length xs;
+  in if total >= n andalso n > 1 then
+    let
+      val batch_size = total div n
+      fun do_next x (m, ys, batches, count) =
+        if m > 0 then (m-1, x::ys, batches, count)
+        else if count < n then (batch_size-1, [x], (rev ys) :: batches, count+1)
+        else (batch_size, x::ys, batches, count)
+      val (_, remainder, rev_batches, _) = fold do_next xs (batch_size, [], [], 1);
+      in rev (rev remainder :: rev_batches) end
+  else raise Fail "Ops.split_into: non-positive split size or larger than list" end;
 
 (* chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
   -> 'a list -> (string * 'a list) list *)
@@ -141,7 +181,24 @@ fun replace_all str1 str2 txt =
   in String.concat (map (String.implode o replace) (segmentate_by cs1 chars)) end;
 
 
-(** IO OPERATIONS **)
+(** SYSTEM OPERATIONS **)
+
+(* apply_with_timeout: Time.time -> ('a -> 'b) -> 'a -> 'b Exn.result option *)
+(* WARNING: potential slowdown due to overhead if too many calls to this method *)
+fun apply_with_timeout timeout f x  = 
+  let
+    val future_val = Future.fork (fn () => f x)
+
+    fun wait_for_future start_time =
+      let
+        val curr_time = Time.now ();
+        val so_far = curr_time - start_time;
+      in if Future.is_finished future_val 
+          then Future.get_result future_val
+          else if so_far > timeout then (Future.cancel future_val; Exn.capture_body (fn () => raise Timeout.TIMEOUT so_far))
+          else (OS.Process.sleep (Time.fromMilliseconds 100); wait_for_future start_time)
+      end;
+  in wait_for_future (Time.now ()) end;
 
 (* file_exists: string -> bool *)
 fun file_exists file_dir 
