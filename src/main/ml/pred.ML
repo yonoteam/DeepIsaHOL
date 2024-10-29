@@ -17,6 +17,7 @@ sig
   val find_first: ('a -> bool) -> 'a list -> 'a option
   val split: ('a -> bool) -> 'a list -> 'a list list
   val positions: ('a -> bool) -> 'a list -> int list
+  val nhds: ('a -> bool) -> int -> 'a list -> ('a * 'a list) list
   val take_until: ('a -> bool) -> 'a list -> 'a list
   val bifurcate_ifL: ('a -> bool) -> 'a list -> 'a list * 'a list
   val split_whenL: ('a -> bool) -> 'a list -> 'a list list
@@ -86,6 +87,24 @@ fun positions P xs =
     fun count _ [] = []
       | count n (y :: ys) = if P y then n :: count (n + 1) ys else count (n + 1) ys;
   in count 0 xs end;
+
+(* nhds: ('a -> bool) -> int -> 'a list -> ('a * 'a list) list *)
+(* neighbourhoods such that the center satisfies P *)
+fun nhds _ _ [] = []
+  | nhds _ 0 _ = []
+  | nhds P r (x :: xs) =
+    if r < 0 then raise Fail "negative radius"
+    else let
+      fun do_next y (buff, n_val_hds) =
+        let
+          val new_buff = if null buff then [y]
+            else if length buff <= r then buff @ [y]
+            else tl buff @ [y]
+          fun update (n, z, nhd) = if n = r then (n, z, nhd) else (n+1, z, nhd @ [y]);
+          val updated = map update n_val_hds
+        in (new_buff, if P y then ((0, y, new_buff) :: updated) else updated) end;
+      val (_, rev_result)  = fold do_next (x :: xs) ([], [])
+    in map (fn (_, res, nhd) => (res, nhd)) (rev rev_result) end;
 
 (* take_until: ('a -> bool) -> 'a list -> 'a list *)
 fun take_until _ [] = []
