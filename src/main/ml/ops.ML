@@ -9,6 +9,8 @@ sig
   val enumerate_from: int -> 'a list -> (int * 'a) list
   val enumerate: 'a list -> (int * 'a) list
   val range: int -> int -> 'a list -> 'a list
+  val meta_map: ('a -> 'b) -> 'a list list -> 'b list list
+  val meta_maps: ('a -> 'b) -> 'a list list -> 'b list
   val uniques: ''a list -> ''a list
   val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list
   
@@ -73,6 +75,13 @@ fun range _ _ [] = []
             process (so_far, count+1, ys)
     in rev (#1 (process ([], 0, x :: xs))) end
     else raise Fail ("Ops.range: out of range input.")
+
+(* meta_map: ('a -> 'b) -> 'a list list -> 'b list list *)
+fun meta_map _ [] = []
+  | meta_map f xss = rev (fold (fn xs => fn yss => (map f xs) :: yss) xss []);
+
+(* meta_maps: ('a -> 'b) -> 'a list list -> 'b list *)
+fun meta_maps f xss = flat (meta_map f xss);
 
 (* uniques: 'a list -> 'a list *)
 fun uniques xs = Library.distinct (op =) xs;

@@ -43,7 +43,7 @@ fun write_g2tac_proof format write_file_path (env, proof) =
   -> unit Exn.result list list *)
 fun write_g2tac_proof' format_streams (env, proof) =
   let
-    val steps = Sections.recover_trace proof
+    val steps = tl (Sections.recover_trace proof)
     fun write_next format_stream step (prev, errs) =
       let
         val format = fst format_stream
