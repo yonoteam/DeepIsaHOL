@@ -19,6 +19,7 @@ sig
   val apply: T -> Toplevel.state -> Toplevel.state
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
   val apply_all: T list -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
+  val apply_all': T list -> Toplevel.state -> (Toplevel.state * T * (exn * string) option) list
   val timed_apply_all: {debug: bool, no_batches: int, timeout_in_secs: int} 
     -> T list -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
 
@@ -108,6 +109,18 @@ fun apply_all [] st = [(void, st, NONE)]
         val (st', err') = apply_safe act' st
       in (act', st', err') end;
   in Ops.log_fold do_next (void, st, NONE) acts end;
+
+(* apply_all': Actions.T list -> Toplevel.state 
+  -> (Toplevel.state * Actions.T * (exn * string) option) list *)
+fun apply_all' [] st = [(st, void, NONE)]
+  | apply_all' acts st =
+  let
+    fun do_next act (st, so_far) =
+      let
+        val (st', err') = apply_safe act st;
+      in (st', (st, act, err') :: so_far) end;
+    val (_, rev_result) = fold do_next acts (st, [])
+  in rev rev_result end;
 
 (* timed_apply_all: {debug: bool, no_batches: int, timeout_in_secs: int} 
   -> Actions.T list -> Toplevel.state 

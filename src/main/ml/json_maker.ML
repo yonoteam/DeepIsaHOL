@@ -105,7 +105,7 @@ fun pretty_fact ctxt ((name, i),thm) = [
   Print.pretty_json_elem "term" (Pretty.quote ((Pretty.unbreakable o (Thm.pretty_thm ctxt)) thm))
   ];
 
-(* pretty_facts: Proof.context -> bool -> int -> ((string * int) * thm) list -> Pretty.T *)
+(* pretty_facts: Proof.context -> bool -> int -> string -> ((string * int) * thm) list -> Pretty.T *)
 fun pretty_facts ctxt debug lvl categ_name named_thms =
   let
     fun jsonify fact = Pretty.enclose "{" "}"
