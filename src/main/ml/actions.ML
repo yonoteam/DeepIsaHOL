@@ -20,8 +20,10 @@ sig
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
   val apply_all: T list -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
   val apply_all': T list -> Toplevel.state -> (Toplevel.state * T * (exn * string) option) list
-  val timed_apply_all: {debug: bool, no_batches: int, timeout_in_secs: int} 
-    -> T list -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
+  val apply_while: (Toplevel.state * T * (exn * string) option -> bool) -> T list  -> Toplevel.state
+    -> (Toplevel.state * T * (exn * string) option) list * T list
+  val timed_apply_all: {debug: bool, no_batches: int, timeout_in_secs: int} -> T list 
+    -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
 
   (* Data preparation *)
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
@@ -121,6 +123,17 @@ fun apply_all' [] st = [(st, void, NONE)]
       in (st', (st, act, err') :: so_far) end;
     val (_, rev_result) = fold do_next acts (st, [])
   in rev rev_result end;
+
+(* apply_while: (Toplevel.state * Actions.T * (exn * string) option -> bool) 
+  -> Actions.T list -> Toplevel.state 
+  -> (Toplevel.state * Actions.T * (exn * string) option) list * Actions.T list *)
+fun apply_while P acts st =
+  let
+    fun do_next act' (st, _, _) =
+      let
+        val (st', err') = apply_safe act' st;
+      in (st', act', err') end;
+  in Pred.log_fold P do_next acts (st, void, NONE) end;
 
 (* timed_apply_all: {debug: bool, no_batches: int, timeout_in_secs: int} 
   -> Actions.T list -> Toplevel.state 

@@ -18,6 +18,7 @@ sig
   val split: ('a -> bool) -> 'a list -> 'a list list
   val positions: ('a -> bool) -> 'a list -> int list
   val nhds: ('a -> bool) -> int -> 'a list -> ('a * 'a list) list
+  val log_fold: ('b -> bool) -> ('a -> 'b -> 'b) -> 'a list -> 'b -> 'b list * 'a list
   val take_until: ('a -> bool) -> 'a list -> 'a list
   val bifurcate_ifL: ('a -> bool) -> 'a list -> 'a list * 'a list
   val split_whenL: ('a -> bool) -> 'a list -> 'a list list
@@ -105,6 +106,17 @@ fun nhds _ _ [] = []
         in (new_buff, if P y then ((0, y, new_buff) :: updated) else updated) end;
       val (_, rev_result)  = fold do_next (x :: xs) ([], [])
     in map (fn (_, res, nhd) => (res, nhd)) (rev rev_result) end;
+
+(* log_fold: ('b -> bool) -> ('a -> 'b) -> 'a list -> 'b list * 'a list  *)
+(* while-loop *)
+fun log_fold _ _ [] _ = ([], [])
+  | log_fold P f (x :: xs) y = 
+    let val y' = f x y in
+    if P y' then
+      let
+        val (ys', xs') = log_fold P f xs y';
+      in (y':: ys', xs') end
+    else ([], x :: xs) end
 
 (* take_until: ('a -> bool) -> 'a list -> 'a list *)
 fun take_until _ [] = []

@@ -73,7 +73,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   }
 
   def locate_locally(import_name: String): Option[(Path,String)] = {
-    val file_name = if (import_name.contains(".")) {
+    val file_name = if (import_name.contains(".") && !import_name.contains("/")) {
       Imports.Ops.get_base_name(import_name).retrieveNow + ".thy"
     } else if (import_name.contains("/")) {
       Path.of(import_name + ".thy").getFileName.toString

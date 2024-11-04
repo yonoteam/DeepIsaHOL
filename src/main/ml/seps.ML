@@ -11,6 +11,7 @@ sig
   val starts_proof: (string * string list) list -> string -> bool
   val declares_proof: (string * string list) list -> string -> bool
   val ends_proof: (string * string list) list -> string -> bool
+  val declares_local_goal: (string * string list) list -> string -> bool
   val is_apply_step: (string * string list) list -> string -> bool
   val is_isar_step: (string * string list) list -> string -> bool
   val is_document_step: (string * string list) list -> string -> bool
@@ -108,7 +109,6 @@ fun is_apply_step grpd_cmmnds =
 
 (* ISAR-STYLE PROOFS *)
 (* 
-val prf_goalN = "prf_goal" (* e.g. have *)
 val prf_asm_goalN = "prf_asm_goal" (* i.e. show, obtain and thus *)
 val prf_blockN = "prf_block" (* i.e. proof *)
 val prf_asmN = "prf_asm" (* e.g. define *)
@@ -117,6 +117,10 @@ val prf_openN = "prf_open" (* i.e. } *)
 val prf_chainN = "prf_chain" (* e.g. ultimately *)
 val qed_blockN = "qed_block" (* i.e. qed *) 
 *)
+val prf_goalN = "prf_goal" (* e.g. have *)
+
+fun declares_local_goal grpd_cmmnds = is_in_group_where grpd_cmmnds (Pred.is prf_goalN)
+
 val next_blockN = "next_block" (* i.e. next *)
 val prfN = "prf"
 
