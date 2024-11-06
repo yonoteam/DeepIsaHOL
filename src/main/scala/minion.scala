@@ -20,7 +20,9 @@ import isabelle_rl.{Directories}
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
-class Isa_Minion (val work_dir: String, val logic: String = "HOL") {
+class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: String) {
+  def this(work_dir: String = "", logic: String = "HOL") = this(work_dir, logic, work_dir)
+
   private val session_roots = if (work_dir.contains(Directories.isabelle_afp) && Files.exists(Paths.get(Directories.isabelle_afp + "/ROOTS"))) {
     Seq(Path.of(Directories.isabelle_afp))
   } else Nil
@@ -31,7 +33,7 @@ class Isa_Minion (val work_dir: String, val logic: String = "HOL") {
     workingDirectory = Path.of(work_dir)
   )
   implicit val isabelle: Isabelle = new Isabelle(setup)
-  val imports = Imports(work_dir)(isabelle)
+  val imports = Imports(imports_dir)(isabelle)
   imports.start()
   
   override def toString(): String = {

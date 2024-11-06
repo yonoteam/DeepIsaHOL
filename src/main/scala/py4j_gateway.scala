@@ -17,7 +17,7 @@ object Py4j_Gateway {
 
   def path_to_str(path: Path): String = path.toString()
   
-  def get_minion(logic: String, work_dir: String): Isa_Minion = new Isa_Minion(logic, work_dir)
+  def get_minion(work_dir: String, logic: String, imports_dir: String): Isa_Minion = new Isa_Minion(work_dir, logic, imports_dir)
 
   def get_writer(read_dir: String, write_dir: String, logic: String): Writer = new Writer(read_dir, write_dir, logic)
 
