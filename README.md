@@ -34,9 +34,9 @@ imports "Complex_Main"
 
 begin
 
-ML_file "~/path/to/this/project/src/pred.ML"
-ML_file "~/path/to/this/project/src/ops.ML"
-ML_file "~/path/to/this/project/src/get.ML"
+ML_file "~/path/to/this/project/src/main/ml/pred.ML"
+ML_file "~/path/to/this/project/src/main/ml/ops.ML"
+ML_file "~/path/to/this/project/src/main/ml/get.ML"
 
 ML ‹Get.thms \<^context> "list_all2_eq"›
 
@@ -49,7 +49,7 @@ end
 ```
 
 ### Scala level
-This level is handled by `scala-isabelle`. The project provides a `minion.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. The minion can use the `data.ML` function `Data.extract_jsons` to produce a string of `json`'s with proof data from a `.thy` file. Alternatively, a `writer.scala` uses the minion to retrieve the data and write it to a directory of your choice.
+This level is handled by `scala-isabelle`. The project provides a `minion.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. Then, the `writer.scala` asks this minion to call the `writer.ML` function `extract_jsons` to produce a string of `json`'s with proof data from a `.thy` file. Alternatively, a `writer.scala` uses the minion to retrieve the data and write it to a directory of your choice.
 
 ```scala
 import isabelle_rl._
@@ -72,7 +72,7 @@ isabelle.destroy()
 ```
 
 ### Python level
-Finally, to exemplify the interaction with Python, the project provides a Python class in `writer.py` with the same functionality as `writer.scala` using itself a `minion.scala` (via `Py4j`). It copies the structure of a directory holding an Isabelle project and writes the `json`s of the project's proof data into another directory with the same structure as the original one:
+Finally, to exemplify the interaction with Python, the project provides a Python class in `writer.py` with the same functionality as `writer.scala` that uses `writer.scala` (via `Py4j`). It copies the structure of a directory holding an Isabelle project and writes the `json`s of the project's proof data into another directory with the same structure as the original one:
 ```python
 import sys
 sys.path.append('/path/to/this/projects/src/main/python')
