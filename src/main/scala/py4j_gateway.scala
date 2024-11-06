@@ -7,11 +7,16 @@ Py4j's gateway server for connecting python with Scala's JVM
 
 package isabelle_rl
 
+import java.nio.file.Path
 import isabelle_rl.Isa_Minion
 import isabelle_rl.Writer
 import py4j.GatewayServer
 
 object Py4j_Gateway {
+  def str_to_path(dir: String): Path = Path.of(dir)
+
+  def path_to_str(path: Path): String = path.toString()
+  
   def get_minion(logic: String, work_dir: String): Isa_Minion = new Isa_Minion(logic, work_dir)
 
   def get_writer(read_dir: String, write_dir: String, logic: String): Writer = new Writer(read_dir, write_dir, logic)
