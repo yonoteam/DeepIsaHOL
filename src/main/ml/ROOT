@@ -1,0 +1,5 @@
+session "Isabelle_RL" = Pure +
+  options [document = false]
+  (* directories *)
+  theories
+    Isabelle_RL
