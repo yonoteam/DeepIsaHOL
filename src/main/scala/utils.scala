@@ -28,7 +28,7 @@ object Utils {
 
   def valid_afp: Boolean = AFP_ROOTS.exists() && AFP_ROOTS.isFile // TODO: add more checks
 
-  // Warning: logic finding functions in this file depend on the correctness of this regex
+  // Warning: functions finding logic-related info in this file depend on the correctness of this regex
   val root_rgx: Regex = """session\s+"?([\w+-]+)"?\s*(\(\s*([^"]+)\s*\))?\s*(in\s+"?([\w\/-]+)"?)?\s*=""".r
 
   // tests that the root_rgx finds a logic in each root file
@@ -118,15 +118,17 @@ object Utils {
     logics_map.toMap
   }
 
-  def get_logic_path (logic:String): Option[Path] = {
+  // returns a map with the path of all afp and Isabelle libraries logics
+  val logics_map: Map[String, Path] = {
     val afp_logic_paths = get_roots_logic_paths(AFP_ROOTS.toString())
-    val opt_path = afp_logic_paths.get(logic) match {
-        case Some(path) => Some(path)
-        case None => 
-          val isa_app_logic_paths = get_roots_logic_paths(isa_app_ROOTS.toString())
-          isa_app_logic_paths.get(logic)
-    }
-    opt_path
+    val isa_app_logic_paths = get_roots_logic_paths(isa_app_ROOTS.toString())
+    afp_logic_paths ++ isa_app_logic_paths
+  }
+
+  val known_logics = logics_map.keys.toArray.toList
+
+  def get_logic_path (logic:String): Option[Path] = {
+    logics_map.get(logic)
   }
 
 }

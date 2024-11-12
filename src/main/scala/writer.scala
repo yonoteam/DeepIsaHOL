@@ -50,20 +50,6 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
     }
   }
 
-  // find the .thy file inside the minion's work directory or its subdirectories
-  def get_theory_file_path(read_file_name: String): Option[Path] = {
-    val read_file_path = Path.of(read_file_name)
-    if (Files.exists(read_file_path)) {
-      Some(read_file_path)
-    } else {
-      val proper_file_name = if (read_file_name.endsWith(".thy")) read_file_name else {
-        read_file_name + ".thy"
-      }
-      val path_to_file = minion.imports.local_thy_files.find(_.endsWith(proper_file_name))
-      path_to_file
-    }
-  }
-
   def get_proofs_data(file_path: Path): List[String] = {
     Try(minion.extract(file_path)) match {
         case Success(json_java_strs) => json_java_strs.map(_.replace("\\<", "\\\\<"))
@@ -75,7 +61,7 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
 
   // Write proof data from the corresponding file
   def write_data(file_name: String): Unit = {
-    val read_file_path = get_theory_file_path(file_name).get
+    val read_file_path = minion.get_theory_file_path(file_name).get
     format match {
       case `json` =>
         val rel_path = Paths.get(read_dir).relativize(read_file_path).toString

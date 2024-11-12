@@ -69,7 +69,7 @@ class Writer:
         self._writer.set_format(new_format)
 
     def get_theory_file_path (self, read_file):
-        java_opt_path = self._writer.get_theory_file_path(read_file)
+        java_opt_path = self._minion.get_theory_file_path(read_file)
         if java_opt_path.isDefined():
             return java_opt_path.get().toString()
         else:

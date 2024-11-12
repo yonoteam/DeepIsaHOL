@@ -9,7 +9,15 @@ package isabelle_rl
 
 class REPL(val logic: String = "HOL") {
 
-  private val minion: Isa_Minion = new Isa_Minion("", logic, "") {
+  // minion
+  private val minion: Isa_Minion = new Isa_Minion(logic)
+  def get_minion(): Isa_Minion = minion
+
+  def theorem(input: String): Unit = {
+
+  }
+
+  def perform(input: String): Unit = {
 
   }
 

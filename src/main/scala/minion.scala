@@ -7,7 +7,6 @@ Minion class that does every possible work Isabelle-related
 
 package isabelle_rl
 import scala.jdk.CollectionConverters._
-import java.io.{File}
 import java.nio.file.{Files, Paths, Path}
 import scala.util.Using
 import de.unruh.isabelle.control.{Isabelle}
@@ -21,7 +20,23 @@ import isabelle_rl.{Directories, Utils}
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
+/** A class to manage Isabelle-related work
+   * @param work_dir working directory where the Isabelle process runs
+   * @param logic (a.k.a. built session or heap image) from where to load Isabelle
+   * @param imports_dir aiding directory for quickly retrieving Isabelle theories
+   */
 class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: String) {
+  
+  // calculates imports_dir based on logic
+  def this(logic: String = "HOL") = this(
+    work_dir = System.getProperty("user.dir"),
+    logic = logic,
+    imports_dir = Utils.get_logic_path(logic) match {
+      case Some(path) => path.toString
+      case None => System.getProperty("user.dir")
+    }
+  )
+
   private val session_roots = if (work_dir.contains(Directories.isabelle_afp) && Utils.valid_afp) {
     Seq(Path.of(Directories.isabelle_afp))
   } else Nil
@@ -39,9 +54,26 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     "Minion(logic=" + logic + ", work_dir=" + work_dir + ", import_dir=" + imports_dir + ")"
   }
 
+  // find the .thy file inside the minion's work directory or its subdirectories
+  def get_theory_file_path(file_name: String): Option[Path] = {
+    val file_path = Path.of(file_name)
+    if (Files.exists(file_path)) {
+      Some(file_path)
+    } else {
+      val proper_file_name = if (file_name.endsWith(".thy")) file_name else {
+        file_name + ".thy"
+      }
+      val path_to_file = imports.local_thy_files.find(_.endsWith(proper_file_name))
+      path_to_file
+    }
+  }
+
   private object ML_Functions {
     final val isa_rl_thy_file = Directories.isabelle_rl
     val isabelle_rl_thy : Theory = Theory(Path.of(isa_rl_thy_file))
+
+    val ml_actions = isabelle_rl_thy.importMLStructure("Actions")
+
     val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
     final val extract : MLFunction2[Theory, String, String] 
       = compileFunction[Theory, String, String](s"${ml_writer}.extract_jsons")
