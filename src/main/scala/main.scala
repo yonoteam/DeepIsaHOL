@@ -16,7 +16,7 @@ import scala.util.{Failure, Success, Try}
 import isabelle_rl._
 
 object Main {
-  val root_rgx: Regex = Imports.root_rgx
+  val root_rgx: Regex = Utils.root_rgx
   var main_read_dir = ""
   var main_write_dir = ""
   var main_write_format = "JSON"
@@ -117,7 +117,7 @@ object Main {
     }
   }
 
-  // finds the logic in the ROOT file
+  // finds the first logic in the ROOT file
   def find_logic(root_file: File): Option[String] = {
     val root_src = Source.fromFile(root_file)
     try {

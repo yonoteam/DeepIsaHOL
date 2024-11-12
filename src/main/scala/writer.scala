@@ -31,7 +31,7 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
   logger.setLevel(Level.SEVERE)
 
   // minion
-  private val minion: Isa_Minion = new Isa_Minion(read_dir, logic)
+  private val minion: Isa_Minion = new Isa_Minion(read_dir, logic, read_dir)
   println(s"Initialised minion for directory: $read_dir")
 
   def get_minion(): Isa_Minion = minion

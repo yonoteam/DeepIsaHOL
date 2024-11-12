@@ -7,7 +7,6 @@ Manages the theory-dependency of a given work directory
 
 package isabelle_rl
 
-import scala.util.matching.Regex
 import java.io.{File, FileOutputStream, PrintWriter, BufferedWriter}
 import scala.io.Source
 import java.nio.file.{Path, Paths, Files}
@@ -228,53 +227,6 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
 
 object Imports extends OperationCollection {
   def apply(work_dir: String)(implicit isabelle: Isabelle): Imports = new Imports(Path.of(work_dir))(isabelle)
-
-  val root_rgx: Regex = """session\s+"?([\w+-]+)"?\s*(\(\s*"?([\w\/-]+)"?\s*\)|in\s+"?([\w\/-]+)"?)?\s*=""".r
-
-  // find all logics in a root file and 
-  def find_logics(root_file: File): Map[String, File] = {
-    var result: Map[String, File] = Map()
-    val parent_dir = root_file.getParentFile()
-    val root_src = Source.fromFile(root_file)
-    try {
-      val content = root_src.mkString
-      root_rgx.findAllMatchIn(content).foreach { m =>
-        val logic = m.group(1)
-        val logic_path = Option(m.group(3)).orElse(Option(m.group(4))) match {
-          case None => parent_dir
-          case Some(location) => 
-            val possible_loc = new File(parent_dir, location)
-            if (possible_loc.isDirectory()) { possible_loc } else { parent_dir }
-        }
-        result += (logic -> logic_path)
-      }
-    } finally {
-      root_src.close()
-    }
-    result
-  }
-
-  def print_test_root_rgx(directory: Path): Unit = {
-    val root_files = Files.walk(directory).toScala(Seq)
-      .filter(path => Files.isRegularFile(path) && path.getFileName.toString == "ROOT")
-
-    root_files.foreach { root_file =>
-      println(s"Searching in file: $root_file")
-      val content = Source.fromFile(root_file.toFile).mkString
-
-      // Find matches using sessionRegex and print them
-      val matches = root_rgx.findAllMatchIn(content).toList
-      if (matches.nonEmpty) {
-        matches.foreach { m =>
-          val session_name = m.group(1)
-          val location = Option(m.group(3)).orElse(Option(m.group(4)))
-          println(s"Session: $session_name, Location: ${location.getOrElse("None")}")
-        }
-      } else {
-        println(s"No matches found.")
-      }
-    }
-  }
 
   // c.f. OperationCollection
   protected final class Ops(implicit isabelle: Isabelle) {

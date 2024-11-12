@@ -7,6 +7,7 @@ Minion class that does every possible work Isabelle-related
 
 package isabelle_rl
 import scala.jdk.CollectionConverters._
+import java.io.{File}
 import java.nio.file.{Files, Paths, Path}
 import scala.util.Using
 import de.unruh.isabelle.control.{Isabelle}
@@ -14,16 +15,14 @@ import de.unruh.isabelle.mlvalue.MLValue.{compileValue, compileFunction, compile
 import de.unruh.isabelle.mlvalue.{MLValue, MLFunction, MLFunction0, MLFunction2, MLFunction3}
 import de.unruh.isabelle.mlvalue.{StringConverter, UnitConverter}
 import de.unruh.isabelle.pure.{Context, Theory}
-import isabelle_rl.{Directories}
+import isabelle_rl.{Directories, Utils}
 
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
 class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: String) {
-  def this(work_dir: String = "", logic: String = "HOL") = this(work_dir, logic, work_dir)
-
-  private val session_roots = if (work_dir.contains(Directories.isabelle_afp) && Files.exists(Paths.get(Directories.isabelle_afp + "/ROOTS"))) {
+  private val session_roots = if (work_dir.contains(Directories.isabelle_afp) && Utils.valid_afp) {
     Seq(Path.of(Directories.isabelle_afp))
   } else Nil
 
@@ -37,7 +36,7 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   imports.start()
   
   override def toString(): String = {
-    "Minion(logic=" + logic + ", work_dir=" + work_dir + ")"
+    "Minion(logic=" + logic + ", work_dir=" + work_dir + ", import_dir=" + imports_dir + ")"
   }
 
   private object ML_Functions {
