@@ -38,9 +38,19 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
   }
 
   val local_thy_files: List[Path] = {
-    val files = Files.walk(work_dir).iterator().asScala
-    val filtered_files = files.filter { path => Files.isRegularFile(path) && path.toString.endsWith(".thy")}
-    filtered_files.toList
+    val immmediates = Files.list(work_dir).iterator().asScala.toList
+
+    val should_explore = immmediates.exists { path =>
+      Files.isRegularFile(path) && (path.toString.endsWith(".thy") || path.getFileName.toString == "ROOT" || path.getFileName.toString == "ROOTS")
+    }
+
+    if (should_explore) {
+      val files = Files.walk(work_dir).iterator().asScala
+      val filtered_files = files.filter { path => Files.isRegularFile(path) && path.toString.endsWith(".thy")}
+      filtered_files.toList
+    } else {
+      List.empty[Path]
+    }
   }
 
   def get_file_text(path: Path): String = {

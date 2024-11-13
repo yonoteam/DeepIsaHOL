@@ -12,13 +12,18 @@ import scala.util.Using
 import de.unruh.isabelle.control.{Isabelle}
 import de.unruh.isabelle.mlvalue.MLValue.{compileValue, compileFunction, compileFunction0}
 import de.unruh.isabelle.mlvalue.{MLValue, MLFunction, MLFunction0, MLFunction2, MLFunction3}
-import de.unruh.isabelle.mlvalue.{StringConverter, UnitConverter}
+import de.unruh.isabelle.mlvalue.{AdHocConverter, StringConverter, UnitConverter}
 import de.unruh.isabelle.pure.{Context, Theory}
 import isabelle_rl.{Directories, Utils}
 
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
+
+import isabelle_rl.Transition
+
+object Actions extends AdHocConverter("Actions.T")
+object Repl_State extends AdHocConverter("Repl_State.T")
 
 /** A class to manage Isabelle-related work
    * @param work_dir working directory where the Isabelle process runs
@@ -69,11 +74,21 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   }
 
   private object ML_Functions {
-    final val isa_rl_thy_file = Directories.isabelle_rl
-    val isabelle_rl_thy : Theory = Theory(Path.of(isa_rl_thy_file))
+    val isabelle_rl_thy : Theory = Theory(Path.of(Directories.isabelle_rl))
 
-    val ml_actions = isabelle_rl_thy.importMLStructure("Actions")
+    // REPL functions
+    println("just before importing ML structure")
+    val ml_repl_state = isabelle_rl_thy.importMLStructureNow("Repl_State")
+    val ml_actions = isabelle_rl_thy.importMLStructureNow("Actions")
+    println("just after importing ML structure")
+    final val repl_init : MLFunction[Theory, Repl_State.T]
+      = compileFunction[Theory, Repl_State.T](s"${ml_repl_state}.init")
+    final val repl_read : MLFunction2[String, Repl_State.T, List[Repl_State.T]] 
+      = compileFunction[String, Repl_State.T, List[Repl_State.T]](s"${ml_repl_state}.read")
+    final val repl_print : MLFunction[Repl_State.T, String]
+      = compileFunction[Repl_State.T, String](s"${ml_repl_state}.print")
 
+    // Writer functions
     val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
     final val extract : MLFunction2[Theory, String, String] 
       = compileFunction[Theory, String, String](s"${ml_writer}.extract_jsons")
@@ -101,4 +116,10 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     val thy_text = imports.get_file_text(thy_file_path)
     ML_Functions.write_g2tac_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
   }
+
+  def repl_init (thy: Theory): Repl_State.T = ML_Functions.repl_init(thy).retrieveNow
+
+  def repl_apply (txt: String, state: Repl_State.T) = ML_Functions.repl_read(txt, state).retrieveNow
+
+  def repl_print (state: Repl_State.T) = ML_Functions.repl_print(state).retrieveNow
 }

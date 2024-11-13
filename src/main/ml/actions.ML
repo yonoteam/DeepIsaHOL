@@ -101,9 +101,9 @@ fun apply act st = fst (apply_safe act st);
 (* next_state: Actions.T Sections.T -> Toplevel.state -> Toplevel.state *)
 val next_state = Sections.next_state apply;
 
-(* (naive) apply_all: Actions.T list -> Toplevel.state 
+(* apply_all: Actions.T list -> Toplevel.state 
   -> (Actions.T * Toplevel.state * (exn * string) option) list *)
-fun apply_all [] st = [(void, st, NONE)]
+fun apply_all [] _ = []
   | apply_all acts st =
   let
     fun do_next act' (_, st, _) =
