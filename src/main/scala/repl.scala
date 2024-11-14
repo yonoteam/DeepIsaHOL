@@ -26,33 +26,43 @@ class REPL(val logic: String = "HOL") {
   // state
   private var state: minion.ML_repl.Repl_State = {
     val local_thys = minion.imports.to_local_list()
-    println("Loaded imports")
     val thy0 = if (local_thys.isEmpty) {
         Theory("Main")
     } else {
         val thy_path = local_thys.head
         minion.imports.get_start_theory(thy_path)
     }
-    println("Declared theory")
-    minion.repl_init(thy0)
+    val start_state = minion.repl_init(thy0)
+    println("REPL started!")
+    start_state
   }
 
-  // def read_eval(input: String): Unit = {
-  //   val next_steps = minion.repl_apply(input, state.head)
-  //   state.prependAll(next_steps)
-  // }
+  def latest_error (): String = {
+    minion.repl_latest_error(state)
+  }
 
+  def state_size(): Int = {
+    minion.repl_size(state)
+  }
+
+  def show_curr(): Unit = {
+    println(minion.repl_print(state))
+  }
+  
   def print(): String = {
     minion.repl_print(state)
   }
 
   def apply(txt: String): String = {
-    minion.repl_apply(txt, state)
+    state = minion.repl_apply(txt, state)
+    this.print()
   }
 
-  def get_curr(): String = {
-    minion.repl_print(state)
+  def shutdown(): Unit = {
+    isabelle.destroy()
+    sys.exit()
   }
+  
 
   // def reset(): Unit = {
   //   state.remove(1, state.length - 1)

@@ -10,12 +10,15 @@ package isabelle_rl
 import java.nio.file.Path
 import isabelle_rl.Isa_Minion
 import isabelle_rl.Writer
+import isabelle_rl.REPL
 import py4j.GatewayServer
 
 object Py4j_Gateway {
   def str_to_path(dir: String): Path = Path.of(dir)
 
   def path_to_str(path: Path): String = path.toString()
+
+  def get_repl(logic: String="HOL"): REPL = new REPL(logic)
   
   def get_minion(work_dir: String, logic: String, imports_dir: String): Isa_Minion = new Isa_Minion(work_dir, logic, imports_dir)
 

@@ -7,27 +7,24 @@ Minion class that does every possible work Isabelle-related
 
 package isabelle_rl
 import scala.jdk.CollectionConverters._
-import scala.util.Using
-import java.nio.file.{Files, Paths, Path}
+import java.nio.file.{Files, Path}
 import de.unruh.isabelle.control.{Isabelle}
-import de.unruh.isabelle.mlvalue.MLValue.{compileValue, compileFunction, compileFunction0}
-import de.unruh.isabelle.mlvalue.{MLValue, MLValueWrapper, MLFunction, MLFunction0, MLFunction2, MLFunction3}
-import de.unruh.isabelle.mlvalue.{AdHocConverter, StringConverter, UnitConverter}
-import de.unruh.isabelle.pure.{Context, Theory}
-import isabelle_rl.{Directories, Utils}
-
-// Implicits
+import de.unruh.isabelle.mlvalue.MLValue.{compileValue, compileFunction}
+import de.unruh.isabelle.mlvalue.{MLValue, MLValueWrapper, MLFunction, MLFunction2, MLFunction3}
+import de.unruh.isabelle.pure.{Theory}
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
+import isabelle_rl.{Directories, Utils}
 
+
+// MINION CLASS
 /** A class to manage Isabelle-related work
    * @param work_dir working directory where the Isabelle process runs
    * @param logic (a.k.a. built session or heap image) from where to load Isabelle
    * @param imports_dir aiding directory for quickly retrieving Isabelle theories
    */
 class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: String) {
-  
-  // calculates imports_dir based on logic
+  // CONSTRUCTORS
   def this(logic: String = "HOL") = this(
     work_dir = System.getProperty("user.dir"),
     logic = logic,
@@ -37,6 +34,8 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     }
   )
 
+
+  // MINION CONFIGURATION
   private val session_roots = if (work_dir.contains(Directories.isabelle_afp) && Utils.valid_afp) {
     Seq(Path.of(Directories.isabelle_afp))
   } else Nil
@@ -50,11 +49,16 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   implicit val isabelle: Isabelle = new Isabelle(setup)
   val imports = Imports(imports_dir)(isabelle)
   imports.start()
+
+  // Isabelle/RL theory (Isabelle_RL.thy) for loading ML files
+  val isabelle_rl_thy : Theory = Theory(Path.of(Directories.isabelle_rl))
   
   override def toString(): String = {
     "Minion(logic=" + logic + ", work_dir=" + work_dir + ", import_dir=" + imports_dir + ")"
   }
+  
 
+  // GENERIC MINION TASKS 
   // find the .thy file inside the minion's work directory or its subdirectories
   def get_theory_file_path(file_name: String): Option[Path] = {
     val file_path = Path.of(file_name)
@@ -69,32 +73,12 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     }
   }
 
-  // Isabelle/RL theory (Isabelle_RL.thy) for loading ML files
-  val isabelle_rl_thy : Theory = Theory(Path.of(Directories.isabelle_rl))
-
-  // ML_REPL OPERATIONS
-  object ML_repl {
-    println("just before importing ML structure")
-    private final val ml_repl_struct = isabelle_rl_thy.importMLStructureNow("Repl_State")
-    println("just after importing ML structure")
-    final class Repl_State private (val mlValue: MLValue[Repl_State]) 
-      extends MLValueWrapper[Repl_State] {}
-
-    object Repl_State extends MLValueWrapper.Companion[Repl_State] {
-      override protected val mlType: String = s"$ml_repl_struct.T" 
-      override protected val predefinedException: String = s"$ml_repl_struct.E_Repl_State"
-      override protected def instantiate(mlValue: MLValue[Repl_State]): Repl_State = new Repl_State(mlValue)
-      
-      override protected def newOps(implicit isabelle: Isabelle): Ops = new Ops
-      protected class Ops(implicit isabelle: Isabelle) extends super.Ops {
-        lazy val repl_test_str = compileValue[String](s"$ml_repl_struct.test_str")
-        lazy val repl_init = compileFunction[Theory, Repl_State](s"$ml_repl_struct.init")
-        lazy val repl_print = compileFunction[Repl_State, String](s"$ml_repl_struct.print")
-        lazy val repl_apply = compileFunction[String, Repl_State, String](s"$ml_repl_struct.repl")
-      }
-    }
+  def test_isabelle (ml_code: String = "if true then \"hi Scala\" else \"bye\""): Unit = { 
+    val to_print = compileValue[String](ml_code).retrieveNow
+    println(to_print)
   }
 
+  // MINION WRITING TASKS
   private object ML_writer {   
     val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
     final val extract : MLFunction2[Theory, String, String] 
@@ -124,14 +108,36 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     ML_writer.write_g2tac_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
   }
 
-  def test_isabelle (ml_code: String = "if true then \"hi Scala\" else \"bye\""): Unit = { 
-    val to_print = compileValue[String](ml_code).retrieveNow
-    println(to_print)
+  // MINION REPL TASKS
+  // TODO: turn into a class and make private?
+  object ML_repl {
+    private final val ml_repl_struct = isabelle_rl_thy.importMLStructureNow("Repl_State")
+    final class Repl_State private (val mlValue: MLValue[Repl_State]) 
+      extends MLValueWrapper[Repl_State] {}
+
+    object Repl_State extends MLValueWrapper.Companion[Repl_State] {
+      override protected val mlType: String = s"$ml_repl_struct.T" 
+      override protected val predefinedException: String = s"$ml_repl_struct.E_Repl_State"
+      override protected def instantiate(mlValue: MLValue[Repl_State]): Repl_State = new Repl_State(mlValue)
+      
+      override protected def newOps(implicit isabelle: Isabelle): Ops = new Ops
+      protected class Ops(implicit isabelle: Isabelle) extends super.Ops {
+        lazy val init = compileFunction[Theory, Repl_State](s"$ml_repl_struct.init")
+        lazy val size = compileFunction[Repl_State, Int](s"$ml_repl_struct.size")
+        lazy val get_err = compileFunction[Repl_State, String](s"$ml_repl_struct.get_err")
+        lazy val read_eval = compileFunction[String, Repl_State, Repl_State](s"$ml_repl_struct.read_eval")
+        lazy val print = compileFunction[Repl_State, String](s"$ml_repl_struct.print")
+      }
+    }
   }
 
-  def repl_init (thy: Theory): this.ML_repl.Repl_State = ML_repl.Repl_State.Ops.repl_init(thy).retrieveNow
+  def repl_init (thy: Theory): ML_repl.Repl_State = ML_repl.Repl_State.Ops.init(thy).retrieveNow
 
-  def repl_apply (txt: String, state: this.ML_repl.Repl_State) = ML_repl.Repl_State.Ops.repl_apply(txt, state).retrieveNow
+  def repl_latest_error (state: ML_repl.Repl_State): String = ML_repl.Repl_State.Ops.get_err(state).retrieveNow
 
-  def repl_print (state: this.ML_repl.Repl_State) = ML_repl.Repl_State.Ops.repl_print(state).retrieveNow
+  def repl_size (state: ML_repl.Repl_State): Int = ML_repl.Repl_State.Ops.size(state).retrieveNow
+
+  def repl_apply (txt: String, state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.read_eval(txt, state).retrieveNow
+
+  def repl_print (state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.print(state).retrieveNow
 }

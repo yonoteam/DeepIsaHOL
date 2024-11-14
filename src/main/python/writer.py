@@ -1,10 +1,13 @@
 # Mantainers: 
-# Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
-# usage:
-# entrypoint = gateway.entry_point
-# reader = entrypoint.get_minion(logic, work_dir) # from data_minion.scala
-# gateway.help(reader)
-# gateway.shutdown() # when done
+#   Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+# 
+# Py4j usage:
+#   entrypoint = gateway.entry_point
+#   reader = entrypoint.get_minion(logic, work_dir) # from data_minion.scala
+#   gateway.help(reader)
+#   gateway.shutdown() # when done
+#
+# Writes proof data from input read directory to output write directory
 
 import os
 import json
@@ -62,7 +65,7 @@ class Writer:
             cls._minion.isabelle().destroy()
         if cls._gateway:
             cls._gateway.shutdown()
-            cls._gateway = None
+            # cls._gateway = None
             print("Py4J gateway shut down.")
     
     def set_format(self, new_format):
