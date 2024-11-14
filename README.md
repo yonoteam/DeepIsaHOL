@@ -78,6 +78,12 @@ Alternatively, you can use `writer.scala` or `writer.python` for interactively e
     ''
     ```
 
+    Don't forget to close your scala session when you are finished ;)
+    ```scala
+    scala> val _ = Py4j_Gateway.stop(Array())
+    Gateway Server Stopped
+    ```
+
 
 ## How it works?
 
