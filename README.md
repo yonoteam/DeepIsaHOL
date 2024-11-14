@@ -1,7 +1,9 @@
 # Isabelle/RL
-This is the repository of the Isabelle/RL project. It is supported by the DeepIsaHOL MSCA Fellowship (number: 101102608) titled Reinforcement learning to improve proof-automation in theorem proving. The project's long-term objective is to use Isabelle as a reinforcement learning (RL) environment for training RL algorithms.
+This is the repository of the Isabelle/RL project. It is supported by the DeepIsaHOL MSCA Fellowship (number: 101102608) titled Reinforcement learning to improve proof-automation in theorem proving. The project's long-term objective is to use the [Isabelle proof assistant](https://isabelle.in.tum.de/) as a reinforcement learning (RL) environment for training RL algorithms.
 
-The project currently offers proof data retrieving capabilities using the [Isabelle proof assistant](https://isabelle.in.tum.de/) and the [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) library.
+The project currently offers:
+  1. proof data retrieving capabilities fron Isabelle libraries
+  2. a read-eval-print-loop interface for Isabelle in scala and python
 
 ## Instalation
 
@@ -13,18 +15,72 @@ The project currently offers proof data retrieving capabilities using the [Isabe
   * The [Py4J](https://www.py4j.org/install.html) library (see "Python level" below)
 2. Pull this repository.
 3. Adapt this project's `build.sbt` file to your needs (e.g. correct the location of `scala-isabelle`).
-4. Adapt this project's `directories.scala` to your needs. Specifically, you will need to update the location of this project's `src/main/ml/Isabelle_RL.thy` file and paste it to `isabelle_rl`, and the location of your Isabelle application `isabelle_app`.
+4. Adapt this project's `directories.scala` to your needs. Specifically, you will need to update the location of this project's `src/main/ml/Isabelle_RL.thy` file and paste it to `isabelle_rl`, and the location of your Isabelle application to `isabelle_app`.
 5. [Compile](https://www.scala-sbt.org/1.x/docs/Running.html) the project's scala sources. 
 6. Set-up a [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for your needs that includes the `Py4J` library.
-7. If you want to run this project's `main.scala`. You may need to:
-  * Download the AFP or create a directory with an Isabelle `ROOTS` file (with subdirectories with `ROOT` files)
-  * [Tell Isabelle](https://www.isa-afp.org/help/) of its existence
+
+## Running the project
+
+**Data extraction:** This project's `main.scala` extracts data from an Isabelle project. For this, you may need to:
+  * Download the AFP or create a directory with an Isabelle `ROOTS` file with corresponding subdirectories with `ROOT` files (see [Isabelle's sessions and built management](https://isabelle.in.tum.de/dist/Isabelle2024/doc/system.pdf) in Isabelle's [documentation](https://isabelle.in.tum.de/documentation.html))
+  * [Tell Isabelle](https://www.isa-afp.org/help/) of that directroy's existence
+Alternatively, you can use `writer.scala` or `writer.python` for interactively extracting data (see "Scala level" and "Python level" below).
+
+**Isabelle REPL:** 
+  * In Scala REPL:
+    ```scala
+    scala> import isabelle_rl._
+    import isabelle_rl._
+
+    scala> repl = new REPL(logic) \\ defaults to logic = "HOL" (see Isabelle's sessions in its documentation)
+    REPL started!
+    val repl: isabelle_rl.REPL = isabelle_rl.REPL@7274a164
+
+    scala> repl.apply("lemma \"\\<forall>x. P x \\<Longrightarrow> P c\"")
+    val res0: String = proof (prove)  goal (1 subgoal):   1. \<forall>x. P x \<Longrightarrow> P c
+
+    scala> repl.apply("apply simp")
+    val res3: String = proof (prove)  goal:  No subgoals!
+
+    scala> repl.apply("done")
+    val res4: String = ""
+
+    scala> repl.shutdown()
+    ```
+  * In Python:
+    First run a scala session
+    ```scala
+    scala> import isabelle_rl._
+    import isabelle_rl._
+
+    scala> val _ = Py4j_Gateway.start(Array())
+    Gateway Server Started
+    ```
+    Then in Python
+    ```python
+    >>> import sys
+    >>> sys.path.append('/path/to/this/project/src/main/python')
+    >>> from repl import REPL
+
+    >>> repl = REPL("Hybrid_Systems_VCs")
+    REPL and minion initialized.
+
+    >>> repl.apply("lemma \"\\<forall>x. P x \\<Longrightarrow> P c\"")
+    'proof (prove)  goal (1 subgoal):   1. \\<forall>x. P x \\<Longrightarrow> P c'
+
+    >>> repl.apply("apply simp")
+    'proof (prove)  goal:  No subgoals!'
+
+    >>> repl.apply("done")
+    ''
+    ```
+
 
 ## How it works?
 
-You can retrieve data at three levels: Isabelle, Scala and Python. They are linearly ordered with Isabelle being the lowest level, and Python being the highest. The Isabelle proof assistant is in charge of retrieving all data from its sources. The other 2 levels interact with functions, structures and/or methods from the level immediately below. Each level satisfies a need that the previous level cannot. Scala enables a programmatic interaction with Isabelle while also having more features than the `Isabelle/ML` programming language. Python enables the possibility of interacting with popular machine learning, deep learning, and reinforcement learning libaries.
+The project has three levels: Isabelle, Scala and Python. They are linearly ordered with Isabelle being the lowest level, and Python being the highest. The Isabelle proof assistant is in charge of retrieving all data from its sources. The other 2 levels interact with functions, structures and/or methods from the level immediately below. Each level satisfies a need that the previous level cannot. Scala enables a programmatic interaction with Isabelle while also having more features than the `Isabelle/ML` programming language. Python enables the interaction with popular machine learning, deep learning, and reinforcement learning libaries.
 
-## How to use?
+## How to explore?
 
 ### Isabelle level
 You can use Isabelle's jEdit PIDE to experiment with this project's `ML` libraries. For instance, this project's file `get.ML` includes various functions for retrieving specific data from the proof assistant. You can start a `.thy` file (e.g. `Temp.thy`) and see the result of `get.ML` functions by giving arguments to them inside `Temp.thy` and seeing the result in the PIDE's output panel:
@@ -49,7 +105,7 @@ end
 ```
 
 ### Scala level
-This level is handled by `scala-isabelle`. The project provides a `minion.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. Then, the `writer.scala` asks this minion to call the `writer.ML` function `extract_jsons` to produce a string of `json`'s with proof data from a `.thy` file. Alternatively, a `writer.scala` uses the minion to retrieve the data and write it to a directory of your choice.
+This level is handled by `scala-isabelle`. The project provides a `minion.scala` that receives a working directory and manages Isabelle's theory stack via our `imports.scala` graph. Then, the `writer.scala` asks this minion to call the `writer.ML` function `extract_jsons` to produce a string of `json`'s with proof data from a `.thy` file. Alternatively, the writer's `write_all` uses the minion to retrieve the data and write it to a directory of your choice.
 
 ```scala
 import isabelle_rl._
