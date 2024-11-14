@@ -21,9 +21,10 @@ The project currently offers:
 
 ## Running the project
 
-**Data extraction:** This project's `main.scala` extracts data from an Isabelle project. For this, you may need to:
+**Data extraction:** This project's `main.scala` extracts data from a directory with Isabelle files. For this, you may need to:
   * Download the AFP or create a directory with an Isabelle `ROOTS` file with corresponding subdirectories with `ROOT` files (see [Isabelle's sessions and built management](https://isabelle.in.tum.de/dist/Isabelle2024/doc/system.pdf) in Isabelle's [documentation](https://isabelle.in.tum.de/documentation.html))
-  * [Tell Isabelle](https://www.isa-afp.org/help/) of that directroy's existence
+  * [Tell Isabelle](https://www.isa-afp.org/help/) of that directroy's existence.
+
 Alternatively, you can use `writer.scala` or `writer.python` for interactively extracting data (see "Scala level" and "Python level" below).
 
 **Isabelle REPL:** 
@@ -32,7 +33,7 @@ Alternatively, you can use `writer.scala` or `writer.python` for interactively e
     scala> import isabelle_rl._
     import isabelle_rl._
 
-    scala> repl = new REPL(logic) \\ defaults to logic = "HOL" (see Isabelle's sessions in its documentation)
+    scala> repl = new REPL("HOL") \\ see Isabelle's documentation for more logic options
     REPL started!
     val repl: isabelle_rl.REPL = isabelle_rl.REPL@7274a164
 
@@ -48,6 +49,7 @@ Alternatively, you can use `writer.scala` or `writer.python` for interactively e
     scala> repl.shutdown()
     ```
   * In Python:
+
     First run a scala session
     ```scala
     scala> import isabelle_rl._
@@ -56,13 +58,14 @@ Alternatively, you can use `writer.scala` or `writer.python` for interactively e
     scala> val _ = Py4j_Gateway.start(Array())
     Gateway Server Started
     ```
-    Then in Python
+
+    Then run a Python session
     ```python
     >>> import sys
     >>> sys.path.append('/path/to/this/project/src/main/python')
     >>> from repl import REPL
 
-    >>> repl = REPL("Hybrid_Systems_VCs")
+    >>> repl = REPL("HOL")
     REPL and minion initialized.
 
     >>> repl.apply("lemma \"\\<forall>x. P x \\<Longrightarrow> P c\"")
