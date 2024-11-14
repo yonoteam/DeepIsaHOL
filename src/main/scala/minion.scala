@@ -7,11 +7,11 @@ Minion class that does every possible work Isabelle-related
 
 package isabelle_rl
 import scala.jdk.CollectionConverters._
-import java.nio.file.{Files, Paths, Path}
 import scala.util.Using
+import java.nio.file.{Files, Paths, Path}
 import de.unruh.isabelle.control.{Isabelle}
 import de.unruh.isabelle.mlvalue.MLValue.{compileValue, compileFunction, compileFunction0}
-import de.unruh.isabelle.mlvalue.{MLValue, MLFunction, MLFunction0, MLFunction2, MLFunction3}
+import de.unruh.isabelle.mlvalue.{MLValue, MLValueWrapper, MLFunction, MLFunction0, MLFunction2, MLFunction3}
 import de.unruh.isabelle.mlvalue.{AdHocConverter, StringConverter, UnitConverter}
 import de.unruh.isabelle.pure.{Context, Theory}
 import isabelle_rl.{Directories, Utils}
@@ -19,11 +19,6 @@ import isabelle_rl.{Directories, Utils}
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
-
-import isabelle_rl.Transition
-
-object Actions extends AdHocConverter("Actions.T")
-object Repl_State extends AdHocConverter("Repl_State.T")
 
 /** A class to manage Isabelle-related work
    * @param work_dir working directory where the Isabelle process runs
@@ -46,7 +41,8 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     Seq(Path.of(Directories.isabelle_afp))
   } else Nil
 
-  val setup: Isabelle.Setup = Isabelle.Setup(isabelleHome = Path.of(Directories.isabelle_app),
+  val setup: Isabelle.Setup = Isabelle.Setup(
+    isabelleHome = Path.of(Directories.isabelle_app),
     sessionRoots = session_roots,
     logic = logic,
     workingDirectory = Path.of(work_dir)
@@ -73,22 +69,33 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     }
   }
 
-  private object ML_Functions {
-    val isabelle_rl_thy : Theory = Theory(Path.of(Directories.isabelle_rl))
+  // Isabelle/RL theory (Isabelle_RL.thy) for loading ML files
+  val isabelle_rl_thy : Theory = Theory(Path.of(Directories.isabelle_rl))
 
-    // REPL functions
+  // ML_REPL OPERATIONS
+  object ML_repl {
     println("just before importing ML structure")
-    val ml_repl_state = isabelle_rl_thy.importMLStructureNow("Repl_State")
-    val ml_actions = isabelle_rl_thy.importMLStructureNow("Actions")
+    private final val ml_repl_struct = isabelle_rl_thy.importMLStructureNow("Repl_State")
     println("just after importing ML structure")
-    final val repl_init : MLFunction[Theory, Repl_State.T]
-      = compileFunction[Theory, Repl_State.T](s"${ml_repl_state}.init")
-    final val repl_read : MLFunction2[String, Repl_State.T, List[Repl_State.T]] 
-      = compileFunction[String, Repl_State.T, List[Repl_State.T]](s"${ml_repl_state}.read")
-    final val repl_print : MLFunction[Repl_State.T, String]
-      = compileFunction[Repl_State.T, String](s"${ml_repl_state}.print")
+    final class Repl_State private (val mlValue: MLValue[Repl_State]) 
+      extends MLValueWrapper[Repl_State] {}
 
-    // Writer functions
+    object Repl_State extends MLValueWrapper.Companion[Repl_State] {
+      override protected val mlType: String = s"$ml_repl_struct.T" 
+      override protected val predefinedException: String = s"$ml_repl_struct.E_Repl_State"
+      override protected def instantiate(mlValue: MLValue[Repl_State]): Repl_State = new Repl_State(mlValue)
+      
+      override protected def newOps(implicit isabelle: Isabelle): Ops = new Ops
+      protected class Ops(implicit isabelle: Isabelle) extends super.Ops {
+        lazy val repl_test_str = compileValue[String](s"$ml_repl_struct.test_str")
+        lazy val repl_init = compileFunction[Theory, Repl_State](s"$ml_repl_struct.init")
+        lazy val repl_print = compileFunction[Repl_State, String](s"$ml_repl_struct.print")
+        lazy val repl_apply = compileFunction[String, Repl_State, String](s"$ml_repl_struct.repl")
+      }
+    }
+  }
+
+  private object ML_writer {   
     val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
     final val extract : MLFunction2[Theory, String, String] 
       = compileFunction[Theory, String, String](s"${ml_writer}.extract_jsons")
@@ -101,25 +108,30 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   def extract (thy_file_path: Path): List[String] = {  
     val thy0 = imports.get_start_theory(thy_file_path)
     val thy_text = imports.get_file_text(thy_file_path)
-    val jsons = ML_Functions.extract(thy0, thy_text)
+    val jsons = ML_writer.extract(thy0, thy_text)
     jsons.retrieveNow.split(" ISA_RL_SEP ").toList
   }
 
   def write_json_proofs (write_dir: Path, thy_file_path: Path): Unit = {
     val thy0 = imports.get_start_theory(thy_file_path)
     val thy_text = imports.get_file_text(thy_file_path)
-    ML_Functions.write_json_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
+    ML_writer.write_json_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
   }
 
   def write_g2tac_proofs (write_dir: Path, thy_file_path: Path): Unit = {
     val thy0 = imports.get_start_theory(thy_file_path)
     val thy_text = imports.get_file_text(thy_file_path)
-    ML_Functions.write_g2tac_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
+    ML_writer.write_g2tac_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
   }
 
-  def repl_init (thy: Theory): Repl_State.T = ML_Functions.repl_init(thy).retrieveNow
+  def test_isabelle (ml_code: String = "if true then \"hi Scala\" else \"bye\""): Unit = { 
+    val to_print = compileValue[String](ml_code).retrieveNow
+    println(to_print)
+  }
 
-  def repl_apply (txt: String, state: Repl_State.T) = ML_Functions.repl_read(txt, state).retrieveNow
+  def repl_init (thy: Theory): this.ML_repl.Repl_State = ML_repl.Repl_State.Ops.repl_init(thy).retrieveNow
 
-  def repl_print (state: Repl_State.T) = ML_Functions.repl_print(state).retrieveNow
+  def repl_apply (txt: String, state: this.ML_repl.Repl_State) = ML_repl.Repl_State.Ops.repl_apply(txt, state).retrieveNow
+
+  def repl_print (state: this.ML_repl.Repl_State) = ML_repl.Repl_State.Ops.repl_print(state).retrieveNow
 }

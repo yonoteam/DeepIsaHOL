@@ -11,8 +11,10 @@ import scala.collection.mutable.ArrayBuffer
 
 import de.unruh.isabelle.control.{Isabelle}
 import de.unruh.isabelle.pure.{Theory}
+import de.unruh.isabelle.mlvalue.Implicits._
+import de.unruh.isabelle.pure.Implicits._
 
-import isabelle_rl.Repl_State
+import isabelle_rl._
 
 class REPL(val logic: String = "HOL") {
 
@@ -22,9 +24,9 @@ class REPL(val logic: String = "HOL") {
   implicit val isabelle: Isabelle = minion.isabelle
 
   // state
-  private var state: ArrayBuffer[Repl_State.T] = {
+  private var state: minion.ML_repl.Repl_State = {
     val local_thys = minion.imports.to_local_list()
-    println("Declared local_thys")
+    println("Loaded imports")
     val thy0 = if (local_thys.isEmpty) {
         Theory("Main")
     } else {
@@ -32,31 +34,36 @@ class REPL(val logic: String = "HOL") {
         minion.imports.get_start_theory(thy_path)
     }
     println("Declared theory")
-    ArrayBuffer(minion.repl_init(thy0))
+    minion.repl_init(thy0)
   }
 
-  def read_eval(input: String): Unit = {
-    val next_steps = minion.repl_apply(input, state.head)
-    state.prependAll(next_steps)
-  }
+  // def read_eval(input: String): Unit = {
+  //   val next_steps = minion.repl_apply(input, state.head)
+  //   state.prependAll(next_steps)
+  // }
 
-  def print(): String = minion.repl_print(state.head)
+  def print(): String = {
+    minion.repl_print(state)
+  }
 
   def apply(txt: String): String = {
-    read_eval(txt)
-    print()
+    minion.repl_apply(txt, state)
   }
 
-  def reset(): Unit = {
-    state.remove(1, state.length - 1)
+  def get_curr(): String = {
+    minion.repl_print(state)
   }
 
-  def go_back(n: Int): Unit = {
-    if (n < state.length) {
-      state.dropInPlace(n)
-    } else {
-      reset()
-    }
-  }
+  // def reset(): Unit = {
+  //   state.remove(1, state.length - 1)
+  // }
+
+  // def go_back(n: Int): Unit = {
+  //   if (n < state.length) {
+  //     state.dropInPlace(n)
+  //   } else {
+  //     reset()
+  //   }
+  // }
 
 }
