@@ -10,7 +10,6 @@
 # Writes proof data from input read directory to output write directory
 
 import os
-import json
 import logging
 from py4j.java_gateway import JavaGateway
 
