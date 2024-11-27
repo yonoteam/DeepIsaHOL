@@ -170,11 +170,8 @@ def user_states_of(proof_json):
 def actions_of(proof_json):
     return [step['step']['action'] for step in proof_json['proof']['steps'][1:]]
 
-def proof_step_keys(proof_json):
-    return proof_json['proof']['steps'][0]['step'].keys()
-
-def proof_env_keys(proof_json):
-    return proof_json['proof'].keys()
+def constants_of(proof_json):
+    return [step['step']['constants'] for step in proof_json['proof']['steps'][1:]]
 
 def print_proof(proof_json):
     print(orig_objective_of(proof_json))
