@@ -1,4 +1,9 @@
-#!/usr/bin/env python3
+# Mantainers: 
+#   Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+# 
+# Utility for clumping G2TAC generated data
+
+# #!/usr/bin/env python3
 
 import os
 import argparse
