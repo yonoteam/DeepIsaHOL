@@ -1,3 +1,8 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. Utility for finding the keywords separating beginnings and ends of code-block in an Isabelle .thy file.
+*)
 
 signature SEPS =
 sig

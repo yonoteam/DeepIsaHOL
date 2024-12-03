@@ -1,3 +1,8 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. Representation of Isabelle's transitions as user actions.
+*)
 
 signature ACTIONS =
 sig

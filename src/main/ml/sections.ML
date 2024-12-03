@@ -1,3 +1,8 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. Datatype for having nested sections separated with initial and ending keywords.
+*)
 
 signature SECTIONS =
 sig

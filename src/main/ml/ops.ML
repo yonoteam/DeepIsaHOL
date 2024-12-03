@@ -1,3 +1,8 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. Generic frequently used ML operations.
+*)
 
 signature OPS =
 sig

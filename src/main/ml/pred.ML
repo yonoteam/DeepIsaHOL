@@ -1,3 +1,8 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. Useful ML operations based on predicates.
+*)
 
 signature PRED =
 sig

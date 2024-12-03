@@ -1,3 +1,8 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. Pretty printer to represent Isabelle proofs as JSONs.
+*)
 
 signature JSON_MAKER =
 sig
