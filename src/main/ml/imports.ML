@@ -1,3 +1,8 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. Unfinished graph representation of a theory's imports and its locations.
+*)
 
 structure Path_Graph = Graph(type key = Path.T val ord = string_ord o apply2 Path.implode);
 

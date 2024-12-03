@@ -1,3 +1,8 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. Utilities for printing Isabelle data to various channels and outputs.
+*)
 
 signature PRINT =
 sig
