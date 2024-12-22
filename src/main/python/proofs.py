@@ -6,6 +6,8 @@
 import json
 import os
 from copy import deepcopy
+from pathlib import Path
+
 
 debug = False
 
@@ -29,6 +31,26 @@ def get_proof_json(proof_path):
     except Exception as e:
         print(f"Failed to process {proof_path}: {str(e)}")
     return {}
+
+def valid_data_dir(json_data_dir):
+    """
+    Checks if input is a directory with at least one JSON file 
+    that starts with 'proof' and ends with '.json' in one of its subdirectories .
+
+    Args:
+        json_data_dir: str. Path to the directory to validate.
+
+    Returns:
+        bool. True if a valid JSON file is found, False otherwise.
+    """
+    data_path = Path(json_data_dir)
+    if not data_path.exists() or not data_path.is_dir():
+        return False
+
+    for json_file in data_path.rglob("proof*.json"):
+        if json_file.is_file():
+            return True
+    return False
 
 def apply(f, inits, json_data_dir):
     """Apply f to each proof_json in json_data_dir starting with inits
@@ -68,6 +90,10 @@ def gen_apply(f, inits, data_dir):
         all_results = apply(f, all_results, path)
     return all_results
 
+######## BUILDING THE SKELETON ########
+# assumes make_branch will be applied to the elements of
+# all_keys = gen_apply(union_keys, [], data_path)
+
 def get_keys(d, prefix=""):
     """Recursively finds all key-paths in the dictionary d
 
@@ -90,10 +116,6 @@ def get_keys(d, prefix=""):
         else:
             keys.append(prefix + key)
     return keys
-
-######## BUILDING THE SKELETON ########
-# assumes make_branch will be applied to the elements of
-# all_keys = gen_apply(union_keys, [], data_path)
 
 def make_leaf(name):
     result = {}

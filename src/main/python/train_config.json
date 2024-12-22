@@ -1,0 +1,7 @@
+{
+    "data_dir": "/path/to/data",
+    "model_name": "model_name",
+    "all_models_dir": "/path/to/all/models",
+    "mode": "train",
+    "num_epochs": 10
+}
