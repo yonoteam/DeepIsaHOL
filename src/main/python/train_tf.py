@@ -1,5 +1,5 @@
 # Mantainers: 
-#   Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+# Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
 # 
 # Utility for training a Hugging Face T5 Model
 

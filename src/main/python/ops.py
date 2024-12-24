@@ -1,5 +1,5 @@
 # Mantainers: 
-#   Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+#   Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
 # 
 # A collection of useful methods/operations
 

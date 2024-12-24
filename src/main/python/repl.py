@@ -1,5 +1,5 @@
 # Mantainers: 
-#   Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+#   Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
 # 
 # Read-Eval-Print-Loop interface
 
