@@ -6,6 +6,7 @@
 
 import os
 import json
+import logging
 import numpy as np
 import torch
 import proofs
@@ -36,6 +37,19 @@ def separator(sep, txt):
 
 # CONFIGURATION
 
+def configure_logging():
+    # logfile to the current directory
+    current_working_dir = os.getcwd()
+    log_file = os.path.join(current_working_dir, "train_tf.log")
+    
+    # Set up logging configuration
+    logging.basicConfig(
+        filename=log_file,  # Log file in the current working directory
+        level=logging.DEBUG,  # Capture all log levels
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+    logging.info("Logging configured. Writing logs to %s", log_file)
+
 def extract_params(config):
     try:
         data_dir = config["data_dir"]
@@ -45,7 +59,7 @@ def extract_params(config):
         num_epochs = int(config["num_epochs"])  # Ensure it's an integer
         return data_dir, all_models_dir, model_name, mode, num_epochs
     except KeyError as e:
-        print(f"Error: Missing required configuration key: {e}")
+        logging.error(f"Missing required configuration key: {e}")
 
 def test_params(data_dir, all_models_dir):
     if not proofs.valid_data_dir(data_dir):
@@ -71,7 +85,6 @@ def is_remote(all_models_dir, model_name):
 
 def string_from(proof_json):
     str_list = []
-    # print(proofs.orig_objective_of(proof_json))
     for step in proof_json['proof']['steps'][1:]:
         usr_act_str = " ".join([
             step['step']['user_state'], 
@@ -129,7 +142,7 @@ def load_hf_tokenizer(model_name):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         return tokenizer
     except Exception:
-        print(f"Error: '{model_name}' is not a valid local directory or Hugging Face model.")
+        logging.error(f"'{model_name}' is not a valid local directory or Hugging Face model.")
 
 def train_tokenizer(model_name, data_dir):
     try:
@@ -138,7 +151,7 @@ def train_tokenizer(model_name, data_dir):
             imm_subdirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir()]
             for path in imm_subdirs:
                 if debug:
-                    print(f"Processing directory: {path}")
+                    logging.info(f"Processing directory: {path}")
                 for subdir, _, files in os.walk(path):
                     json_files = [file for file in files if file.startswith("proof") and file.endswith(".json")]
                     for file in json_files:
@@ -150,7 +163,7 @@ def train_tokenizer(model_name, data_dir):
         tokenizer = tokenizer.train_new_from_iterator(training_corpus, 52000) # TODO: calculate optimal vocabulary size
         return tokenizer
     except Exception as e:
-        print(f"Error: training tokenizer for {model_name} using data in {data_dir}: {e}")
+        logging.error(f"training tokenizer for {model_name} using data in {data_dir}: {e}")
 
 # works for both models and tokenizers
 def save_hf_data_in(hf_data, saving_dir):
@@ -263,11 +276,12 @@ def make_datasets(mode, tokenizer, init_train, init_valid, init_test, data_dir):
     imm_subdirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir()]
     for path in imm_subdirs:
         if debug:
-            print(f"Processing directory: {path}")
+            logging.info(f"Processing directory: {path}")
         all_results = add_dir_data(all_results, path)
     _, _, train_data, valid_data, test_data = all_results
     return train_data, valid_data, test_data
 
+# TODO: add support for HF datasets library
 def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
     dataset_dict = {
         "train": train_data,
@@ -296,63 +310,6 @@ def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
 
 # MODEL
 
-def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_dir):
-    # Optimizer and Scheduler
-    optimizer = AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
-    num_training_steps = len(train_dataloader) * num_epochs
-    lr_scheduler = get_scheduler(
-        "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
-    )
-
-    model.train()
-    for epoch in range(num_epochs):
-        print(f"Epoch {epoch + 1}")
-        train_loss = 0.0
-        count = 0
-        
-        for batch in train_dataloader:
-            # Move data to device
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            labels = torch.tensor(np.array(batch["labels"]), dtype=torch.int64).to(device) # batch["labels"].to(device)
-
-            # Forward pass
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            loss = outputs.loss
-
-            # Backpropagation
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            lr_scheduler.step()
-
-            train_loss += loss.item()
-
-            # feedback for me
-            count += 1
-            if count % 100 == 0:
-                print(f"Train step number {count} of {len(train_dataloader)}")
-
-        avg_train_loss = train_loss / len(train_dataloader)
-        print(f"Average Training Loss: {avg_train_loss:.4f}")
-        
-        # Validation Loop
-        model.eval()
-        valid_loss = 0.0
-        with torch.no_grad():
-            for batch in valid_dataloader:
-                input_ids = batch["input_ids"].to(device)
-                attention_mask = batch["attention_mask"].to(device)
-                labels = batch["labels"].to(device)
-
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-                valid_loss += outputs.loss.item()
-
-        avg_valid_loss = valid_loss / len(valid_dataloader)
-        print(f"Validation Loss: {avg_valid_loss:.4f}")
-    
-    save_hf_data_in(model, models_dir)
-
 def get_init_model(remote, vocab_size, models_dir, model_name):
     if remote:
         # get hugging face transformers original model
@@ -375,6 +332,63 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
         model = AutoModel.from_pretrained(latest_dir)
         return model
 
+# TODO: add support for distributed training (e.g. torch.nn.DataParallel or Hugging Face's Accelerate library)
+# TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
+def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_dir):
+    # Optimizer and Scheduler
+    optimizer = AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
+    num_training_steps = len(train_dataloader) * num_epochs
+    lr_scheduler = get_scheduler(
+        "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+    )
+
+    model.train()
+    for epoch in range(num_epochs):
+        logging.info(f"Epoch {epoch + 1} of {num_epochs}")
+        train_loss = 0.0
+        
+        for batch_idx, batch in enumerate(train_dataloader):
+            # Move data to device
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = torch.tensor(np.array(batch["labels"]), dtype=torch.int64).to(device) # batch["labels"].to(device)
+
+            # Forward pass
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs.loss
+
+            # Backpropagation
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            lr_scheduler.step()
+
+            train_loss += loss.item()
+
+            # progress feedback
+            if batch_idx % 100 == 0:
+                logging.info(f"Train step number {batch_idx} of {len(train_dataloader)}")
+
+        avg_train_loss = train_loss / len(train_dataloader)
+        logging.info(f"Average Training Loss: {avg_train_loss:.4f}")
+        
+        # Validation Loop
+        model.eval()
+        valid_loss = 0.0
+        with torch.no_grad():
+            for batch in valid_dataloader:
+                input_ids = batch["input_ids"].to(device)
+                attention_mask = batch["attention_mask"].to(device)
+                labels = batch["labels"].to(device)
+
+                outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                valid_loss += outputs.loss.item()
+
+        avg_valid_loss = valid_loss / len(valid_dataloader)
+        logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
+    
+    save_hf_data_in(model, models_dir)
+
 
 # ALGORITHM
 
@@ -384,7 +398,7 @@ def main(config):
         data_dir, model_name, all_models_dir, mode, num_epochs = extract_params(config)
         test_params(data_dir, all_models_dir)
     except Exception as e:
-        print(f"Error: Could not setup from configuration file: '{e}'.")
+        logging.error(f"Could not setup from configuration file: '{e}'.")
         exit(1)
 
     remote = is_remote(all_models_dir, model_name)
@@ -418,16 +432,17 @@ def main(config):
 
 
 if __name__ == "__main__":
-    import argparse
+    configure_logging()
 
     # Parser setup
+    import argparse
     parser = argparse.ArgumentParser(description="Train the transformer as specified in the input JSON configuration.")
     parser.add_argument("config_path", type=str, help="Path to the JSON configuration file.")
     args = parser.parse_args()
 
     # Check if JSON configuration exists
     if not os.path.isfile(args.config_path):
-        print(f"Error: The configuration file '{args.config_path}' does not exist.")
+        logging.error(f"The configuration file '{args.config_path}' does not exist.")
         exit(1)
 
     # Load the JSON configuration
@@ -435,7 +450,7 @@ if __name__ == "__main__":
         with open(args.config_path, "r") as file:
             config = json.load(file)
     except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse the JSON file. {e}")
+        logging.error(f"Failed to parse the JSON file. {e}")
         exit(1)
 
     # Run main
