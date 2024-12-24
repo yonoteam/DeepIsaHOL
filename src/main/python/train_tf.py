@@ -274,7 +274,8 @@ def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
         "valid": valid_data,
         "test": test_data
         }
-    torch.save(dataset_dict, datasets_dir)
+    datasets_path = os.path.join(datasets_dir, 'datasets.pt')
+    torch.save(dataset_dict, datasets_path)
 
 def load_datasets(datasets_dir):
     datasets_path = os.path.join(datasets_dir, 'datasets.pt')
