@@ -52,6 +52,32 @@ def valid_data_dir(json_data_dir):
             return True
     return False
 
+def find_all_erroneous(json_data_dir, f):
+    """
+    Attempts to load each "proofN.json" in input directory and apply `f` to it.
+    If it fail, stores the failing file path in a list.
+
+    Args:
+        root_dir: str. Path to directory with "proofN.json"s
+        f: json_proof -> T. A function to test on all "proofN.json"s.
+
+    Returns:
+        failing_files: list. The list of file paths that failed to load or process.
+    """
+    failing_files = []
+    for subdir, _, files in os.walk(json_data_dir):
+        for file in files:
+            if file.startswith("proof") and file.endswith(".json"):
+                file_path = os.path.join(subdir, file)
+                try:
+                    with open(file_path, "r") as json_file:
+                        data = json.load(json_file)
+                    f(data)
+                except Exception as e:
+                    failing_files.append(file_path)
+    
+    return failing_files
+
 def apply(f, inits, json_data_dir):
     """Apply f to each proof_json in json_data_dir starting with inits
 
