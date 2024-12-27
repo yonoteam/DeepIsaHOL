@@ -395,7 +395,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
 def main(config):
     # Setup from config
     try:
-        data_dir, model_name, all_models_dir, mode, num_epochs = extract_params(config)
+        data_dir, all_models_dir, model_name, mode, num_epochs = extract_params(config)
         test_params(data_dir, all_models_dir)
     except Exception as e:
         logging.error(f"Could not setup from configuration file: '{e}'.")
