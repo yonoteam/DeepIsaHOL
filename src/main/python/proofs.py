@@ -78,6 +78,19 @@ def find_all_erroneous(json_data_dir, f):
     
     return failing_files
 
+def delete_all(file_paths):
+    deleted_files = []
+    failed_files = []
+    for file_path in file_paths:
+        try:
+            os.remove(file_path)
+            deleted_files.append(file_path)
+        except Exception as e:
+            path_reason = file_path, e
+            failed_files.append(path_reason)
+
+    return deleted_files, failed_files
+
 def apply(f, inits, json_data_dir):
     """Apply f to each proof_json in json_data_dir starting with inits
 
