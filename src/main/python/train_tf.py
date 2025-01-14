@@ -336,7 +336,7 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
 def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_dir):
     # Optimizer and Scheduler
-    optimizer = AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
     num_training_steps = len(train_dataloader) * num_epochs
     lr_scheduler = get_scheduler(
         "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
@@ -351,7 +351,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
             # Move data to device
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
-            labels = torch.tensor(np.array(batch["labels"]), dtype=torch.int64).to(device) # batch["labels"].to(device)
+            labels = torch.tensor(np.array(batch["labels"], dtype=torch.int64)).to(device) # batch["labels"].to(device)
 
             # Forward pass
             outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
