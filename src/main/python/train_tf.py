@@ -329,7 +329,7 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
                 if os.path.isdir(os.path.join(models_dir, d)) and d.isdigit()
             ]
         latest_dir = max(subdirs, key=lambda d: int(os.path.basename(d)))
-        model = AutoModel.from_pretrained(latest_dir)
+        model = T5ForConditionalGeneration.from_pretrained(latest_dir)
         return model
 
 # TODO: add support for distributed training (e.g. torch.nn.DataParallel or Hugging Face's Accelerate library)
