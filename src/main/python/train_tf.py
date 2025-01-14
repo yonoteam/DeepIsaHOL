@@ -346,8 +346,8 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
     # Optimizer, accelerator, dataloader, and Scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
     accelerator = Accelerator()
-    train_dataloader, eval_dataloader, model, optimizer = accelerator.prepare(
-        train_dataloader, valid_dataloader, eval_dataloader, model, optimizer
+    train_dataloader, valid_dataloader, model, optimizer = accelerator.prepare(
+        train_dataloader, valid_dataloader, model, optimizer
     )
     num_training_steps = len(train_dataloader) * num_epochs
     lr_scheduler = get_scheduler(
