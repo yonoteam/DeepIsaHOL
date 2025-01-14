@@ -11,10 +11,11 @@ import numpy as np
 import torch
 import proofs
 
-from transformers import AutoModel, AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer, AutoConfig
 from transformers import T5ForConditionalGeneration
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForSeq2Seq, AdamW, get_scheduler
+from transformers import DataCollatorForSeq2Seq, get_scheduler
+from accelerate import Accelerator
 
 # PRELIMS
 
@@ -341,8 +342,13 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
 # TODO: add support for distributed training (e.g. torch.nn.DataParallel or Hugging Face's Accelerate library)
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
 def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_dir):
-    # Optimizer and Scheduler
+
+    # Optimizer, accelerator, dataloader, and Scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
+    accelerator = Accelerator()
+    train_dataloader, eval_dataloader, model, optimizer = accelerator.prepare(
+        train_dataloader, eval_dataloader, model, optimizer
+    )
     num_training_steps = len(train_dataloader) * num_epochs
     lr_scheduler = get_scheduler(
         "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
@@ -355,9 +361,9 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
         
         for batch_idx, batch in enumerate(train_dataloader):
             # Move data to device
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            labels = batch["labels"].to(device)# torch.tensor(np.array(batch["labels"]), dtype=torch.int64).to(device)
+            input_ids = batch["input_ids"] # .to(device)
+            attention_mask = batch["attention_mask"] # .to(device)
+            labels = batch["labels"] # .to(device)# torch.tensor(np.array(batch["labels"]), dtype=torch.int64).to(device)
 
             # Forward pass
             outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -365,7 +371,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
 
             # Backpropagation
             optimizer.zero_grad()
-            loss.backward()
+            accelerator.backward(loss) # loss.backward()
             optimizer.step()
             lr_scheduler.step()
 
@@ -421,8 +427,9 @@ def main(config):
 
     # Model
     model = get_init_model(remote, vocab_size, models_dir, model_name)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
+    # Removed for using HF Accelerate
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # model = model.to(device)
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
