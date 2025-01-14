@@ -347,7 +347,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
     accelerator = Accelerator()
     train_dataloader, eval_dataloader, model, optimizer = accelerator.prepare(
-        train_dataloader, eval_dataloader, model, optimizer
+        train_dataloader, valid_dataloader, eval_dataloader, model, optimizer
     )
     num_training_steps = len(train_dataloader) * num_epochs
     lr_scheduler = get_scheduler(
@@ -389,12 +389,13 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
         valid_loss = 0.0
         with torch.no_grad():
             for batch in valid_dataloader:
-                input_ids = batch["input_ids"].to(device)
-                attention_mask = batch["attention_mask"].to(device)
-                labels = batch["labels"].to(device)
+                input_ids = batch["input_ids"] # .to(device)
+                attention_mask = batch["attention_mask"] # .to(device)
+                labels = batch["labels"] # .to(device)
 
                 outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-                valid_loss += outputs.loss.item()
+                loss = outputs.loss
+                valid_loss += accelerator.gather(loss).mean().item()
 
         avg_valid_loss = valid_loss / len(valid_dataloader)
         logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
@@ -427,9 +428,8 @@ def main(config):
 
     # Model
     model = get_init_model(remote, vocab_size, models_dir, model_name)
-    # Removed for using HF Accelerate
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # model = model.to(device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # not needed with HF accelerate
+    model = model.to(device) # not needed with HF accelerate
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
