@@ -357,7 +357,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
             # Move data to device
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
-            labels = torch.tensor(np.array(batch["labels"], dtype=torch.int64)).to(device) # batch["labels"].to(device)
+            labels = batch["labels"].to(device)# torch.tensor(np.array(batch["labels"]), dtype=torch.int64).to(device)
 
             # Forward pass
             outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
