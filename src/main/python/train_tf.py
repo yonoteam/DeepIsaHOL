@@ -71,14 +71,20 @@ def test_params(data_dir, all_models_dir):
         message = f"""Input '{all_models_dir}' is not a directory."""
         raise Exception(f"Error: {message}")
 
-def is_remote(all_models_dir, model_name):
+def make_dir_vars(all_models_dir, model_name, mode):
     local_model_dir = os.path.join(all_models_dir, model_name)
     tokenizers_dir = os.path.join(local_model_dir, "tokenizers")
-    models_dir = os.path.join(local_model_dir, "models")
+    datasets_dir = os.path.join(tokenizers_dir, f"datasets/{mode}")
+    models_dir = os.path.join(local_model_dir, "models", mode)
+    return tokenizers_dir, datasets_dir, models_dir
 
-    if os.path.isdir(local_model_dir) and os.path.isdir(tokenizers_dir) and os.path.isdir(models_dir):
+def is_remote(all_models_dir, model_name, mode):
+    tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
+    model_path = os.path.join(models_dir, "1", "model.safetensors")
+    dataset_path = os.path.join(datasets_dir, "datasets.pt")
+    tokenizer_path = os.path.join(tokenizers_dir, "1", "tokenizer.json")
+    if os.path.isfile(model_path) and os.path.isfile(dataset_path) and os.path.isfile(tokenizer_path):
         return False
-
     return True
 
 # TOKENIZER
@@ -400,13 +406,10 @@ def main(config):
     except Exception as e:
         logging.error(f"Could not setup from configuration file: '{e}'.")
         exit(1)
-
-    remote = is_remote(all_models_dir, model_name)
-    local_model_dir = os.path.join(all_models_dir, model_name)
-    tokenizers_dir = os.path.join(local_model_dir, "tokenizers")
-    datasets_dir = os.path.join(tokenizers_dir, f"datasets/{mode}")
+    
+    remote = is_remote(all_models_dir, model_name, mode)
+    tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
     os.makedirs(datasets_dir, exist_ok=True)
-    models_dir = os.path.join(local_model_dir, "models")
     os.makedirs(models_dir, exist_ok=True)
 
     # Tokenizer
