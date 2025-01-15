@@ -212,7 +212,7 @@ def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
             ]
         latest_dir = max(subdirs, key=lambda d: int(os.path.basename(d)))
         tokenizer = AutoTokenizer.from_pretrained(latest_dir)
-        return tokenizer
+        return tokenizer, latest_dir
 
 
 # DATA
@@ -434,9 +434,9 @@ def main(config):
     os.makedirs(models_dir, exist_ok=True)
 
     # Tokenizer
-    tokenizer = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
+    tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
     vocab_size = len(tokenizer)
-    logging.info(f"Tokenizer loaded. It's directory is: {tokenizers_dir}")
+    logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
 
     # Data
     train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
