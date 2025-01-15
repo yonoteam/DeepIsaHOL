@@ -79,14 +79,24 @@ def make_dir_vars(all_models_dir, model_name, mode):
     models_dir = os.path.join(local_model_dir, "models", mode)
     return tokenizers_dir, datasets_dir, models_dir
 
-def is_remote(all_models_dir, model_name, mode):
+def get_remotes(all_models_dir, model_name, mode):
     tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
     model_path = os.path.join(models_dir, "1", "model.safetensors")
     dataset_path = os.path.join(datasets_dir, "datasets.pt")
     tokenizer_path = os.path.join(tokenizers_dir, "1", "tokenizer.json")
-    if os.path.isfile(model_path) and os.path.isfile(dataset_path) and os.path.isfile(tokenizer_path):
-        return False
-    return True
+    if os.path.isfile(model_path):
+        model_remote = False
+    else:
+        model_remote = True
+    if os.path.isfile(dataset_path):
+        dataset_remote = False
+    else:
+        dataset_remote = True
+    if os.path.isfile(tokenizer_path):
+        tokenizer_remote = False
+    else:
+        tokenizer_remote = True
+    return model_remote, dataset_remote, tokenizer_remote
 
 # TOKENIZER
 
@@ -414,27 +424,29 @@ def main(config):
         logging.error(f"Could not setup from configuration file: '{e}'.")
         exit(1)
     
-    remote = is_remote(all_models_dir, model_name, mode)
-    logging.info(f"Model has to be retrieved remotely?: {remote}")
+    model_remote, dataset_remote, tokenizer_remote = get_remotes(all_models_dir, model_name, mode)
+    logging.info(f"Model has to be retrieved remotely?: {model_remote}")
+    logging.info(f"Dataset has to be retrieved remotely?: {dataset_remote}")
+    logging.info(f"Tokenizer has to be retrieved remotely?: {tokenizer_remote}")
 
     tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
     os.makedirs(datasets_dir, exist_ok=True)
     os.makedirs(models_dir, exist_ok=True)
 
     # Tokenizer
-    tokenizer = get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name)
+    tokenizer = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
     vocab_size = len(tokenizer)
-    logging.info("Tokenizer loaded.")
+    logging.info(f"Tokenizer loaded. It's directory is: {tokenizers_dir}")
 
     # Data
-    train_data, valid_data, test_data = get_datasets(remote, mode, tokenizer, data_dir, datasets_dir)
-    logging.info("Datasets loaded.")
+    train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
+    logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
 
     # Model
-    model = get_init_model(remote, vocab_size, models_dir, model_name)
+    model = get_init_model(model_remote, vocab_size, models_dir, model_name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # not needed with HF accelerate
     model = model.to(device) # not needed with HF accelerate
-    logging.info("Model loaded.")
+    logging.info(f"Model loaded. It's directory is: {models_dir}")
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
