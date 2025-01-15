@@ -188,6 +188,7 @@ def save_hf_data_in(hf_data, saving_dir):
     new_dir = os.path.join(saving_dir, str(latest_number + 1))
     os.makedirs(new_dir, exist_ok=False)
     hf_data.save_pretrained(new_dir)
+    logging.info(f"Saved Hugging Face data in {new_dir}")
     
 def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
     if remote:
@@ -339,7 +340,6 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
         model = T5ForConditionalGeneration.from_pretrained(latest_dir)
         return model
 
-# TODO: add support for distributed training (e.g. torch.nn.DataParallel or Hugging Face's Accelerate library)
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
 def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_dir):
 
@@ -415,6 +415,8 @@ def main(config):
         exit(1)
     
     remote = is_remote(all_models_dir, model_name, mode)
+    logging.info(f"Model has to be retrieved remotely?: {remote}")
+
     tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
     os.makedirs(datasets_dir, exist_ok=True)
     os.makedirs(models_dir, exist_ok=True)
@@ -422,14 +424,17 @@ def main(config):
     # Tokenizer
     tokenizer = get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name)
     vocab_size = len(tokenizer)
+    logging.info("Tokenizer loaded.")
 
     # Data
     train_data, valid_data, test_data = get_datasets(remote, mode, tokenizer, data_dir, datasets_dir)
+    logging.info("Datasets loaded.")
 
     # Model
     model = get_init_model(remote, vocab_size, models_dir, model_name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # not needed with HF accelerate
     model = model.to(device) # not needed with HF accelerate
+    logging.info("Model loaded.")
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
