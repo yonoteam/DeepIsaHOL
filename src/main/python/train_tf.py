@@ -5,6 +5,8 @@
 
 
 import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
+
 import json
 import logging
 import numpy as np
@@ -243,7 +245,7 @@ def add_data_from(mode_tok_data, proof_json):
 
         inputs = tokenizer(
             xs, 
-            max_length=512, 
+            max_length=512,
             truncation=True, 
             return_overflowing_tokens=True,            
             stride=10,
