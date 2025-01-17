@@ -353,7 +353,7 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
         return model
 
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
-def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_dir):
+def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir):
 
     # Optimizer, accelerator, dataloader, and Scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
@@ -372,13 +372,12 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
         train_loss = 0.0
         
         for batch_idx, batch in enumerate(train_dataloader):
-            # Move data to device
-            input_ids = batch["input_ids"] # .to(device)
-            attention_mask = batch["attention_mask"] # .to(device)
-            labels = batch["labels"] # .to(device)# torch.tensor(np.array(batch["labels"]), dtype=torch.int64).to(device)
-
-            # Forward pass
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            # model.forward() and loss calculation
+            outputs = model(
+                input_ids=batch["input_ids"], 
+                attention_mask=batch["attention_mask"], 
+                labels=batch["labels"]
+                )
             loss = outputs.loss
 
             # Backpropagation
@@ -387,7 +386,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
             optimizer.step()
             lr_scheduler.step()
 
-            train_loss += loss.item()
+            train_loss += accelerator.gather(loss).sum().item()
 
             # progress feedback
             if batch_idx % 100 == 0:
@@ -401,11 +400,11 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, device, models_
         valid_loss = 0.0
         with torch.no_grad():
             for batch in valid_dataloader:
-                input_ids = batch["input_ids"] # .to(device)
-                attention_mask = batch["attention_mask"] # .to(device)
-                labels = batch["labels"] # .to(device)
-
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                outputs = model(
+                    input_ids=batch["input_ids"], 
+                    attention_mask=batch["attention_mask"], 
+                    labels=batch["labels"]
+                    )
                 loss = outputs.loss
                 valid_loss += accelerator.gather(loss).mean().item()
 
@@ -446,8 +445,8 @@ def main(config):
 
     # Model
     model = get_init_model(model_remote, vocab_size, models_dir, model_name)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # not needed with HF accelerate
-    model = model.to(device) # not needed with HF accelerate
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # not needed with HF accelerate
+    # model = model.to(device) # not needed with HF accelerate
     logging.info(f"Model loaded. It's directory is: {models_dir}")
 
     # Data Collator and Loaders
@@ -457,7 +456,7 @@ def main(config):
     valid_dataloader = DataLoader(valid_data, batch_size=8, shuffle=False, collate_fn=data_collator)
 
     # Training loop
-    train(model, train_dataloader, valid_dataloader, num_epochs, device, models_dir)
+    train(model, train_dataloader, valid_dataloader, num_epochs, models_dir)
 
 
 if __name__ == "__main__":
