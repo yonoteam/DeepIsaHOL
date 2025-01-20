@@ -51,7 +51,7 @@ def set_all_seeds(seed):
     random.seed(seed)
     set_seed(seed)
 
-def configure_logging(accelerator):
+def configure_logging():
     # logfile to the current directory
     current_working_dir = os.getcwd()
     log_file = os.path.join(current_working_dir, "train_tf.log")
@@ -59,7 +59,7 @@ def configure_logging(accelerator):
     # Set up logging configuration
     logging.basicConfig(
         filename=log_file,  # Log file in the current working directory
-        level=logging.DEBUG if accelerator.is_main_process else logging.ERROR,  # Capture all log levels
+        level=logging.DEBUG,  # Capture all log levels
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
     logging.info("Logging configured. Writing logs to %s", log_file)
@@ -316,17 +316,17 @@ def make_datasets(mode, tokenizer, init_train, init_valid, init_test, data_dir):
     _, _, train_data, valid_data, test_data = all_results
     return train_data, valid_data, test_data
 
-class LazyMapDataset(torch.utils.data.Dataset):
-    def __init__(self, datasets_path, split_name):
-        self.datasets_path = datasets_path
-        self.split_name = split_name
-        self.dataset_dict = torch.load(self.datasets_path, weights_only=True)
+# class LazyMapDataset(torch.utils.data.Dataset):
+#     def __init__(self, datasets_path, split_name):
+#         self.datasets_path = datasets_path
+#         self.split_name = split_name
+#         self.dataset_dict = torch.load(self.datasets_path, weights_only=True)
 
-    def __len__(self):
-        return len(self.dataset_dict[self.split_name])
+#     def __len__(self):
+#         return len(self.dataset_dict[self.split_name])
 
-    def __getitem__(self, idx):
-        return self.dataset_dict[self.split_name][idx]
+#     def __getitem__(self, idx):
+#         return self.dataset_dict[self.split_name][idx]
     
 def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
     dataset_dict = {
@@ -339,9 +339,13 @@ def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
 
 def load_datasets(datasets_dir):
     datasets_path = os.path.join(datasets_dir, 'datasets.pt')
-    train_data = LazyMapDataset(datasets_path, "train")
-    valid_data = LazyMapDataset(datasets_path, "valid")
-    test_data = LazyMapDataset(datasets_path, "test")
+    dataset_dict = torch.load(datasets_path, weights_only=True)
+    train_data = dataset_dict["train"]
+    valid_data = dataset_dict["valid"]
+    test_data = dataset_dict["test"]
+    # train_data = LazyMapDataset(datasets_path, "train")
+    # valid_data = LazyMapDataset(datasets_path, "valid")
+    # test_data = LazyMapDataset(datasets_path, "test")
     return train_data, valid_data, test_data
 
 def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
@@ -442,7 +446,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
 
 
 # ALGORITHM
-def main(config, accelerator):
+def main(config):
     # Setup from config
     try:
         data_dir, all_models_dir, model_name, mode, num_epochs = extract_params(config)
@@ -450,6 +454,10 @@ def main(config, accelerator):
     except Exception as e:
         logging.error(f"Could not setup from configuration file: '{e}'.")
         exit(1)
+
+    accelerator = Accelerator(mixed_precision="fp16")
+    if accelerator.is_main_process:
+        logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
     
     model_remote, dataset_remote, tokenizer_remote = get_remotes(all_models_dir, model_name, mode)
     if accelerator.is_main_process:
@@ -462,18 +470,31 @@ def main(config, accelerator):
         os.makedirs(datasets_dir, exist_ok=True)
         os.makedirs(models_dir, exist_ok=True)
 
-    # Tokenizer
-    tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
-    vocab_size = len(tokenizer)
-    logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
+    if accelerator.is_main_process:
+        # Tokenizer
+        tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
+        vocab_size = len(tokenizer)
+        logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
 
-    # Data
-    train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
-    logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
+        # Data
+        train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
+        logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
 
-    # Model
-    model = get_init_model(model_remote, vocab_size, models_dir, model_name)
-    logging.info(f"Model loaded. It's directory is: {models_dir}")
+        # Model
+        model = get_init_model(model_remote, vocab_size, models_dir, model_name)
+        logging.info(f"Model loaded. It's directory is: {models_dir}")
+    else:
+        tokenizer, tokenizer_dir = None, None
+        vocab_size = None
+        train_data, valid_data, test_data = None, None, None
+        model = None
+
+    accelerator.wait_for_everyone()
+    tokenizer = accelerator.utils.broadcast_object_list([tokenizer])[0]
+    vocab_size = accelerator.utils.broadcast_object_list([vocab_size])[0]
+    train_data = accelerator.utils.broadcast_object_list([train_data])[0]
+    valid_data = accelerator.utils.broadcast_object_list([valid_data])[0]
+    model = accelerator.utils.broadcast_object_list([model])[0]
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
@@ -488,11 +509,8 @@ def main(config, accelerator):
 
 if __name__ == "__main__":
     # Configuration
-    accelerator = Accelerator(mixed_precision="fp16")
     set_all_seeds(42)
-    configure_logging(accelerator)
-    if accelerator.is_main_process:
-        logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
+    configure_logging()
 
     # Parser setup
     parser = argparse.ArgumentParser(description="Train the transformer as specified in the input JSON configuration.")
@@ -513,4 +531,4 @@ if __name__ == "__main__":
         exit(1)
 
     # Run main
-    main(config, accelerator)
+    main(config)
