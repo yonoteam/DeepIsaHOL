@@ -11,8 +11,10 @@ import json
 import logging
 import numpy as np
 import torch
+import random
 import proofs
 
+from transformers import set_seed
 from transformers import AutoTokenizer, AutoConfig
 from transformers import T5ForConditionalGeneration
 from torch.utils.data import DataLoader
@@ -40,6 +42,13 @@ def separator(sep, txt):
 
 # CONFIGURATION
 
+def set_all_seeds(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    set_seed(seed)
+
 def configure_logging():
     # logfile to the current directory
     current_working_dir = os.getcwd()
@@ -48,7 +57,7 @@ def configure_logging():
     # Set up logging configuration
     logging.basicConfig(
         filename=log_file,  # Log file in the current working directory
-        level=logging.DEBUG,  # Capture all log levels
+        level=logging.DEBUG if accelerator.is_main_process else logging.ERROR,  # Capture all log levels
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
     logging.info("Logging configured. Writing logs to %s", log_file)
@@ -198,9 +207,13 @@ def save_hf_data_in(hf_data, saving_dir):
 
     # Save the hugging face model or tokenizer
     new_dir = os.path.join(saving_dir, str(latest_number + 1))
-    os.makedirs(new_dir, exist_ok=False)
-    hf_data.save_pretrained(new_dir)
-    logging.info(f"Saved Hugging Face data in {new_dir}")
+
+    try:
+        os.makedirs(new_dir, exist_ok=False)
+        hf_data.save_pretrained(new_dir)
+        logging.info(f"Saved Hugging Face data in {new_dir}")
+    except FileExistsError:
+        logging.warning(f"Directory '{new_dir}' already exists. Skipping save.")
     
 def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
     if remote:
@@ -355,15 +368,14 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
 def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir):
 
-    # Optimizer, accelerator, dataloader, and Scheduler
+    # Optimizer, dataloader, and Scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
-    accelerator = Accelerator()
-    train_dataloader, valid_dataloader, model, optimizer = accelerator.prepare(
-        train_dataloader, valid_dataloader, model, optimizer
-    )
     num_training_steps = len(train_dataloader) * num_epochs
     lr_scheduler = get_scheduler(
         "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+    )
+    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(
+        train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
     )
 
     model.train()
@@ -386,15 +398,20 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir):
             optimizer.step()
             lr_scheduler.step()
 
-            train_loss += accelerator.gather(loss).sum().item()
+            train_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
 
             # progress feedback
             if batch_idx % 100 == 0:
                 logging.info(f"Train step number {batch_idx} of {len(train_dataloader)}")
 
         avg_train_loss = train_loss / len(train_dataloader)
-        logging.info(f"Average Training Loss: {avg_train_loss:.4f}")
+        logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
         
+        accelerator.wait_for_everyone()
+        if accelerator.is_main_process and (epoch + 1) % 5 == 0:
+            save_hf_data_in(accelerator.unwrap_model(model), models_dir)
+            logging.info(f"Checkpoint saved for epoch {epoch + 1}")
+
         # Validation Loop
         model.eval()
         valid_loss = 0.0
@@ -406,15 +423,24 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir):
                     labels=batch["labels"]
                     )
                 loss = outputs.loss
-                valid_loss += accelerator.gather(loss).mean().item()
+                valid_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
 
         avg_valid_loss = valid_loss / len(valid_dataloader)
         logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
     
-    save_hf_data_in(model, models_dir)
+    accelerator.wait_for_everyone()
+    unwrapped_model = accelerator.unwrap_model(model)
+    if accelerator.is_main_process:
+        save_hf_data_in(unwrapped_model, models_dir)
+    logging.info("Training complete.")
 
 
 # ALGORITHM
+
+# global accelerator object
+accelerator = Accelerator(mixed_precision="fp16")
+if accelerator.is_main_process:
+    logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
 
 def main(config):
     # Setup from config
@@ -426,40 +452,51 @@ def main(config):
         exit(1)
     
     model_remote, dataset_remote, tokenizer_remote = get_remotes(all_models_dir, model_name, mode)
-    logging.info(f"Model has to be retrieved remotely?: {model_remote}")
-    logging.info(f"Dataset has to be retrieved remotely?: {dataset_remote}")
-    logging.info(f"Tokenizer has to be retrieved remotely?: {tokenizer_remote}")
+    if accelerator.is_main_process:
+        logging.info(f"Model has to be retrieved remotely?: {model_remote}")
+        logging.info(f"Dataset has to be retrieved remotely?: {dataset_remote}")
+        logging.info(f"Tokenizer has to be retrieved remotely?: {tokenizer_remote}")
 
     tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
-    os.makedirs(datasets_dir, exist_ok=True)
-    os.makedirs(models_dir, exist_ok=True)
+    if accelerator.is_main_process:
+        os.makedirs(datasets_dir, exist_ok=True)
+        os.makedirs(models_dir, exist_ok=True)
 
-    # Tokenizer
-    tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
-    vocab_size = len(tokenizer)
-    logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
+    if accelerator.is_main_process:
+        # Tokenizer
+        tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
+        vocab_size = len(tokenizer)
+        logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
 
-    # Data
-    train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
-    logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
+        # Data
+        train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
+        logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
 
-    # Model
-    model = get_init_model(model_remote, vocab_size, models_dir, model_name)
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # not needed with HF accelerate
-    # model = model.to(device) # not needed with HF accelerate
-    logging.info(f"Model loaded. It's directory is: {models_dir}")
+        # Model
+        model = get_init_model(model_remote, vocab_size, models_dir, model_name)
+        logging.info(f"Model loaded. It's directory is: {models_dir}")
+    else:
+        tokenizer, train_data, valid_data, model = None, None, None, None
+
+    accelerator.wait_for_everyone()
+    tokenizer = accelerator.broadcast(tokenizer)
+    train_data = accelerator.broadcast(train_data)
+    valid_data = accelerator.broadcast(valid_data)
+    model = accelerator.broadcast(model)
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
 
-    train_dataloader = DataLoader(train_data, batch_size=8, shuffle=True, collate_fn=data_collator)
-    valid_dataloader = DataLoader(valid_data, batch_size=8, shuffle=False, collate_fn=data_collator)
+    batch_size = 8 // accelerator.num_processes
+    train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
+    valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
 
     # Training loop
     train(model, train_dataloader, valid_dataloader, num_epochs, models_dir)
 
 
 if __name__ == "__main__":
+    set_all_seeds(42)
     configure_logging()
 
     # Parser setup
