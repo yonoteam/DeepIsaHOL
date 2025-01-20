@@ -454,6 +454,7 @@ def main(config, accelerator):
         os.makedirs(datasets_dir, exist_ok=True)
         os.makedirs(models_dir, exist_ok=True)
 
+    object_list = []
     if accelerator.is_main_process:
         # Tokenizer
         tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
