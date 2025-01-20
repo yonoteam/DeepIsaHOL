@@ -233,7 +233,7 @@ def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
 
 
 # DATA
-# TODO: Create HuggingFace class
+# TODO: add support for HF datasets library
 
 def add_data_from(mode_tok_data, proof_json):
     mode, tokenizer, data = mode_tok_data
@@ -316,7 +316,18 @@ def make_datasets(mode, tokenizer, init_train, init_valid, init_test, data_dir):
     _, _, train_data, valid_data, test_data = all_results
     return train_data, valid_data, test_data
 
-# TODO: add support for HF datasets library
+class LazyDataset(torch.utils.data.IterableDataset):
+    def __init__(self, datasets_path, split_name):
+        super().__init__()
+        self.datasets_path = datasets_path
+        self.split_name = split_name
+
+    def __iter__(self):
+        # Load only necessary data on demand (lazy loading)
+        dataset_dict = torch.load(self.datasets_path, weights_only=True)
+        for sample in dataset_dict[self.split_name]:
+            yield sample
+    
 def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
     dataset_dict = {
         "train": train_data,
@@ -328,20 +339,17 @@ def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
 
 def load_datasets(datasets_dir):
     datasets_path = os.path.join(datasets_dir, 'datasets.pt')
-    dataset_dict = torch.load(datasets_path, weights_only=True)
-    train_data = dataset_dict["train"]
-    valid_data = dataset_dict["valid"]
-    test_data = dataset_dict["test"]
+    train_data = LazyDataset(datasets_path, "train")
+    valid_data = LazyDataset(datasets_path, "valid")
+    test_data = LazyDataset(datasets_path, "test")
     return train_data, valid_data, test_data
 
 def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
     if remote:
         train_data, valid_data, test_data = make_datasets(mode, tokenizer, [], [], [], data_dir)
         save_datasets_in(train_data, valid_data, test_data, datasets_dir)
-        return train_data, valid_data, test_data
-    else:
-        train_data, valid_data, test_data = load_datasets(datasets_dir)
-        return train_data, valid_data, test_data
+    train_data, valid_data, test_data = load_datasets(datasets_dir)
+    return train_data, valid_data, test_data
 
 # MODEL
 
@@ -454,29 +462,18 @@ def main(config, accelerator):
         os.makedirs(datasets_dir, exist_ok=True)
         os.makedirs(models_dir, exist_ok=True)
 
-    object_list = []
-    if accelerator.is_main_process:
-        # Tokenizer
-        tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
-        vocab_size = len(tokenizer)
-        logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
+    # Tokenizer
+    tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
+    vocab_size = len(tokenizer)
+    logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
 
-        # Data
-        train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
-        logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
+    # Data
+    train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
+    logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
 
-        # Model
-        model = get_init_model(model_remote, vocab_size, models_dir, model_name)
-        logging.info(f"Model loaded. It's directory is: {models_dir}")
-
-        object_list = [tokenizer, train_data, valid_data, model]
-
-    accelerator.wait_for_everyone()
-    broadcast_object_list(object_list, accelerator)
-    tokenizer = object_list[0]
-    train_data = object_list[1]
-    valid_data = object_list[2]
-    model = object_list[3]
+    # Model
+    model = get_init_model(model_remote, vocab_size, models_dir, model_name)
+    logging.info(f"Model loaded. It's directory is: {models_dir}")
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
