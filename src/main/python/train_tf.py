@@ -316,17 +316,17 @@ def make_datasets(mode, tokenizer, init_train, init_valid, init_test, data_dir):
     _, _, train_data, valid_data, test_data = all_results
     return train_data, valid_data, test_data
 
-class LazyDataset(torch.utils.data.IterableDataset):
+class LazyMapDataset(torch.utils.data.Dataset):
     def __init__(self, datasets_path, split_name):
-        super().__init__()
         self.datasets_path = datasets_path
         self.split_name = split_name
+        self.dataset_dict = torch.load(self.datasets_path, weights_only=True)
 
-    def __iter__(self):
-        # Load only necessary data on demand (lazy loading)
-        dataset_dict = torch.load(self.datasets_path, weights_only=True)
-        for sample in dataset_dict[self.split_name]:
-            yield sample
+    def __len__(self):
+        return len(self.dataset_dict[self.split_name])
+
+    def __getitem__(self, idx):
+        return self.dataset_dict[self.split_name][idx]
     
 def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
     dataset_dict = {
@@ -339,9 +339,9 @@ def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
 
 def load_datasets(datasets_dir):
     datasets_path = os.path.join(datasets_dir, 'datasets.pt')
-    train_data = LazyDataset(datasets_path, "train")
-    valid_data = LazyDataset(datasets_path, "valid")
-    test_data = LazyDataset(datasets_path, "test")
+    train_data = LazyMapDataset(datasets_path, "train")
+    valid_data = LazyMapDataset(datasets_path, "valid")
+    test_data = LazyMapDataset(datasets_path, "test")
     return train_data, valid_data, test_data
 
 def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
