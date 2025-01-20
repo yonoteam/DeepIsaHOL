@@ -21,6 +21,7 @@ from transformers import T5ForConditionalGeneration
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq, get_scheduler
 from accelerate import Accelerator
+from accelerate.utils import broadcast_object_list
 
 # PRELIMS
 
@@ -409,9 +410,9 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
         logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
         
         accelerator.wait_for_everyone()
-        if accelerator.is_main_process and (epoch + 1) % 5 == 0:
+        if accelerator.is_main_process:
             save_hf_data_in(accelerator.unwrap_model(model), models_dir)
-            logging.info(f"Checkpoint saved for epoch {epoch + 1}")
+            logging.info(f"Checkpoint saved for epoch {epoch}")
 
         # Validation Loop
         model.eval()
@@ -429,10 +430,6 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
         avg_valid_loss = valid_loss / len(valid_dataloader)
         logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
     
-    accelerator.wait_for_everyone()
-    unwrapped_model = accelerator.unwrap_model(model)
-    if accelerator.is_main_process:
-        save_hf_data_in(unwrapped_model, models_dir)
     logging.info("Training complete.")
 
 
@@ -470,14 +467,15 @@ def main(config, accelerator):
         # Model
         model = get_init_model(model_remote, vocab_size, models_dir, model_name)
         logging.info(f"Model loaded. It's directory is: {models_dir}")
-    else:
-        tokenizer, train_data, valid_data, model = None, None, None, None
+
+        object_list = [tokenizer, train_data, valid_data, model]
 
     accelerator.wait_for_everyone()
-    tokenizer = accelerator.broadcast(tokenizer)
-    train_data = accelerator.broadcast(train_data)
-    valid_data = accelerator.broadcast(valid_data)
-    model = accelerator.broadcast(model)
+    broadcast_object_list(object_list, accelerator)
+    tokenizer = object_list[0]
+    train_data = object_list[1]
+    valid_data = object_list[2]
+    model = object_list[3]
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
