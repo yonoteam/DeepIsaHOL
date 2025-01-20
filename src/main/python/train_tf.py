@@ -490,11 +490,11 @@ def main(config):
         model = None
 
     accelerator.wait_for_everyone()
-    tokenizer = accelerator.utils.broadcast_object_list([tokenizer])[0]
-    vocab_size = accelerator.utils.broadcast_object_list([vocab_size])[0]
-    train_data = accelerator.utils.broadcast_object_list([train_data])[0]
-    valid_data = accelerator.utils.broadcast_object_list([valid_data])[0]
-    model = accelerator.utils.broadcast_object_list([model])[0]
+    tokenizer = broadcast_object_list([tokenizer])[0]
+    vocab_size = broadcast_object_list([vocab_size])[0]
+    train_data = broadcast_object_list([train_data])[0]
+    valid_data = broadcast_object_list([valid_data])[0]
+    model = broadcast_object_list([model])[0]
 
     # Data Collator and Loaders
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
