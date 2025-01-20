@@ -7,6 +7,7 @@
 import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 
+import argparse
 import json
 import logging
 import numpy as np
@@ -49,7 +50,7 @@ def set_all_seeds(seed):
     random.seed(seed)
     set_seed(seed)
 
-def configure_logging():
+def configure_logging(accelerator):
     # logfile to the current directory
     current_working_dir = os.getcwd()
     log_file = os.path.join(current_working_dir, "train_tf.log")
@@ -366,7 +367,7 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
         return model
 
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
-def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir):
+def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, accelerator):
 
     # Optimizer, dataloader, and Scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
@@ -436,13 +437,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir):
 
 
 # ALGORITHM
-
-# global accelerator object
-accelerator = Accelerator(mixed_precision="fp16")
-if accelerator.is_main_process:
-    logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
-
-def main(config):
+def main(config, accelerator):
     # Setup from config
     try:
         data_dir, all_models_dir, model_name, mode, num_epochs = extract_params(config)
@@ -492,15 +487,18 @@ def main(config):
     valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
 
     # Training loop
-    train(model, train_dataloader, valid_dataloader, num_epochs, models_dir)
+    train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, accelerator)
 
 
 if __name__ == "__main__":
+    # Configuration
+    accelerator = Accelerator(mixed_precision="fp16")
     set_all_seeds(42)
-    configure_logging()
+    configure_logging(accelerator)
+    if accelerator.is_main_process:
+        logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
 
     # Parser setup
-    import argparse
     parser = argparse.ArgumentParser(description="Train the transformer as specified in the input JSON configuration.")
     parser.add_argument("config_path", type=str, help="Path to the JSON configuration file.")
     args = parser.parse_args()
@@ -519,4 +517,4 @@ if __name__ == "__main__":
         exit(1)
 
     # Run main
-    main(config)
+    main(config, accelerator)
