@@ -381,72 +381,77 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
 
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
 def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, accelerator):
+    try:
+        # Optimizer, dataloader, and Scheduler
+        optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
+        num_training_steps = len(train_dataloader) * num_epochs
+        lr_scheduler = get_scheduler(
+            "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+        )
+        train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(
+            train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
+        )
 
-    # Optimizer, dataloader, and Scheduler
-    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
-    num_training_steps = len(train_dataloader) * num_epochs
-    lr_scheduler = get_scheduler(
-        "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
-    )
-    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(
-        train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
-    )
-
-    model.train()
-    for epoch in range(num_epochs):
-        logging.info(f"Epoch {epoch + 1} of {num_epochs}")
-        train_loss = 0.0
-        
-        for batch_idx, batch in enumerate(train_dataloader):
-            # model.forward() and loss calculation
-            outputs = model(
-                input_ids=batch["input_ids"], 
-                attention_mask=batch["attention_mask"], 
-                labels=batch["labels"]
-                )
-            loss = outputs.loss
-
-            # Backpropagation
-            optimizer.zero_grad()
-            accelerator.backward(loss) # loss.backward()
-            optimizer.step()
-            lr_scheduler.step()
-
-            train_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
-
-            # progress feedback
-            if batch_idx % 100 == 0:
-                logging.info(f"Train step number {batch_idx} of {len(train_dataloader)}")
-
-        avg_train_loss = train_loss / len(train_dataloader)
-        logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
-        
-        accelerator.wait_for_everyone()
-        if accelerator.is_main_process:
-            save_hf_data_in(accelerator.unwrap_model(model), models_dir)
-            logging.info(f"Checkpoint saved for epoch {epoch}")
-
-        # Validation Loop
-        model.eval()
-        valid_loss = 0.0
-        with torch.no_grad():
-            for batch in valid_dataloader:
+        model.train()
+        for epoch in range(num_epochs):
+            logging.info(f"Epoch {epoch + 1} of {num_epochs}")
+            train_loss = 0.0
+            
+            for batch_idx, batch in enumerate(train_dataloader):
+                # model.forward() and loss calculation
                 outputs = model(
                     input_ids=batch["input_ids"], 
                     attention_mask=batch["attention_mask"], 
                     labels=batch["labels"]
                     )
                 loss = outputs.loss
-                valid_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
 
-        avg_valid_loss = valid_loss / len(valid_dataloader)
-        logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
-    
-    logging.info("Training complete.")
+                # Backpropagation
+                optimizer.zero_grad()
+                accelerator.backward(loss) # loss.backward()
+                optimizer.step()
+                lr_scheduler.step()
+
+                train_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
+
+                # progress feedback
+                if batch_idx % 100 == 0:
+                    logging.info(f"Train step number {batch_idx} of {len(train_dataloader)}")
+
+            avg_train_loss = train_loss / len(train_dataloader)
+            logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
+            
+            accelerator.wait_for_everyone()
+            if accelerator.is_main_process:
+                save_hf_data_in(accelerator.unwrap_model(model), models_dir)
+                logging.info(f"Checkpoint saved for epoch {epoch}")
+
+            # Validation Loop
+            model.eval()
+            valid_loss = 0.0
+            with torch.no_grad():
+                for batch in valid_dataloader:
+                    outputs = model(
+                        input_ids=batch["input_ids"], 
+                        attention_mask=batch["attention_mask"], 
+                        labels=batch["labels"]
+                        )
+                    loss = outputs.loss
+                    valid_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
+
+            avg_valid_loss = valid_loss / len(valid_dataloader)
+            logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
+        
+        logging.info("Training complete.")
+    except Exception as e:
+        logging.error(f"Training failed: {e}")
+        raise
 
 
 # ALGORITHM
 def main(config):
+    process_group = None
+
     # Setup from config
     try:
         data_dir, all_models_dir, model_name, mode, num_epochs = extract_params(config)
@@ -455,56 +460,71 @@ def main(config):
         logging.error(f"Could not setup from configuration file: '{e}'.")
         exit(1)
 
-    accelerator = Accelerator(mixed_precision="fp16")
-    if accelerator.is_main_process:
-        logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
+    try:
+        accelerator = Accelerator(mixed_precision="fp16")
+        if accelerator.is_main_process:
+            logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
+        
+        process_group = torch.distributed.get_process_group() if torch.distributed.is_initialized() else None
+
+        model_remote, dataset_remote, tokenizer_remote = get_remotes(all_models_dir, model_name, mode)
+        if accelerator.is_main_process:
+            logging.info(f"Model has to be retrieved remotely?: {model_remote}")
+            logging.info(f"Dataset has to be retrieved remotely?: {dataset_remote}")
+            logging.info(f"Tokenizer has to be retrieved remotely?: {tokenizer_remote}")
+
+        tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
+        if accelerator.is_main_process:
+            os.makedirs(datasets_dir, exist_ok=True)
+            os.makedirs(models_dir, exist_ok=True)
+
+        if accelerator.is_main_process:
+            # Tokenizer
+            tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
+            vocab_size = len(tokenizer)
+            logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
+
+            # Data
+            train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
+            logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
+
+            # Model
+            model = get_init_model(model_remote, vocab_size, models_dir, model_name)
+            logging.info(f"Model loaded. It's directory is: {models_dir}")
+        else:
+            tokenizer = None
+            train_data, valid_data, test_data = None, None, None
+            model = None
+
+        accelerator.wait_for_everyone()
+        tokenizer = broadcast_object_list([tokenizer])[0]
+        train_data = broadcast_object_list([train_data])[0]
+        valid_data = broadcast_object_list([valid_data])[0]
+        model = broadcast_object_list([model])[0]
+
+        # Data Collator and Loaders
+        data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
+
+        batch_size = 8 // accelerator.num_processes
+        train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
+        valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
+
+        # Training loop
+        train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, accelerator)
     
-    model_remote, dataset_remote, tokenizer_remote = get_remotes(all_models_dir, model_name, mode)
-    if accelerator.is_main_process:
-        logging.info(f"Model has to be retrieved remotely?: {model_remote}")
-        logging.info(f"Dataset has to be retrieved remotely?: {dataset_remote}")
-        logging.info(f"Tokenizer has to be retrieved remotely?: {tokenizer_remote}")
-
-    tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
-    if accelerator.is_main_process:
-        os.makedirs(datasets_dir, exist_ok=True)
-        os.makedirs(models_dir, exist_ok=True)
-
-    if accelerator.is_main_process:
-        # Tokenizer
-        tokenizer, tokenizer_dir = get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
-        vocab_size = len(tokenizer)
-        logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
-
-        # Data
-        train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
-        logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
-
-        # Model
-        model = get_init_model(model_remote, vocab_size, models_dir, model_name)
-        logging.info(f"Model loaded. It's directory is: {models_dir}")
-    else:
-        tokenizer, tokenizer_dir = None, None
-        vocab_size = None
-        train_data, valid_data, test_data = None, None, None
-        model = None
-
-    accelerator.wait_for_everyone()
-    tokenizer = broadcast_object_list([tokenizer])[0]
-    vocab_size = broadcast_object_list([vocab_size])[0]
-    train_data = broadcast_object_list([train_data])[0]
-    valid_data = broadcast_object_list([valid_data])[0]
-    model = broadcast_object_list([model])[0]
-
-    # Data Collator and Loaders
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
-
-    batch_size = 8 // accelerator.num_processes
-    train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
-    valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
-
-    # Training loop
-    train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, accelerator)
+    except Exception as e:
+        logging.error(f"Error in main: {e}")
+        raise
+    finally:
+        accelerator.wait_for_everyone()
+        if process_group is not None:
+            try:
+                torch.distributed.destroy_process_group()
+            except Exception as e:
+                logging.error(f"Error destroying process group: {str(e)}")
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
