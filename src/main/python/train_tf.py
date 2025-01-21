@@ -419,10 +419,10 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
                     logging.info(f"Train step number {batch_idx} of {len(train_dataloader)}")
 
             avg_train_loss = train_loss / len(train_dataloader)
-            logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
             
             accelerator.wait_for_everyone()
             if accelerator.is_main_process:
+                logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
                 save_hf_data_in(accelerator.unwrap_model(model), models_dir)
                 logging.info(f"Checkpoint saved for epoch {epoch}")
 
@@ -440,9 +440,11 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
                     valid_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
 
             avg_valid_loss = valid_loss / len(valid_dataloader)
-            logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
-        
-        logging.info("Training complete.")
+
+            accelerator.wait_for_everyone()
+            if accelerator.is_main_process:
+                logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
+                logging.info("Training complete.")
     except Exception as e:
         logging.error(f"Training failed: {e}")
         raise
@@ -450,8 +452,6 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
 
 # ALGORITHM
 def main(config):
-    process_group = None
-
     # Setup from config
     try:
         data_dir, all_models_dir, model_name, mode, num_epochs = extract_params(config)
@@ -465,8 +465,6 @@ def main(config):
         if accelerator.is_main_process:
             logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
         
-        process_group = torch.distributed.get_process_group() if torch.distributed.is_initialized() else None
-
         model_remote, dataset_remote, tokenizer_remote = get_remotes(all_models_dir, model_name, mode)
         if accelerator.is_main_process:
             logging.info(f"Model has to be retrieved remotely?: {model_remote}")
@@ -517,7 +515,7 @@ def main(config):
         raise
     finally:
         accelerator.wait_for_everyone()
-        if process_group is not None:
+        if torch.distributed.is_initialized():
             try:
                 torch.distributed.destroy_process_group()
             except Exception as e:
