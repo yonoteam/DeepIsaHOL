@@ -3,17 +3,12 @@
 # 
 # Utility for reading JSONs of proofs
 
-import json
 import os
+import json
+import logging
+
 from copy import deepcopy
 from pathlib import Path
-
-
-debug = False
-
-def print_debug(message):
-    if debug:
-        print(message)
 
 def get_proof_json(proof_path):
     """Loads the data in proof_path as a dictionary. Returns {} if failed.
@@ -29,7 +24,7 @@ def get_proof_json(proof_path):
             proof_data = json.load(json_file)
             return proof_data
     except Exception as e:
-        print(f"Failed to process {proof_path}: {str(e)}")
+        logging.error(f"Failed to process {proof_path}: {str(e)}")
     return {}
 
 def valid_data_dir(json_data_dir):
@@ -125,7 +120,7 @@ def gen_apply(f, inits, data_dir):
     all_results = inits
     imm_subdirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir()]
     for path in imm_subdirs:
-        print_debug(f"Processing directory: {path}")
+        logging.info(f"Processing directory: {path}")
         all_results = apply(f, all_results, path)
     return all_results
 
