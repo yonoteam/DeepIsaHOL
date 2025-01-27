@@ -16,6 +16,7 @@ import random
 
 import proofs
 import tokenizer_ops
+import accelerate_test
 
 from transformers import set_seed
 from transformers import AutoTokenizer, AutoConfig
@@ -285,6 +286,8 @@ def main(config):
         accelerator = Accelerator(mixed_precision="fp16")
         if accelerator.is_main_process:
             logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
+        
+        accelerate_test.log_cuda_info(accelerator)
         
         model_remote, dataset_remote, tokenizer_remote = get_remotes(all_models_dir, model_name, mode)
         if accelerator.is_main_process:
