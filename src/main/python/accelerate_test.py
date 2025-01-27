@@ -5,5 +5,5 @@ def main():
     accelerator = Accelerator()
     print(torch.cuda.is_available())
 
-if __name__ == "main":
+if __name__ == "__main__":
     main()
