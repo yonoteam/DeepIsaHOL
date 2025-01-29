@@ -4,8 +4,11 @@ from accelerate import Accelerator
 
 def log_cuda_info(accelerator):
     device = accelerator.device
+    accelerator.wait_for_everyone()
     logging.info(f"Process {accelerator.process_index}: Using device {device}")
+    accelerator.wait_for_everyone()
     logging.info(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
+    accelerator.wait_for_everyone()
     logging.info(f"torch.cuda.current_device(): {torch.cuda.current_device() if torch.cuda.is_available() else 'No CUDA available'}")
 
 def main():
