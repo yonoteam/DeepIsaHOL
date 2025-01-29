@@ -3,7 +3,8 @@ This is the repository of the DeepIsaHOL project. It is supported by the DeepIsa
 
 The project currently offers:
   1. proof data retrieving capabilities fron Isabelle libraries
-  2. a read-eval-print-loop interface for Isabelle in scala and python
+  2. a read-eval-print-loop interface for Isabelle in Scala and Python
+  3. a Python training loop for Hugging Face T5 models for conditional generation
 
 ## Instalation
 
@@ -16,7 +17,7 @@ The project currently offers:
 2. Pull this repository.
 3. Adapt this project's `build.sbt` file to your needs (e.g. correct the location of `scala-isabelle`).
 4. Adapt this project's `directories.scala` to your needs. Specifically, you will need to update the location of this project's `src/main/ml/Isabelle_RL.thy` file and paste it to `isabelle_rl`, and the location of your Isabelle application to `isabelle_app`.
-5. [Compile](https://www.scala-sbt.org/1.x/docs/Running.html) the project's scala sources. 
+5. [Compile](https://www.scala-sbt.org/1.x/docs/Running.html) the project's Scala sources. 
 6. Set-up a [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for your needs that includes the `Py4J` library.
 
 ## Running the project
@@ -50,7 +51,7 @@ Alternatively, you can use `writer.scala` or `writer.python` for interactively e
     ```
   * In Python:
 
-    First run a scala session
+    First run a Scala session
     ```scala
     scala> import isabelle_rl._
     import isabelle_rl._
@@ -78,7 +79,7 @@ Alternatively, you can use `writer.scala` or `writer.python` for interactively e
     ''
     ```
 
-    Don't forget to close your scala session when you are finished ;)
+    Don't forget to close your Scala session when you are finished ;)
     ```scala
     scala> val _ = Py4j_Gateway.stop(Array())
     Gateway Server Stopped
