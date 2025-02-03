@@ -10,14 +10,15 @@ import logging
 from copy import deepcopy
 from pathlib import Path
 
+# DIRECTORY OPERATIONS
+
 def get_proof_json(proof_path):
-    """Loads the data in proof_path as a dictionary. Returns {} if failed.
-
-    Args:
-        proof_path: str. Path to the (proof) JSON file.
-
-    Returns:
-        proof_data: dict. The dictionary abstracting a proof.
+    """Extract proof data from the input file. 
+    Returns {} if failed.
+    
+    :param proof_path: path to the (proof) JSON file
+    :returns: a dictionary abstracting the proof
+    :rtype: dict
     """
     try:
         with open(proof_path, 'r') as json_file:
@@ -29,14 +30,13 @@ def get_proof_json(proof_path):
 
 def valid_data_dir(json_data_dir):
     """
-    Checks if input is a directory with at least one JSON file 
-    that starts with 'proof' and ends with '.json' in one of its subdirectories .
+    Checks if input is a directory with at least one JSON 
+    file starting with 'proof' and ending with '.json' in 
+    a subdirectory .
 
-    Args:
-        json_data_dir: str. Path to the directory to validate.
-
-    Returns:
-        bool. True if a valid JSON file is found, False otherwise.
+    :param json_data_dir: path to the directory to validate
+    :returns: True if a valid JSON file is found, False otherwise.
+    :rtype: bool
     """
     data_path = Path(json_data_dir)
     if not data_path.exists() or not data_path.is_dir():
@@ -47,97 +47,115 @@ def valid_data_dir(json_data_dir):
             return True
     return False
 
-def find_all_erroneous(json_data_dir, f):
+def generate_paths_from(json_data_dir):
     """
-    Attempts to load each "proofN.json" in input directory and apply `f` to it.
-    If it fail, stores the failing file path in a list.
+    Generator for all "proofN.json" file-paths in the 
+    input directory.
 
-    Args:
-        root_dir: str. Path to directory with "proofN.json"s
-        f: json_proof -> T. A function to test on all "proofN.json"s.
-
-    Returns:
-        failing_files: list. The list of file paths that failed to load or process.
+    :param json_data_dir: path to the directory to search
+    :returns: generator of all "proofN.json" files
+    :rtype: generator
     """
-    failing_files = []
     for subdir, _, files in os.walk(json_data_dir):
-        for file in files:
+        for file in sorted(files):
             if file.startswith("proof") and file.endswith(".json"):
-                file_path = os.path.join(subdir, file)
-                try:
-                    with open(file_path, "r") as json_file:
-                        data = json.load(json_file)
-                    f(data)
-                except Exception as e:
-                    failing_files.append(file_path)
-    
-    return failing_files
+                yield os.path.join(subdir, file)
 
-def delete_all(file_paths):
+def generate_from(json_data_dir):
+    """
+    Generator for all "proofN.json" files in the input directory.
+
+    :param json_data_dir: path to the directory to search
+    :returns: generator of all "proofN.json" files
+    :rtype: generator
+    """
+    for proof_path in generate_paths_from(json_data_dir):
+        proof = get_proof_json(proof_path)
+        yield proof
+
+def get_proofs_paths(json_data_dir):
+    """
+    Finds all paths "proofN.json" in the input directory.
+
+    :param json_data_dir: path to the directory to search
+    :returns: sorted list of paths to JSON files
+    :rtype: list(str)
+    """
+    all_paths = []
+    for proof_path in generate_paths_from(json_data_dir):
+        all_paths.append(proof_path)
+    return all_paths
+
+def find_erroneous(json_data_dir, f=lambda x: x):
+    """
+    Attempts to load each "proofN.json" in the input directory
+    and apply `f` to it. If it fails, it stores the failing
+    file path in the returned list.
+
+    :param json_data_dir: path to the directory to search
+    :param f: function to apply to each JSON file
+    :returns: list of paths to files that failed to load or process
+    :rtype: list(str)
+    """
+    erroneous_paths = []
+    for file_path in generate_paths_from(json_data_dir):
+        try:
+            with open(file_path, "r") as json_file:
+                data = json.load(json_file)
+            f(data)
+        except Exception as e:
+            erroneous_paths.append(file_path)
+    return erroneous_paths
+
+def delete_erroneous(json_data_dir):
+    """
+    Deletes all erroneous "proofN.json" in the input directory.
+
+    :param json_data_dir: path to the directory to search
+    :returns: tuple of lists, the first representing the 
+        deleted files and the second, those that failed to 
+        be deleted with their respective exceptions
+    :rtype: tuple(list(str), list(tuple(str, Exception)))
+    """
     deleted_files = []
     failed_files = []
-    for file_path in file_paths:
+    for file_path in find_erroneous(json_data_dir):
         try:
             os.remove(file_path)
             deleted_files.append(file_path)
         except Exception as e:
             path_reason = file_path, e
             failed_files.append(path_reason)
-
     return deleted_files, failed_files
 
 def apply(f, inits, json_data_dir):
-    """Apply f to each proof_json in json_data_dir starting with inits
+    """For accumulating the result of applying f to 
+    each proof in the input directory starting from 
+    initial store "inits".
 
-    Args:
-        inits: T
-        f: (T x json_proof) -> T
-        json_data_dir: str. Directory path containing JSON files.
-
-    Returns:
-        results: T. Aggregated results of applying f to each proof_json.
+    :param f: function of type (S x json_proof) -> S 
+        to apply to each proof
+    :param inits: initial store S for the results
+    :param json_data_dir: path to the directory holding
+        the proof JSON files
+    :returns: the accumulated results of applying f to
+        each proof in the directory
+    :rtype: S
     """
     results = inits
-    for subdir, _, files in os.walk(json_data_dir):
-        json_files = [file for file in files if file.startswith("proof") and file.endswith(".json")]
-        for file in json_files:
-            json_path = os.path.join(subdir, file)
-            proof_json = get_proof_json(json_path)
-            results = f(results, proof_json)
+    for proof in generate_from(json_data_dir):
+        results = f(results, proof)
     return results
 
-def gen_apply(f, inits, data_dir):
-    """Executes apply on each immediate subdirectory of data_dir
-
-    Args:
-        inits: T
-        f: (T x json_proof) -> T
-        data_dir: str. Data path containing subdirectories with JSON files.
-
-    Returns:
-        result: T. Aggregated results of applying f to each proof_json across all immediate subdirectories.
-    """
-    all_results = inits
-    imm_subdirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir()]
-    for path in imm_subdirs:
-        logging.info(f"Processing directory: {path}")
-        all_results = apply(f, all_results, path)
-    return all_results
-
-######## BUILDING THE SKELETON ########
-# assumes make_branch will be applied to the elements of
-# all_keys = gen_apply(union_keys, [], data_path)
+# PROOF OPERATIONS
 
 def get_keys(d, prefix=""):
     """Recursively finds all key-paths in the dictionary d
 
-    Args:
-        d: dict
-        prefix: str
-        json_data_dir: str. Directory path containing JSON files.
-
-    Returns:
-        keys: str list. The keys preppended with prefix
+    :param d: dictionary to extract keys from
+    :param prefix: prefix to prepend to each key
+    :returns: list of keys preppended with prefix
+    :rtype: list(str)
     """
     keys = []
     for key, value in d.items():
@@ -150,6 +168,32 @@ def get_keys(d, prefix=""):
         else:
             keys.append(prefix + key)
     return keys
+
+def full_actions_of(proof_json):
+    return [step['step']['action'] for step in proof_json['proof']['steps']]
+
+def orig_objective_of(proof_json):
+    return proof_json['proof']['steps'][0]['step']['action']
+
+def actions_of(proof_json):
+    return full_actions_of(proof_json)[1:]
+
+def user_states_of(proof_json):
+    return [step['step']['user_state'] for step in proof_json['proof']['steps'][1:]]
+
+def constants_of(proof_json):
+    return [step['step']['constants'] for step in proof_json['proof']['steps'][1:]]
+
+def print_proof(proof_json):
+    for act in full_actions_of(proof_json):
+        print(act)
+
+def count_steps(proof_json):
+    return len(proof_json['proof']['steps'])
+
+# SKELETON
+# assumption: make_branch will be applied to the elements 
+# of all_keys = apply(union_keys, [], data_path)
 
 def make_leaf(name):
     result = {}
@@ -207,29 +251,12 @@ def union_keys(keys, proof_json):
     final_keys = list(set(json_keys) | set(keys))
     return final_keys
 
-def make_skeleton(data_path):
-    all_keys = gen_apply(union_keys, [], data_path)
+def make_skeleton(json_data_dir):
+    all_keys = apply(union_keys, [], json_data_dir)
     dicts = list(map(make_branch, all_keys))
     skeleton = {}
     for d in dicts:
         skeleton = merge_dicts(skeleton, d)
     return skeleton
 
-#######################################
 
-def orig_objective_of(proof_json):
-    return proof_json['proof']['steps'][0]['step']['action']
-
-def user_states_of(proof_json):
-    return [step['step']['user_state'] for step in proof_json['proof']['steps'][1:]]
-
-def actions_of(proof_json):
-    return [step['step']['action'] for step in proof_json['proof']['steps'][1:]]
-
-def constants_of(proof_json):
-    return [step['step']['constants'] for step in proof_json['proof']['steps'][1:]]
-
-def print_proof(proof_json):
-    print(orig_objective_of(proof_json))
-    for act in actions_of(proof_json):
-        print(act)
