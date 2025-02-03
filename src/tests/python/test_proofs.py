@@ -158,6 +158,19 @@ def get_keys():
     else:
         print("get_keys() failed")
 
+def make_skeleton():
+    _ = proofs.delete_erroneous(TEST_DIR)
+    try:
+        skeleton = proofs.make_skeleton(TEST_DIR)
+        if skeleton == SKELETON:
+            print("make_skeleton() passed")
+        else:
+            print("make_skeleton() failed")
+    except Exception as e:
+        print(f"make_skeleton() failed: {e}")
+    finally:
+        restore_bad_proof()
+
 def print_proof():
     proof = proofs.get_proof_json(os.path.join(TEST_DIR, "proof.json"))
     proofs.print_proof(proof)
@@ -173,5 +186,6 @@ if __name__ == "__main__":
     count_steps()
     apply()
     get_keys()
-    print("Tests passed. An Isabelle proof is:")
+    make_skeleton()
+    print("An Isabelle proof is:")
     print_proof()
