@@ -303,7 +303,7 @@ def estimate_vocab_size(json_data_dir, coverage_threshold=0.95):
     
     return optimal_vocab_size
 
-def get_training_corpus(json_data_dir):
+def get_tokenizer_corpus(json_data_dir, readable=False):
     """Tokenizer's training corpus generator.
     
     :param json_data_dir: path to the search directory
@@ -311,7 +311,7 @@ def get_training_corpus(json_data_dir):
     :rtype: generator
     """
     for proof in generate_from(json_data_dir):
-        yield string_from(proof)
+        yield string_from(proof ,readable)
 
 # SKELETON
 # assumption: make_branch will be applied to the elements 

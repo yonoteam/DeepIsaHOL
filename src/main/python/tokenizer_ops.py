@@ -5,81 +5,8 @@
 
 import os
 import logging
-
 import proofs
-
 from transformers import AutoTokenizer
-
-
-ACTION_SEP = 'ACTION_SEP'
-GOAL_SEP = 'GOAL_SEP'
-TERM_SEP = 'TERM_SEP'
-HYPS_SEP = 'HYPS_SEP'
-VARS_SEP = 'VARS_SEP'
-CONSTS_SEP = 'CONSTS_SEP'
-TYPES_SEP = 'TYPES_SEP'
-APPLY_KWS_SEP = 'APPLY_KWS_SEP'
-ISAR_KWS_SEP = 'ISAR_KWS_SEP'
-DEPS_SEP = 'DEPS_SEP'
-NAME_SEP = 'NAME_SEP'
-METHODS_SEP = 'METHODS_SEP'
-
-def separator(sep, txt):
-    return sep + ' ' + txt
-
-def string_from(proof_json):
-    str_list = []
-    for step in proof_json['proof']['steps'][1:]:
-        usr_act_str = " ".join([
-            step['step']['user_state'], 
-            separator(ACTION_SEP, step['step']['action']), 
-            separator(GOAL_SEP, step['step']['term'])
-        ])
-        str_list.append(usr_act_str)
-        
-        str_list.append(HYPS_SEP)
-        for hyp_dict in step['step'].get('hyps', []):
-            for _, hyp in hyp_dict.items():
-                str_list.append(separator(TERM_SEP, hyp))
-
-        str_list.append(VARS_SEP)
-        for var_dict in step['step'].get('variables', []):
-            for _, var in var_dict.items():
-                str_list.append(separator(TERM_SEP, var))
-
-        str_list.append(VARS_SEP)
-        for var_dict in step['step'].get('variables', []):
-            for _, var in var_dict.items():
-                str_list.append(separator(TERM_SEP, var))
-
-        str_list.append(CONSTS_SEP)
-        for const_dict in step['step'].get('constants', []):
-            for _, const in const_dict.items():
-                str_list.append(separator(TERM_SEP, const))
-
-        str_list.append(TYPES_SEP)
-        for type_var_dict in step['step'].get('type variables', []):
-            for _, type_var in type_var_dict.items():
-                str_list.append(separator(TERM_SEP, type_var))
-
-    str_list.append(APPLY_KWS_SEP)
-    for apply_kw in proof_json['proof'].get('apply_kwrds', []):
-        str_list.append(separator(NAME_SEP, apply_kw['name']))
-
-    str_list.append(ISAR_KWS_SEP)
-    for isar_kw in proof_json['proof'].get('isar_kwrds', []):
-        str_list.append(separator(NAME_SEP, isar_kw['name']))
-
-    str_list.append(DEPS_SEP)
-    for dep in proof_json['proof'].get('deps', []):
-        str_list.append(separator(NAME_SEP, dep['thm']['name']))
-        str_list.append(separator(TERM_SEP, dep['thm']['term']))
-        
-    str_list.append(METHODS_SEP)
-    for method in proof_json['proof'].get('methods', []):
-        str_list.append(separator(NAME_SEP, method['name']))
-
-    return " ".join(str_list)
 
 def load_hf_tokenizer(model_name):
     try:
@@ -88,33 +15,13 @@ def load_hf_tokenizer(model_name):
     except Exception:
         logging.error(f"'{model_name}' is not a valid local directory or Hugging Face model.")
 
-def train_tokenizer_old(model_name, data_dir):
-    try:
-        tokenizer = load_hf_tokenizer(model_name)
-        def get_training_corpus():
-            imm_subdirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir()]
-            for path in imm_subdirs:
-                logging.info(f"Processing directory: {path}")
-                for subdir, _, files in os.walk(path):
-                    json_files = [file for file in files if file.startswith("proof") and file.endswith(".json")]
-                    for file in json_files:
-                        json_path = os.path.join(subdir, file)
-                        proof_json = proofs.get_proof_json(json_path)
-                        yield string_from(proof_json)
-        
-        training_corpus = get_training_corpus()
-        tokenizer = tokenizer.train_new_from_iterator(training_corpus, 52000) # TODO: calculate optimal vocabulary size
-        return tokenizer
-    except Exception as e:
-        logging.error(f"training tokenizer for {model_name} using data in {data_dir}: {e}")
-
 def train_tokenizer(model_name, data_dir):
     try:
         tokenizer = load_hf_tokenizer(model_name)        
-        training_corpus = proofs.get_training_corpus(data_dir)
+        training_corpus = proofs.get_tokenizer_corpus(data_dir)
         estimated_vocab_size = proofs.estimate_vocab_size(data_dir, 0.98)
-        # vocab_size = 1.5 * estimated_vocab_size // 1
-        tokenizer = tokenizer.train_new_from_iterator(training_corpus, estimated_vocab_size)
+        vocab_size = int(1.5 * estimated_vocab_size)
+        tokenizer = tokenizer.train_new_from_iterator(training_corpus, vocab_size)
         return tokenizer
     except Exception as e:
         logging.error(f"training tokenizer for {model_name} using data in {data_dir}: {e}")
@@ -143,7 +50,7 @@ def save_hf_data_in(hf_data, saving_dir):
     
 def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
     if remote:
-        tokenizer = train_tokenizer_old(model_name, data_dir)
+        tokenizer = train_tokenizer(model_name, data_dir)
         save_hf_data_in(tokenizer, tokenizers_dir)
         return tokenizer
     else:
@@ -161,21 +68,21 @@ def add_data_from(mode_tok_data, proof_json):
         y = step['step']['action']
         xs = step['step']['user_state']
         if mode == 'state_prems':
-            xs = xs + ' ' + separator(GOAL_SEP, proofs.orig_objective_of(proof_json))
-            xs = xs + ' ' + separator(DEPS_SEP, ' ')
+            xs = xs + ' ' + ' '.join([proofs.GOAL_SEP, proofs.orig_objective_of(proof_json)])
+            xs = xs + ' ' + ' '.join([proofs.DEPS_SEP, ' '])
             for thm in proof_json['proof']['deps']:
-                zs = separator(NAME_SEP, thm['thm']['name']) + ' ' + separator(TERM_SEP, thm['thm']['term'])
+                zs = ' '.join([proofs.NAME_SEP, thm['thm']['name']]) + ' ' + ' '.join([proofs.TERM_SEP, thm['thm']['term']])
                 xs = xs + ' ' + zs
         elif mode == 'state_prems_consts':
-            xs = xs + ' ' + separator(GOAL_SEP, proofs.orig_objective_of(proof_json))
-            xs = xs + ' ' + separator(DEPS_SEP, ' ')
+            xs = xs + ' ' + ' '.join([proofs.GOAL_SEP, proofs.orig_objective_of(proof_json)])
+            xs = xs + ' ' + ' '.join([proofs.DEPS_SEP, ' '])
             for thm in proof_json['proof']['deps']:
-                zs = separator(NAME_SEP, thm['thm']['name']) + ' ' + separator(TERM_SEP, thm['thm']['term'])
+                zs = ' '.join([proofs.NAME_SEP, thm['thm']['name']]) + ' ' + ' '.join([proofs.TERM_SEP, thm['thm']['term']])
                 xs = xs + ' ' + zs
-            xs = xs + ' ' + separator(CONSTS_SEP, ' ')
+            xs = xs + ' ' + ' '.join([proofs.CONSTS_SEP, ' '])
             for const in step['step']['constants']:
                 for key in const.keys():
-                    zs = separator(TERM_SEP, const[key])
+                    zs = ' '.join([proofs.TERM_SEP, const[key]])
                     xs = xs + ' ' + zs
 
         inputs = tokenizer(
