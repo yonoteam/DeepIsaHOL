@@ -88,7 +88,7 @@ def load_hf_tokenizer(model_name):
     except Exception:
         logging.error(f"'{model_name}' is not a valid local directory or Hugging Face model.")
 
-def train_tokenizer(model_name, data_dir):
+def train_tokenizer_old(model_name, data_dir):
     try:
         tokenizer = load_hf_tokenizer(model_name)
         def get_training_corpus():
@@ -104,6 +104,17 @@ def train_tokenizer(model_name, data_dir):
         
         training_corpus = get_training_corpus()
         tokenizer = tokenizer.train_new_from_iterator(training_corpus, 52000) # TODO: calculate optimal vocabulary size
+        return tokenizer
+    except Exception as e:
+        logging.error(f"training tokenizer for {model_name} using data in {data_dir}: {e}")
+
+def train_tokenizer(model_name, data_dir):
+    try:
+        tokenizer = load_hf_tokenizer(model_name)        
+        training_corpus = proofs.get_training_corpus(data_dir)
+        estimated_vocab_size = proofs.estimate_vocab_size(data_dir, 0.98)
+        # vocab_size = 1.5 * estimated_vocab_size // 1
+        tokenizer = tokenizer.train_new_from_iterator(training_corpus, estimated_vocab_size)
         return tokenizer
     except Exception as e:
         logging.error(f"training tokenizer for {model_name} using data in {data_dir}: {e}")
@@ -132,7 +143,7 @@ def save_hf_data_in(hf_data, saving_dir):
     
 def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
     if remote:
-        tokenizer = train_tokenizer(model_name, data_dir)
+        tokenizer = train_tokenizer_old(model_name, data_dir)
         save_hf_data_in(tokenizer, tokenizers_dir)
         return tokenizer
     else:

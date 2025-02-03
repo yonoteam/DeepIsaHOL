@@ -7,8 +7,24 @@ import os
 import json
 import logging
 
-from copy import deepcopy
 from pathlib import Path
+from collections import Counter
+from copy import deepcopy
+from tqdm import tqdm
+
+ACTION_SEP = 'ACTION_SEP'
+GOAL_SEP = 'GOAL_SEP'
+TERM_SEP = 'TERM_SEP'
+HYPS_SEP = 'HYPS_SEP'
+VARS_SEP = 'VARS_SEP'
+CONSTS_SEP = 'CONSTS_SEP'
+TYPES_SEP = 'TYPES_SEP'
+APPLY_KWS_SEP = 'APPLY_KWS_SEP'
+ISAR_KWS_SEP = 'ISAR_KWS_SEP'
+DEPS_SEP = 'DEPS_SEP'
+NAME_SEP = 'NAME_SEP'
+METHODS_SEP = 'METHODS_SEP'
+
 
 # DIRECTORY OPERATIONS
 
@@ -52,7 +68,7 @@ def generate_paths_from(json_data_dir):
     Generator for all "proofN.json" file-paths in the 
     input directory.
 
-    :param json_data_dir: path to the directory to search
+    :param json_data_dir: path to the search directory
     :returns: generator of all "proofN.json" files
     :rtype: generator
     """
@@ -65,7 +81,7 @@ def generate_from(json_data_dir):
     """
     Generator for all "proofN.json" files in the input directory.
 
-    :param json_data_dir: path to the directory to search
+    :param json_data_dir: path to the search directory
     :returns: generator of all "proofN.json" files
     :rtype: generator
     """
@@ -77,7 +93,7 @@ def get_proofs_paths(json_data_dir):
     """
     Finds all paths "proofN.json" in the input directory.
 
-    :param json_data_dir: path to the directory to search
+    :param json_data_dir: path to the search directory
     :returns: sorted list of paths to JSON files
     :rtype: list(str)
     """
@@ -92,7 +108,7 @@ def find_erroneous(json_data_dir, f=lambda x: x):
     and apply `f` to it. If it fails, it stores the failing
     file path in the returned list.
 
-    :param json_data_dir: path to the directory to search
+    :param json_data_dir: path to the search directory
     :param f: function to apply to each JSON file
     :returns: list of paths to files that failed to load or process
     :rtype: list(str)
@@ -111,7 +127,7 @@ def delete_erroneous(json_data_dir):
     """
     Deletes all erroneous "proofN.json" in the input directory.
 
-    :param json_data_dir: path to the directory to search
+    :param json_data_dir: path to the search directory
     :returns: tuple of lists, the first representing the 
         deleted files and the second, those that failed to 
         be deleted with their respective exceptions
@@ -143,7 +159,7 @@ def apply(f, inits, json_data_dir):
     :rtype: S
     """
     results = inits
-    for proof in generate_from(json_data_dir):
+    for proof in tqdm(generate_from(json_data_dir), desc="Processing proofs", unit="proof"):
         results = f(results, proof)
     return results
 
@@ -190,6 +206,112 @@ def print_proof(proof_json):
 
 def count_steps(proof_json):
     return len(proof_json['proof']['steps'])
+
+def string_from(proof_json, readable=False):
+    str_list = [orig_objective_of(proof_json)]
+    sep_space = '\n' if readable else ' '
+
+    for step in proof_json['proof']['steps'][1:]:
+        usr_act_str = sep_space.join([
+            step['step']['user_state'], 
+            ' '.join([ACTION_SEP, step['step']['action']]), 
+            ' '.join([GOAL_SEP, step['step']['term']])
+        ])
+        str_list.append(usr_act_str)
+        
+        str_list.append(HYPS_SEP)
+        for hyp_dict in step['step'].get('hyps', []):
+            for _, hyp in hyp_dict.items():
+                str_list.append(' '.join([TERM_SEP, hyp]))
+
+        str_list.append(VARS_SEP)
+        for var_dict in step['step'].get('variables', []):
+            for _, var in var_dict.items():
+                str_list.append(' '.join([TERM_SEP, var]))
+
+        str_list.append(VARS_SEP)
+        for var_dict in step['step'].get('variables', []):
+            for _, var in var_dict.items():
+                str_list.append(' '.join([TERM_SEP, var]))
+
+        str_list.append(CONSTS_SEP)
+        for const_dict in step['step'].get('constants', []):
+            for _, const in const_dict.items():
+                str_list.append(' '.join([TERM_SEP, const]))
+
+        str_list.append(TYPES_SEP)
+        for type_var_dict in step['step'].get('type variables', []):
+            for _, type_var in type_var_dict.items():
+                str_list.append(' '.join([TERM_SEP, type_var]))
+
+    str_list.append(APPLY_KWS_SEP)
+    for apply_kw in proof_json['proof'].get('apply_kwrds', []):
+        str_list.append(' '.join([NAME_SEP, apply_kw['name']]))
+
+    str_list.append(ISAR_KWS_SEP)
+    for isar_kw in proof_json['proof'].get('isar_kwrds', []):
+        str_list.append(' '.join([NAME_SEP, isar_kw['name']]))
+
+    str_list.append(DEPS_SEP)
+    for dep in proof_json['proof'].get('deps', []):
+        str_list.append(' '.join([NAME_SEP, dep['thm']['name']]))
+        str_list.append(' '.join([TERM_SEP, dep['thm']['term']]))
+        
+    str_list.append(METHODS_SEP)
+    for method in proof_json['proof'].get('methods', []):
+        str_list.append(' '.join([NAME_SEP, method['name']]))
+
+    return sep_space.join(str_list)
+
+# TOKENIZER REQUIREMENTS
+
+def get_approx_tokens(token_counter, proof_json):
+    """To be used with proofs.apply. Accumulates the token
+    count of each proof in the input directory.
+    
+    :param token_counter: counter to accumulate token counts
+    :param proof_json: dictionary representing a proof
+    :returns: updated token counter
+    :rtype: collections.Counter
+    """
+    proof_str = string_from(proof_json)
+    proof_tokens = proof_str.split()
+    for token in proof_tokens:
+        token_counter[token] += 1
+    return token_counter
+
+def estimate_vocab_size(json_data_dir, coverage_threshold=0.95):
+    """Estimates the optimal vocabulary size for tokenization
+    of the proofs in the input directory.
+    
+    :param json_data_dir: path to the directory holding
+        the proof JSON files
+    :returns: the estimated optimal vocabulary size
+    :rtype: int
+    """
+    token_counter = apply(get_approx_tokens, Counter(), json_data_dir)
+    token_freqs = token_counter.most_common()
+    total_tokens = sum(token_counter.values())
+
+    cumulative_coverage = 0.0
+    optimal_vocab_size = 0
+    for i, (token, freq) in enumerate(token_freqs):
+        cumulative_coverage += freq / total_tokens
+        if cumulative_coverage >= coverage_threshold:
+            optimal_vocab_size = i + 1
+            break
+    
+    return optimal_vocab_size
+
+def get_training_corpus(json_data_dir):
+    """Tokenizer's training corpus generator.
+    
+    :param json_data_dir: path to the search directory
+    :returns: generator of proof strings
+    :rtype: generator
+    """
+    for proof in generate_from(json_data_dir):
+        yield string_from(proof)
 
 # SKELETON
 # assumption: make_branch will be applied to the elements 
