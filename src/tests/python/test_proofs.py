@@ -175,6 +175,14 @@ def print_proof():
     proof = proofs.get_proof_json(os.path.join(TEST_DIR, "proof.json"))
     proofs.print_proof(proof)
 
+def inputs_targets_from(test_dir=TEST_DIR):
+    try:
+        iter_f = lambda data_list, proof: proofs.inputs_targets_from(proof, mode=proofs.SPKT_MODE, readable=False)
+        proofs.apply(iter_f, [], test_dir)
+        print("input_targets_from() passed")
+    except Exception as e:
+        print(f"input_targets_from() failed: {e}")
+
 if __name__ == "__main__":
     get_proof_json()
     valid_data_dir()

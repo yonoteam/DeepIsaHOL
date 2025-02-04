@@ -13,6 +13,7 @@ from copy import deepcopy
 from tqdm import tqdm
 
 ACTION_SEP = 'ACTION_SEP'
+USER_STATE_SEP = 'USER_STATE'
 GOAL_SEP = 'GOAL_SEP'
 TERM_SEP = 'TERM_SEP'
 HYPS_SEP = 'HYPS_SEP'
@@ -25,6 +26,15 @@ DEPS_SEP = 'DEPS_SEP'
 NAME_SEP = 'NAME_SEP'
 METHODS_SEP = 'METHODS_SEP'
 
+STATE_MODE = 'state'
+SP_MODE = 'state_prems'
+SPK_MODE = 'state_prems_kwrds'
+SPKT_MODE = 'state_prems_kwrds_terms'
+MODES = [STATE_MODE, SP_MODE, SPK_MODE, SPKT_MODE]
+
+def print_modes():
+    for mode in MODES:
+        print(mode)
 
 # DIRECTORY OPERATIONS
 
@@ -97,10 +107,7 @@ def get_proofs_paths(json_data_dir):
     :returns: sorted list of paths to JSON files
     :rtype: list(str)
     """
-    all_paths = []
-    for proof_path in generate_paths_from(json_data_dir):
-        all_paths.append(proof_path)
-    return all_paths
+    return sorted(list(generate_paths_from(json_data_dir)))
 
 def find_erroneous(json_data_dir, f=lambda x: x):
     """
@@ -204,8 +211,16 @@ def print_proof(proof_json):
     for act in full_actions_of(proof_json):
         print(act)
 
+def user_proof_up_to(proof_json, i):
+    proof_so_far = [orig_objective_of(proof_json)]
+    for step in proof_json['proof']['steps'][1:i]:
+        proof_so_far.append(step['step']['action'])
+    return '\n'.join(proof_so_far)
+
 def count_steps(proof_json):
     return len(proof_json['proof']['steps'])
+
+# STRING REPRESENTATIONS
 
 def string_from(proof_json, readable=False):
     str_list = [orig_objective_of(proof_json)]
@@ -213,7 +228,7 @@ def string_from(proof_json, readable=False):
 
     for step in proof_json['proof']['steps'][1:]:
         usr_act_str = sep_space.join([
-            step['step']['user_state'], 
+            ' '.join([USER_STATE_SEP, step['step']['user_state']]), 
             ' '.join([ACTION_SEP, step['step']['action']]), 
             ' '.join([GOAL_SEP, step['step']['term']])
         ])
@@ -261,7 +276,53 @@ def string_from(proof_json, readable=False):
     for method in proof_json['proof'].get('methods', []):
         str_list.append(' '.join([NAME_SEP, method['name']]))
 
-    return sep_space.join(str_list)
+    return sep_space.join(str_list) 
+
+def inputs_targets_from(proof_json, mode=STATE_MODE, readable=False):
+    data = []
+    sep_space = '\n' if readable else ' '
+    for i, step in enumerate(proof_json['proof']['steps'][1:], 1):
+        y = step['step']['action']
+        xs = [
+            user_proof_up_to(proof_json, i),
+            ' '.join([USER_STATE_SEP, step['step']['user_state']])
+        ]
+
+        if mode.startswith(SP_MODE):
+            xs.append(DEPS_SEP)
+            for thm in proof_json['proof']['deps']:
+                zs = ' '.join([NAME_SEP, thm['thm']['name']]) + ' ' + ' '.join([TERM_SEP, thm['thm']['term']])
+                xs.append(zs)
+
+        # TODO: add isar/apply-dependent keyword retrieval
+        if mode.startswith(SPK_MODE):
+            xs.append(METHODS_SEP)
+            for method in proof_json['proof']['methods']:
+                zs = ' '.join([NAME_SEP, method['name']])
+                xs.append(zs)
+
+        if mode.startswith(SPKT_MODE):
+            xs.append(VARS_SEP)
+            for var_dict in step['step'].get('variables', []):
+                for _, var in var_dict.items():
+                    zs = ' '.join([TERM_SEP, var])
+                    xs.append(zs)
+            
+            xs.append(CONSTS_SEP)
+            for const in step['step']['constants']:
+                for key in const.keys():
+                    zs = ' '.join([TERM_SEP, const[key]])
+                    xs.append(zs)
+            
+            xs.append(TYPES_SEP)
+            for type_var_dict in step['step'].get('type variables', []):
+                for _, type_var in type_var_dict.items():
+                    zs = ' '.join([TERM_SEP, type_var])
+                    xs.append(zs)
+        
+        x = sep_space.join(xs)
+        data.append((x, y))
+    return data
 
 # TOKENIZER REQUIREMENTS
 
@@ -312,6 +373,7 @@ def get_tokenizer_corpus(json_data_dir, readable=False):
     """
     for proof in generate_from(json_data_dir):
         yield string_from(proof ,readable)
+
 
 # SKELETON
 # assumption: make_branch will be applied to the elements 

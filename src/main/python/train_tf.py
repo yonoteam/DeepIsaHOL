@@ -135,11 +135,11 @@ def add_dir_data(mode_tok_data, json_data_dir):
             json_path = os.path.join(subdir, file)
             proof_json = proofs.get_proof_json(json_path)
             if i < train_size:
-                train_data = tokenizer_ops.add_data_from((mode, tokenizer, train_data), proof_json)
+                train_data = tokenizer_ops.add_data_from_old((mode, tokenizer, train_data), proof_json)
             elif i < train_size + valid_size:
-                valid_data = tokenizer_ops.add_data_from((mode, tokenizer, valid_data), proof_json)
+                valid_data = tokenizer_ops.add_data_from_old((mode, tokenizer, valid_data), proof_json)
             else:
-                test_data = tokenizer_ops.add_data_from((mode, tokenizer, test_data), proof_json)
+                test_data = tokenizer_ops.add_data_from_old((mode, tokenizer, test_data), proof_json)
     return mode, tokenizer, train_data, valid_data, test_data
 
 # TODO: adapt for proofs.gen_apply
