@@ -144,6 +144,32 @@ def make_new_tokenizer_datasets_in(model_name, data_dir, mode, save_dir):
     dataset_dict = make_datasets(tokenizer, data_dir, mode)
     save_datasets_in(dataset_dict, latest_dir)
 
+def data_generator(dataset_path, split):
+    """
+    Generator function for train, validation, and test data.
+
+    :param dataset_path: path to the saved dataset (datasets.pt)
+    :param split: 'train', 'valid', or 'test' to specify which split to load
+    :returns: generator for inputs with labels for conditional generation
+    :rtype: generator
+    """
+    datasets = torch.load(dataset_path, map_location='cpu', weights_only=True)
+    dataset = datasets[split]
+
+    num_samples = dataset['input_ids'].shape[0] # attention_mask, overflow_sample_idx, and labels have the same first dimension
+    for i in range(num_samples):
+        yield {
+            "input_ids": dataset['input_ids'][i],
+            "attention_mask": dataset["attention_mask"][i],
+            "overflow_sample_idx": dataset["overflow_sample_idx"][i],
+            "labels": dataset["labels"][i]
+        }
+
+def data_generator_old(datasets_path, split):
+    dataset = torch.load(datasets_path, weights_only=True)[split]
+    for item in dataset:
+        yield item
+
 def add_data_from_old(mode_tok_data, proof_json):
     mode, tokenizer, data = mode_tok_data
     for step in proof_json['proof']['steps'][1:]:

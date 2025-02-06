@@ -15,14 +15,15 @@ import torch
 import random
 
 import proofs
-import tokenizer_ops
+import tokenizer_ops as tokops
 import accelerate_test
 
-from transformers import set_seed
-from transformers import AutoTokenizer, AutoConfig
-from transformers import T5ForConditionalGeneration
 from torch.utils.data import DataLoader
+from transformers import set_seed
+from transformers import AutoConfig
+from transformers import T5ForConditionalGeneration
 from transformers import DataCollatorForSeq2Seq, get_scheduler
+from datasets import IterableDataset
 from accelerate import Accelerator
 from accelerate.utils import broadcast_object_list
 
@@ -135,14 +136,13 @@ def add_dir_data(mode_tok_data, json_data_dir):
             json_path = os.path.join(subdir, file)
             proof_json = proofs.get_proof_json(json_path)
             if i < train_size:
-                train_data = tokenizer_ops.add_data_from_old((mode, tokenizer, train_data), proof_json)
+                train_data = tokops.add_data_from_old((mode, tokenizer, train_data), proof_json)
             elif i < train_size + valid_size:
-                valid_data = tokenizer_ops.add_data_from_old((mode, tokenizer, valid_data), proof_json)
+                valid_data = tokops.add_data_from_old((mode, tokenizer, valid_data), proof_json)
             else:
-                test_data = tokenizer_ops.add_data_from_old((mode, tokenizer, test_data), proof_json)
+                test_data = tokops.add_data_from_old((mode, tokenizer, test_data), proof_json)
     return mode, tokenizer, train_data, valid_data, test_data
 
-# TODO: adapt for proofs.gen_apply
 def make_datasets(mode, tokenizer, init_train, init_valid, init_test, data_dir):
     all_results = (mode, tokenizer, init_train, init_valid, init_test)
     imm_subdirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir()]
@@ -164,10 +164,13 @@ def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
 
 def load_datasets(datasets_dir):
     datasets_path = os.path.join(datasets_dir, 'datasets.pt')
-    dataset_dict = torch.load(datasets_path, weights_only=True)
-    train_data = dataset_dict["train"]
-    valid_data = dataset_dict["valid"]
-    test_data = dataset_dict["test"]
+    # dataset_dict = torch.load(datasets_path, weights_only=True)
+    # train_data = dataset_dict["train"]
+    # valid_data = dataset_dict["valid"]
+    # test_data = dataset_dict["test"]
+    train_data = IterableDataset.from_generator(lambda: tokops.data_generator_old(datasets_path, 'train'))
+    valid_data = IterableDataset.from_generator(lambda: tokops.data_generator_old(datasets_path, 'valid'))
+    test_data = IterableDataset.from_generator(lambda: tokops.data_generator_old(datasets_path, 'test'))
     return train_data, valid_data, test_data
 
 def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
@@ -302,7 +305,7 @@ def main(config):
 
         if accelerator.is_main_process:
             # Tokenizer
-            tokenizer, tokenizer_dir = tokenizer_ops.get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
+            tokenizer, tokenizer_dir = tokops.get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
             vocab_size = len(tokenizer)
             logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
 
@@ -328,7 +331,7 @@ def main(config):
         data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
 
         batch_size = 8 // accelerator.num_processes
-        train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
+        train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
         valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
 
         # Training loop
