@@ -165,10 +165,14 @@ def data_generator(dataset_path, split):
             "labels": dataset["labels"][i]
         }
 
-def data_generator_old(datasets_path, split):
-    dataset = torch.load(datasets_path, weights_only=True)[split]
-    for item in dataset:
-        yield item
+def data_generator_old(dataset_path, split):
+    dataset = torch.load(dataset_path, map_location='cpu')  # no `weights_only=True`?
+    for item in dataset[split]:
+        yield {
+            "input_ids": torch.tensor(item["input_ids"]),
+            "attention_mask": torch.tensor(item["attention_mask"]),
+            "labels": torch.tensor(item["labels"])
+        }
 
 def add_data_from_old(mode_tok_data, proof_json):
     mode, tokenizer, data = mode_tok_data
