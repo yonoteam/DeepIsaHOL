@@ -162,22 +162,22 @@ def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
     datasets_path = os.path.join(datasets_dir, 'datasets.pt')
     torch.save(dataset_dict, datasets_path)
 
-def load_datasets(datasets_dir):
-    datasets_path = os.path.join(datasets_dir, 'datasets.pt')
+def load_datasets(tokenizer, mode, data_dir):
+    # datasets_path = os.path.join(datasets_dir, 'datasets.pt')
     # dataset_dict = torch.load(datasets_path, weights_only=True)
     # train_data = dataset_dict["train"]
     # valid_data = dataset_dict["valid"]
     # test_data = dataset_dict["test"]
-    train_data = IterableDataset.from_generator(lambda: tokops.data_generator_old(datasets_path, 'train'))
-    valid_data = IterableDataset.from_generator(lambda: tokops.data_generator_old(datasets_path, 'valid'))
-    test_data = IterableDataset.from_generator(lambda: tokops.data_generator_old(datasets_path, 'test'))
+    train_data = IterableDataset.from_generator(lambda: tokops.generate_model_inputs(tokenizer, data_dir, split='train', mode=mode))
+    valid_data = IterableDataset.from_generator(lambda: tokops.generate_model_inputs(tokenizer, data_dir, split='valid', mode=mode))
+    test_data = IterableDataset.from_generator(lambda: tokops.generate_model_inputs(tokenizer, data_dir, split='test', mode=mode))
     return train_data, valid_data, test_data
 
 def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
-    if remote:
-        train_data, valid_data, test_data = make_datasets(mode, tokenizer, [], [], [], data_dir)
-        save_datasets_in(train_data, valid_data, test_data, datasets_dir)
-    train_data, valid_data, test_data = load_datasets(datasets_dir)
+    # if remote:
+    #     train_data, valid_data, test_data = make_datasets(mode, tokenizer, [], [], [], data_dir)
+    #     save_datasets_in(train_data, valid_data, test_data, datasets_dir)
+    train_data, valid_data, test_data = load_datasets(tokenizer, mode, data_dir)
     return train_data, valid_data, test_data
 
 # MODEL
@@ -305,7 +305,7 @@ def main(config):
 
         if accelerator.is_main_process:
             # Tokenizer
-            tokenizer, tokenizer_dir = tokops.get_trained_tokenizer(tokenizer_remote, data_dir, tokenizers_dir, model_name)
+            tokenizer, tokenizer_dir = tokops.get_trained_tokenizer_and_tokdir(tokenizer_remote, data_dir, tokenizers_dir, model_name)
             vocab_size = len(tokenizer)
             logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
 

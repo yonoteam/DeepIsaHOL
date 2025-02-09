@@ -51,7 +51,7 @@ def save_hf_data_in(hf_data, saving_dir):
     except FileExistsError:
         logging.warning(f"Directory '{new_dir}' already exists. Skipping save.")
     
-def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
+def get_trained_tokenizer_and_tokdir(remote, data_dir, tokenizers_dir, model_name):
     if remote:
         tokenizer = train_tokenizer(model_name, data_dir)
         save_hf_data_in(tokenizer, tokenizers_dir)
@@ -64,7 +64,36 @@ def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
         latest_dir = max(subdirs, key=lambda d: int(os.path.basename(d)))
         tokenizer = AutoTokenizer.from_pretrained(latest_dir)
         return tokenizer, latest_dir
-    
+
+def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
+    tok, _ = get_trained_tokenizer_and_tokdir(remote, data_dir, tokenizers_dir, model_name)    
+    return tok
+
+def generate_paths(json_data_dir, split):
+    if not proofs.valid_data_dir(json_data_dir):
+        raise Exception(f"Error: bad input {json_data_dir} is not an existing directory or does not contain a proofN.json.")
+
+    for subdir, _, files in os.walk(json_data_dir):
+        json_files = [file for file in files if file.startswith("proof") and file.endswith(".json")]
+        json_files = [os.path.join(subdir, file) for file in sorted(json_files)]
+
+        total_proofs = len(json_files)
+        train_size = int(total_proofs * 0.64)
+        valid_size = int(total_proofs * 0.16)
+
+        train_split = json_files[:train_size]
+        valid_split = json_files[train_size:train_size + valid_size]
+        test_split = json_files[train_size + valid_size:]
+
+        if split == "train":
+            yield from train_split
+        elif split == "valid":
+            yield from valid_split
+        elif split == "test":
+            yield from test_split
+        else:
+            raise Exception(f"Error: bad input {split}, expected train, valid, or test.")
+        
 def tokenize(tokenizer, x, y):
     max_length = tokenizer.model_max_length
     inputs = tokenizer(
@@ -83,96 +112,35 @@ def tokenize(tokenizer, x, y):
         padding="max_length",
         return_tensors="pt"
     )
-    overflow_mapping = inputs["overflow_to_sample_mapping"]
-    return inputs, targets, overflow_mapping
-
-
-def add_dir_data_to(tokenizer, json_data_dir, dataset_dict, mode=proofs.STATE_MODE):
-    proof_paths = proofs.get_proofs_paths(json_data_dir)
-    total_proofs = len(proof_paths)
-    train_size = int(0.8 * total_proofs)
-    valid_size = int(0.1 * total_proofs)
-
-    for split in ["train", "valid", "test"]:
-        if split not in dataset_dict:
-            dataset_dict[split] = defaultdict(list)
-    
-    for i, proof_path in enumerate(proof_paths):
-        proof_json = proofs.get_proof_json(proof_path)
-        if i < train_size:
-            data = dataset_dict["train"]
-        elif i < train_size + valid_size:
-            data = dataset_dict["valid"]
-        else:
-            data = dataset_dict["test"]
-        
-        for x, y in proofs.inputs_targets_from(proof_json, mode):
-            inputs, targets, overflow_mapping = tokenize(tokenizer, x, y)
-            for j, input_ids in enumerate(inputs["input_ids"]):
-                data["input_ids"].append(input_ids)
-                data["attention_mask"].append(inputs["attention_mask"][j])
-                data["overflow_sample_idx"].append(overflow_mapping[j])
-                data["labels"].append(targets["input_ids"].squeeze())
-    
-    return dataset_dict
-
-def make_datasets(tokenizer, data_dir, mode=proofs.STATE_MODE):
-    dataset_dict = {
-        "train": defaultdict(list),
-        "valid": defaultdict(list),
-        "test": defaultdict(list)
-    }
-
-    imm_subdirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir()]
-    for subdir in imm_subdirs:
-        logging.info(f"Adding data from directory: {subdir}")
-        dataset_dict = add_dir_data_to(tokenizer, subdir, dataset_dict, mode)
-    
-    for split in ["train", "valid", "test"]:
-        dataset_dict[split] = {
-            key: torch.stack(value) if key != "overflow_sample_idx" else torch.tensor(value)
-            for key, value in dataset_dict[split].items()
+    n_overflowed = inputs["input_ids"].shape[0]
+    model_inputs = []
+    for i in range(n_overflowed):
+        to_add = {
+            "input_ids": inputs["input_ids"][i],
+            "attention_mask": inputs["attention_mask"][i],
+            "overflow_sample_idx": inputs["overflow_to_sample_mapping"][i],
+            "labels": targets["input_ids"].squeeze()
         }
-    return dataset_dict
+        model_inputs.append(to_add)
+    return model_inputs
 
-def save_datasets_in(dataset_dict, datasets_dir):
-    datasets_path = os.path.join(datasets_dir, 'datasets.pt')
-    torch.save(dataset_dict, datasets_path)
-
-def make_new_tokenizer_datasets_in(model_name, data_dir, mode, save_dir):
-    tokenizer, latest_dir = get_trained_tokenizer(True, data_dir, save_dir, model_name)
-    dataset_dict = make_datasets(tokenizer, data_dir, mode)
-    save_datasets_in(dataset_dict, latest_dir)
-
-def data_generator(dataset_path, split):
+def generate_model_inputs(tokenizer, json_data_dir, split, mode=proofs.STATE_MODE):
     """
     Generator function for train, validation, and test data.
 
-    :param dataset_path: path to the saved dataset (datasets.pt)
+    :param tokenizer: the model's tokenizer
+    :param json_data_dir: path to the search directory with proofN.json files
     :param split: 'train', 'valid', or 'test' to specify which split to load
-    :returns: generator for inputs with labels for conditional generation
+    :param mode: proof data format (see proofs.print_modes())
+    :returns: generator for tokenized inputs with labels for conditional generation
     :rtype: generator
     """
-    datasets = torch.load(dataset_path, map_location='cpu', weights_only=True)
-    dataset = datasets[split]
-
-    num_samples = dataset['input_ids'].shape[0] # attention_mask, overflow_sample_idx, and labels have the same first dimension
-    for i in range(num_samples):
-        yield {
-            "input_ids": dataset['input_ids'][i],
-            "attention_mask": dataset["attention_mask"][i],
-            "overflow_sample_idx": dataset["overflow_sample_idx"][i],
-            "labels": dataset["labels"][i]
-        }
-
-def data_generator_old(dataset_path, split):
-    dataset = torch.load(dataset_path, map_location='cpu')  # no `weights_only=True`?
-    for item in dataset[split]:
-        yield {
-            "input_ids": torch.tensor(item["input_ids"]),
-            "attention_mask": torch.tensor(item["attention_mask"]),
-            "labels": torch.tensor(item["labels"])
-        }
+    for path in generate_paths(json_data_dir, split):
+        proof = proofs.get_proof_json(path)
+        for input_text, target_text in proofs.inputs_targets_from(proof, mode):
+            model_inputs = tokenize(tokenizer, input_text, target_text)
+            for model_input in model_inputs:
+                yield model_input
 
 def add_data_from_old(mode_tok_data, proof_json):
     mode, tokenizer, data = mode_tok_data
