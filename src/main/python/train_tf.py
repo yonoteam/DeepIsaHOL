@@ -171,9 +171,9 @@ def load_datasets(tokenizer, mode, data_dir):
     # train_data = dataset_dict["train"]
     # valid_data = dataset_dict["valid"]
     # test_data = dataset_dict["test"]
-    train_data = IterableDataset.from_generator(lambda: tokops.generate_model_inputs(tokenizer, data_dir, split='train', mode=mode))
-    valid_data = IterableDataset.from_generator(lambda: tokops.generate_model_inputs(tokenizer, data_dir, split='valid', mode=mode))
-    test_data = IterableDataset.from_generator(lambda: tokops.generate_model_inputs(tokenizer, data_dir, split='test', mode=mode))
+    train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'train', 'mode': mode})
+    valid_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'valid', 'mode': mode})
+    test_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'test', 'mode': mode})
     return train_data, valid_data, test_data
 
 def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
