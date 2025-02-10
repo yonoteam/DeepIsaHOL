@@ -18,11 +18,14 @@ import proofs
 import tokenizer_ops as tokops
 import accelerate_test
 
-from torch.utils.data import DataLoader
-from transformers import set_seed
-from transformers import AutoConfig
-from transformers import T5ForConditionalGeneration
-from transformers import DataCollatorForSeq2Seq, get_scheduler
+from transformers import (
+    DataLoader,
+    set_seed,
+    AutoConfig, 
+    T5ForConditionalGeneration, 
+    DataCollatorForSeq2Seq, 
+    get_scheduler
+)
 from datasets import IterableDataset
 from accelerate import Accelerator
 from accelerate.utils import broadcast_object_list
