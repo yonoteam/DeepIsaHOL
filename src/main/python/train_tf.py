@@ -99,87 +99,16 @@ def get_remotes(all_models_dir, model_name, mode):
         tokenizer_remote = True
     return model_remote, dataset_remote, tokenizer_remote
 
-# TOKENIZER
-
-# works for both models and tokenizers
-def save_hf_data_in(hf_data, saving_dir):
-    # Determine the latest saving number
-    subdirs = [
-        os.path.join(saving_dir, d) for d in os.listdir(saving_dir)
-        if os.path.isdir(os.path.join(saving_dir, d)) and d.isdigit()
-    ]
-    if subdirs:
-        latest_number = max(int(os.path.basename(d)) for d in subdirs)
-    else:
-        latest_number = 0
-
-    # Save the hugging face model or tokenizer
-    new_dir = os.path.join(saving_dir, str(latest_number + 1))
-
-    try:
-        os.makedirs(new_dir, exist_ok=False)
-        hf_data.save_pretrained(new_dir)
-        logging.info(f"Saved Hugging Face data in {new_dir}")
-    except FileExistsError:
-        logging.warning(f"Directory '{new_dir}' already exists. Skipping save.")
-
-# DATA
 # TODO: add support for HF datasets library
-
-# TODO: adapt for proofs.apply
-def add_dir_data(mode_tok_data, json_data_dir):
-    mode, tokenizer, train_data, valid_data, test_data = mode_tok_data
-    for subdir, _, files in os.walk(json_data_dir):
-        json_files = [file for file in files if file.startswith("proof") and file.endswith(".json")]
-        total_proofs = len(json_files)
-        train_size = int(total_proofs * 0.64)
-        valid_size = int(total_proofs * 0.16)
-        # test_size = total_proofs - train_size - valid_size
-        for i, file in enumerate(json_files):
-            json_path = os.path.join(subdir, file)
-            proof_json = proofs.get_proof_json(json_path)
-            if i < train_size:
-                train_data = tokops.add_data_from_old((mode, tokenizer, train_data), proof_json)
-            elif i < train_size + valid_size:
-                valid_data = tokops.add_data_from_old((mode, tokenizer, valid_data), proof_json)
-            else:
-                test_data = tokops.add_data_from_old((mode, tokenizer, test_data), proof_json)
-    return mode, tokenizer, train_data, valid_data, test_data
-
-def make_datasets(mode, tokenizer, init_train, init_valid, init_test, data_dir):
-    all_results = (mode, tokenizer, init_train, init_valid, init_test)
-    imm_subdirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir()]
-    for path in imm_subdirs:
-        logging.info(f"Processing directory: {path}")
-        all_results = add_dir_data(all_results, path)
-    _, _, train_data, valid_data, test_data = all_results
-    return train_data, valid_data, test_data
-
-    
-def save_datasets_in(train_data, valid_data, test_data, datasets_dir):
-    dataset_dict = {
-        "train": train_data,
-        "valid": valid_data,
-        "test": test_data
-        }
-    datasets_path = os.path.join(datasets_dir, 'datasets.pt')
-    torch.save(dataset_dict, datasets_path)
-
 def load_datasets(tokenizer, mode, data_dir):
-    # datasets_path = os.path.join(datasets_dir, 'datasets.pt')
-    # dataset_dict = torch.load(datasets_path, weights_only=True)
-    # train_data = dataset_dict["train"]
-    # valid_data = dataset_dict["valid"]
-    # test_data = dataset_dict["test"]
     train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'train', 'mode': mode})
     valid_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'valid', 'mode': mode})
     test_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'test', 'mode': mode})
     return train_data, valid_data, test_data
 
 def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
-    # if remote:
-    #     train_data, valid_data, test_data = make_datasets(mode, tokenizer, [], [], [], data_dir)
-    #     save_datasets_in(train_data, valid_data, test_data, datasets_dir)
+    if remote:
+         tokops.make_and_save_datasets(tokenizer, data_dir, datasets_dir, mode=mode)
     train_data, valid_data, test_data = load_datasets(tokenizer, mode, data_dir)
     return train_data, valid_data, test_data
 
@@ -208,6 +137,7 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
         return model
 
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
+# TODO: make a get_size method for the dataset used
 def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, accelerator):
     try:
         # Optimizer, dataloaders, and Scheduler
@@ -249,7 +179,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
             accelerator.wait_for_everyone()
             if accelerator.is_main_process:
                 logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
-                save_hf_data_in(accelerator.unwrap_model(model), models_dir)
+                tokops.save_hf_data_in(accelerator.unwrap_model(model), models_dir)
                 logging.info(f"Checkpoint saved for epoch {epoch}")
 
             # Validation Loop
@@ -311,7 +241,7 @@ def main(config):
             logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
 
             # Data
-            train_data, valid_data, test_data = get_datasets(dataset_remote, mode, tokenizer, data_dir, datasets_dir)
+            train_data, valid_data, _ = load_datasets(tokenizer, mode, data_dir)
             logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
 
             # Model
@@ -319,7 +249,7 @@ def main(config):
             logging.info(f"Model loaded. It's directory is: {models_dir}")
         else:
             tokenizer = None
-            train_data, valid_data, test_data = None, None, None
+            train_data, valid_data = None, None
             model = None
 
         accelerator.wait_for_everyone()
