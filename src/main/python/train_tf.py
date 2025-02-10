@@ -18,8 +18,8 @@ import proofs
 import tokenizer_ops as tokops
 import accelerate_test
 
+from torch.utils.data import DataLoader
 from transformers import (
-    DataLoader,
     set_seed,
     AutoConfig, 
     T5ForConditionalGeneration, 
