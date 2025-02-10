@@ -241,9 +241,10 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
 
                 # progress feedback
                 if batch_idx % 100 == 0:
-                    logging.info(f"Train step number {batch_idx} of {len(train_dataloader)}")
-
-            avg_train_loss = train_loss / len(train_dataloader)
+                    logging.info(f"Train step number {batch_idx}")
+            
+            logging.info(f"Total number of steps was {batch_idx + 1}")
+            avg_train_loss = train_loss / (batch_idx + 1)
             
             accelerator.wait_for_everyone()
             if accelerator.is_main_process:
@@ -255,7 +256,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
             model.eval()
             valid_loss = 0.0
             with torch.no_grad():
-                for batch in valid_dataloader:
+                for batch_idx, batch in enumerate(valid_dataloader):
                     outputs = model(
                         input_ids=batch["input_ids"], 
                         attention_mask=batch["attention_mask"], 
@@ -264,7 +265,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
                     loss = outputs.loss
                     valid_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
 
-            avg_valid_loss = valid_loss / len(valid_dataloader)
+            avg_valid_loss = valid_loss / (batch_idx + 1)
 
             accelerator.wait_for_everyone()
             if accelerator.is_main_process:

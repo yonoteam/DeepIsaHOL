@@ -25,7 +25,7 @@ import train_tf
 
 def main():
     tokenizer = tokops.get_trained_tokenizer(False, '', dirs.tokenizers_dir, '')
-    train_data = IterableDataset.from_generator(lambda: tokops.generate_model_inputs(tokenizer, dirs.test_data_dir, split="train", mode=proofs.SPKT_MODE))
+    train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': dirs.test_data_dir, 'split': 'train', 'mode': proofs.SPKT_MODE})
     model = train_tf.get_init_model(False, 0, dirs.models_dir, '')
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
     train_dataloader = DataLoader(train_data, batch_size=8, shuffle=False, collate_fn=data_collator)
