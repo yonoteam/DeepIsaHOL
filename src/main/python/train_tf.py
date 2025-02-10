@@ -207,14 +207,14 @@ def get_init_model(remote, vocab_size, models_dir, model_name):
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
 def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, accelerator):
     try:
-        # Optimizer, dataloader, and Scheduler
+        # Optimizer, dataloaders, and Scheduler
         optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
+        train_dataloader, valid_dataloader, model, optimizer = accelerator.prepare(
+            train_dataloader, valid_dataloader, model, optimizer
+        )
         num_training_steps = len(train_dataloader) * num_epochs
         lr_scheduler = get_scheduler(
             "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
-        )
-        train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(
-            train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
         )
 
         model.train()
