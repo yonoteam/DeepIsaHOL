@@ -20,13 +20,13 @@ sys.path.insert(0, MAIN_DIR)
 import proofs
 import directories as dirs
 import tokenizer_ops as tokops
-import train_tf
+import train_t5
 
 
 def main():
     tokenizer = tokops.get_trained_tokenizer(False, '', dirs.tokenizers_dir, '')
     train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': dirs.test_data_dir, 'split': 'train', 'mode': proofs.SPKT_MODE})
-    model = train_tf.get_init_model(False, 0, dirs.models_dir, '')
+    model = train_t5.get_init_model(False, 0, dirs.models_dir, '')
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
     train_dataloader = DataLoader(train_data, batch_size=8, shuffle=False, collate_fn=data_collator)
     for batch in train_dataloader:

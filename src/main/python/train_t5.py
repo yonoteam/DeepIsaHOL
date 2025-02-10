@@ -42,7 +42,7 @@ def set_all_seeds(seed):
 def configure_logging():
     # logfile to the current directory
     current_working_dir = os.getcwd()
-    log_file = os.path.join(current_working_dir, "train_tf.log")
+    log_file = os.path.join(current_working_dir, "train_t5.log")
     
     # Set up logging configuration
     logging.basicConfig(

@@ -4,7 +4,7 @@ import json
 import logging
 import argparse
 
-import train_tf
+import train_t5
 import tokenizer_ops as tokops
 
 if __name__ == "__main__":
@@ -28,11 +28,11 @@ if __name__ == "__main__":
     
     # Setup from config
     try:
-        data_dir, all_models_dir, model_name, mode, num_epochs = train_tf.extract_params(config)
-        train_tf.test_params(data_dir, all_models_dir)
+        data_dir, all_models_dir, model_name, mode, num_epochs = train_t5.extract_params(config)
+        train_t5.test_params(data_dir, all_models_dir)
     except Exception as e:
         logging.error(f"Could not setup from configuration file: '{e}'.")
         exit(1)
     
-    tokenizers_dir, datasets_dir, models_dir = train_tf.make_dir_vars(all_models_dir, model_name, mode)
+    tokenizers_dir, datasets_dir, models_dir = train_t5.make_dir_vars(all_models_dir, model_name, mode)
     _ = tokops.get_trained_tokenizer(True, data_dir, tokenizers_dir, model_name)
