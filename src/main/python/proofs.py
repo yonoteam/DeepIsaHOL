@@ -30,11 +30,16 @@ STATE_MODE = 'state'
 SP_MODE = 'state_prems'
 SPK_MODE = 'state_prems_kwrds'
 SPKT_MODE = 'state_prems_kwrds_terms'
-MODES = [STATE_MODE, SP_MODE, SPK_MODE, SPKT_MODE]
+MODES = {
+    "STATE_MODE": STATE_MODE, 
+    "SP_MODE": SP_MODE, 
+    "SPK_MODE": SPK_MODE, 
+    "SPKT_MODE": SPKT_MODE
+}
 
 def print_modes():
-    for mode in MODES:
-        print(mode)
+    for key, mode in MODES.items():
+        print(f"{key}: '{mode}'")
 
 # DIRECTORY OPERATIONS
 
@@ -372,7 +377,7 @@ def get_tokenizer_corpus(json_data_dir, readable=False):
     :rtype: generator
     """
     for proof in generate_from(json_data_dir):
-        yield string_from(proof ,readable)
+        yield string_from(proof, readable)
 
 
 # SKELETON
