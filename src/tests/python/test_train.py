@@ -22,7 +22,6 @@ import directories as dirs
 import tokenizer_ops as tokops
 import train_t5
 
-
 def main():
     tokenizer = tokops.get_trained_tokenizer(False, '', dirs.tokenizers_dir, '')
     train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': dirs.test_data_dir, 'split': 'train', 'mode': proofs.SPKT_MODE})

@@ -6,15 +6,12 @@
 
 import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
-
-import argparse
-import json
 import logging
 import numpy as np
 import torch
 import random
 
-import proofs
+import ops
 import tokenizer_ops as tokops
 import accelerate_test
 
@@ -39,49 +36,8 @@ def set_all_seeds(seed):
     random.seed(seed)
     set_seed(seed)
 
-def configure_logging():
-    # logfile to the current directory
-    current_working_dir = os.getcwd()
-    log_file = os.path.join(current_working_dir, "train_t5.log")
-    
-    # Set up logging configuration
-    logging.basicConfig(
-        filename=log_file,  # Log file in the current working directory
-        level=logging.DEBUG,  # Capture all log levels
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
-    logging.info("Logging configured. Writing logs to %s", log_file)
-
-def extract_params(config):
-    try:
-        data_dir = config["data_dir"]
-        model_name = config["model_name"]
-        all_models_dir = config["all_models_dir"]
-        mode = config["mode"]
-        num_epochs = int(config["num_epochs"])  # Ensure it's an integer
-        return data_dir, all_models_dir, model_name, mode, num_epochs
-    except KeyError as e:
-        logging.error(f"Missing required configuration key: {e}")
-
-def test_params(data_dir, all_models_dir):
-    if not proofs.valid_data_dir(data_dir):
-        message = f"""No subdirectory in '{data_dir}' contains  a 
-        JSON file that starts with 'proof' and ends with '.json'.""".format()
-        raise Exception(f"Error: {message}.")
-    
-    if not os.path.isdir(all_models_dir):
-        message = f"""Input '{all_models_dir}' is not a directory."""
-        raise Exception(f"Error: {message}")
-
-def make_dir_vars(all_models_dir, model_name, mode):
-    local_model_dir = os.path.join(all_models_dir, model_name)
-    tokenizers_dir = os.path.join(local_model_dir, "tokenizers")
-    datasets_dir = os.path.join(tokenizers_dir, f"datasets/{mode}")
-    models_dir = os.path.join(local_model_dir, "models", mode)
-    return tokenizers_dir, datasets_dir, models_dir
-
-def get_remotes(all_models_dir, model_name, mode):
-    tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
+def get_remotes(config_dict):
+    tokenizers_dir, datasets_dir, models_dir = ops.get_directory_paths(config_dict)
     model_path = os.path.join(models_dir, "1", "model.safetensors")
     dataset_path = os.path.join(datasets_dir, "datasets.pt")
     tokenizer_path = os.path.join(tokenizers_dir, "1", "tokenizer.json")
@@ -104,6 +60,7 @@ def load_datasets(tokenizer, mode, data_dir):
     train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'train', 'mode': mode})
     valid_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'valid', 'mode': mode})
     test_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'test', 'mode': mode})
+    logging.info(f"Datasets loaded.")
     return train_data, valid_data, test_data
 
 def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
@@ -114,27 +71,33 @@ def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
 
 # MODEL
 
-def get_init_model(remote, vocab_size, models_dir, model_name):
+def initialize_model_from_scratch(model_name, vocab_size):
+    model = T5ForConditionalGeneration.from_pretrained(model_name)
+    
+    # reset the configuration for that model
+    config = AutoConfig.from_pretrained(
+        model_name,
+        vocab_size=vocab_size,
+        n_ctx=model.config.d_model
+    )
+    model = T5ForConditionalGeneration(config)
+    logging.info(f"Initialized Hugging Face model of type {type(model)}.")
+    return model
+
+def load_latest_model(models_dir):
+    latest_dir = ops.get_latest_dir_from(models_dir, adding_one=False)
+    model = T5ForConditionalGeneration.from_pretrained(latest_dir)
+    logging.info(f"Loaded Hugging Face model from {latest_dir} of type {type(model)}.")
+    return model
+
+def get_model(config_dict, vocab_size, remote=False):
+    model_name = config_dict["model_name"]
+    _, _, models_dir = ops.get_directory_paths(config_dict)
     if remote:
-        # get hugging face transformers original model
-        model = T5ForConditionalGeneration.from_pretrained(model_name)
-        
-        # reset the configuration for that model
-        config = AutoConfig.from_pretrained(
-            model_name,
-            vocab_size=vocab_size,
-            n_ctx=model.config.d_model
-        )
-        model = T5ForConditionalGeneration(config)
-        return model
+        model = initialize_model_from_scratch(model_name, vocab_size)
     else:
-        subdirs = [
-                os.path.join(models_dir, d) for d in os.listdir(models_dir)
-                if os.path.isdir(os.path.join(models_dir, d)) and d.isdigit()
-            ]
-        latest_dir = max(subdirs, key=lambda d: int(os.path.basename(d)))
-        model = T5ForConditionalGeneration.from_pretrained(latest_dir)
-        return model
+        model = load_latest_model(models_dir)
+    return model
 
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
 # TODO: make a get_size method for the dataset used
@@ -207,14 +170,8 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
 
 
 # ALGORITHM
-def main(config):
-    # Setup from config
-    try:
-        data_dir, all_models_dir, model_name, mode, num_epochs = extract_params(config)
-        test_params(data_dir, all_models_dir)
-    except Exception as e:
-        logging.error(f"Could not setup from configuration file: '{e}'.")
-        exit(1)
+def main(config_dict):
+    data_dir, all_models_dir, model_name, mode, num_epochs = ops.extract_params(config_dict)
 
     try:
         accelerator = Accelerator(mixed_precision="fp16")
@@ -223,30 +180,26 @@ def main(config):
         
         accelerate_test.log_cuda_info(accelerator)
         
-        model_remote, dataset_remote, tokenizer_remote = get_remotes(all_models_dir, model_name, mode)
+        model_remote, _, _ = get_remotes(config_dict)
         if accelerator.is_main_process:
             logging.info(f"Model has to be retrieved remotely?: {model_remote}")
-            logging.info(f"Dataset has to be retrieved remotely?: {dataset_remote}")
-            logging.info(f"Tokenizer has to be retrieved remotely?: {tokenizer_remote}")
+            logging.info(f"Dataset has to be retrieved remotely?: {False}")
+            logging.info(f"Tokenizer has to be retrieved remotely?: {False}")
 
-        tokenizers_dir, datasets_dir, models_dir = make_dir_vars(all_models_dir, model_name, mode)
+        tokenizers_dir, _, models_dir = ops.get_directory_paths(config_dict)
         if accelerator.is_main_process:
-            os.makedirs(datasets_dir, exist_ok=True)
             os.makedirs(models_dir, exist_ok=True)
 
         if accelerator.is_main_process:
             # Tokenizer
-            tokenizer, tokenizer_dir = tokops.get_trained_tokenizer_and_tokdir(tokenizer_remote, data_dir, tokenizers_dir, model_name)
+            tokenizer = tokops.load_latest_tokenizer(tokenizers_dir)
             vocab_size = len(tokenizer)
-            logging.info(f"Tokenizer loaded. It's directory is: {tokenizer_dir}")
 
             # Data
             train_data, valid_data, _ = load_datasets(tokenizer, mode, data_dir)
-            logging.info(f"Datasets loaded. It's directory is: {datasets_dir}")
 
             # Model
-            model = get_init_model(model_remote, vocab_size, models_dir, model_name)
-            logging.info(f"Model loaded. It's directory is: {models_dir}")
+            model = get_model(config_dict, vocab_size, remote=model_remote)
         else:
             tokenizer = None
             train_data, valid_data = None, None
@@ -284,27 +237,15 @@ def main(config):
 
 
 if __name__ == "__main__":
-    # Configuration
     set_all_seeds(42)
-    configure_logging()
-
-    # Parser setup
-    parser = argparse.ArgumentParser(description="Train the transformer as specified in the input JSON configuration.")
-    parser.add_argument("config_path", type=str, help="Path to the JSON configuration file.")
-    args = parser.parse_args()
-
-    # Check if JSON configuration exists
-    if not os.path.isfile(args.config_path):
-        logging.error(f"The configuration file '{args.config_path}' does not exist.")
-        exit(1)
-
-    # Load the JSON configuration
+    ops.configure_logging("train_t5.log")
     try:
-        with open(args.config_path, "r") as file:
-            config = json.load(file)
-    except json.JSONDecodeError as e:
-        logging.error(f"Failed to parse the JSON file. {e}")
-        exit(1)
+        config_dict = ops.get_config_dict(ops.parse_config_path(tool_explanation="Train the transformer as specified in the input JSON configuration."))
+        params = ops.extract_params(config_dict)
+        ops.test_params(params[0], params[1])
+    except Exception as e:
+        message = f"Loading configuration information: {e}"
+        logging.error(message)
+        raise Exception("Error " + message)
 
-    # Run main
-    main(config)
+    main(config_dict)

@@ -7,16 +7,17 @@ import os
 import logging
 import torch
 
+import ops
 import proofs
 
 from transformers import AutoTokenizer
-
-# TRAINING FROM SCRATCH
 
 TRAIN = "train"
 VALID = "valid"
 TEST = "test"
 NONE = "none"
+
+# TRAINING FROM SCRATCH
 
 def train_tokenizer(model_name, data_dir):
     try:
@@ -27,53 +28,38 @@ def train_tokenizer(model_name, data_dir):
         tokenizer = tokenizer.train_new_from_iterator(training_corpus, vocab_size)
         return tokenizer
     except Exception as e:
-        logging.error(f"training tokenizer for {model_name} using data in {data_dir}: {e}")
+        raise Exception(f"Error training tokenizer for {model_name} using data in {data_dir}: {e}")
 
-# works for both models and tokenizers
-def save_hf_data_in(hf_data, saving_dir):
-    # Determine the latest saving number
-    subdirs = [
-        os.path.join(saving_dir, d) for d in os.listdir(saving_dir)
-        if os.path.isdir(os.path.join(saving_dir, d)) and d.isdigit()
-    ]
-    if subdirs:
-        latest_number = max(int(os.path.basename(d)) for d in subdirs)
-    else:
-        latest_number = 0
+def train_and_save_tokenizer(tokenizers_dir, data_dir, model_name):
+    tokenizer = train_tokenizer(model_name, data_dir)
+    ops.save_hf_data_in(tokenizer, tokenizers_dir)
+    logging.info(f"Saved Hugging Face tokenizer.")
+    return tokenizer
 
-    # Save the hugging face model or tokenizer
-    new_dir = os.path.join(saving_dir, str(latest_number + 1))
 
-    try:
-        os.makedirs(new_dir, exist_ok=False)
-        hf_data.save_pretrained(new_dir)
-        logging.info(f"Saved Hugging Face data in {new_dir}")
-    except FileExistsError:
-        logging.warning(f"Directory '{new_dir}' already exists. Skipping save.")
-    
-# LOADING TOKENIZER
+# LOAD TOKENIZER
 
-def get_trained_tokenizer_and_tokdir(remote, data_dir, tokenizers_dir, model_name):
+def load_latest_tokenizer(tokenizers_dir):
+    latest_dir = ops.get_latest_dir_from(tokenizers_dir, adding_one=False)
+    tokenizer = AutoTokenizer.from_pretrained(latest_dir)
+    logging.info(f"Loaded Hugging Face tokenizer from {latest_dir} of type {type(tokenizer)}.")
+    return tokenizer    
+
+def get_trained_tokenizer(config_dict, remote=False):
+    data_dir = config_dict["data_dir"]
+    model_name = config_dict["model_name"]
+    tokenizers_dir, _, _ = ops.get_directory_paths(config_dict)
     if remote:
-        tokenizer = train_tokenizer(model_name, data_dir)
-        save_hf_data_in(tokenizer, tokenizers_dir)
-        return tokenizer, tokenizers_dir
+        tokenizer = train_and_save_tokenizer(tokenizers_dir, data_dir, model_name)
+        return tokenizer
     else:
-        subdirs = [
-                os.path.join(tokenizers_dir, d) for d in os.listdir(tokenizers_dir)
-                if os.path.isdir(os.path.join(tokenizers_dir, d)) and d.isdigit()
-            ]
-        latest_dir = max(subdirs, key=lambda d: int(os.path.basename(d)))
-        tokenizer = AutoTokenizer.from_pretrained(latest_dir)
-        return tokenizer, latest_dir
+        tokenizer = load_latest_tokenizer(tokenizers_dir)
+        return tokenizer
 
-def get_trained_tokenizer(remote, data_dir, tokenizers_dir, model_name):
-    tok, _ = get_trained_tokenizer_and_tokdir(remote, data_dir, tokenizers_dir, model_name)    
-    return tok
 
 # GENERATE DATASETS
 
-def generate_proofs_paths(json_data_dir, split="none"):
+def generate_proof_paths(json_data_dir, split="none"):
     if not proofs.valid_data_dir(json_data_dir):
         raise Exception(f"Error: bad input {json_data_dir} is not an existing directory or does not contain a proofN.json.")
 
@@ -140,12 +126,13 @@ def generate_model_inputs(tokenizer, json_data_dir, split, mode=proofs.STATE_MOD
     :returns: generator for tokenized inputs with labels for conditional generation
     :rtype: generator
     """
-    for path in generate_proofs_paths(json_data_dir, split):
+    for path in generate_proof_paths(json_data_dir, split):
         proof = proofs.get_proof_json(path)
         for input_text, target_text in proofs.inputs_targets_from(proof, mode):
             model_inputs = tokenize(tokenizer, input_text, target_text)
             for model_input in model_inputs:
                 yield model_input
+
 
 # SAVE AND LOAD DATASETS
 
@@ -164,3 +151,19 @@ def generate_data_path_set(datasets_dir, split):
     for dataset_path in datasets_paths:
         dataset = torch.load(dataset_path, weights_only=True)
         yield dataset_path, dataset
+
+
+# MAIN
+
+if __name__ == "__main__":
+    ops.configure_logging("tokenizer.log")
+    try:
+        explanation = "Train a new tokenizer as specified in the input JSON configuration."
+        config_dict = ops.get_config_dict(ops.parse_config_path(tool_explanation=explanation))
+        data_dir, all_models_dir, model_name, mode, _ = ops.extract_params(config_dict)
+        ops.check_params(data_dir, all_models_dir)
+    except Exception as e:
+        raise Exception(f"Error loading configuration information: {e}")
+    
+    tokenizers_dir, _, _ = ops.get_directory_paths(config_dict)
+    _ = train_and_save_tokenizer(tokenizers_dir, data_dir, model_name)
