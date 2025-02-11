@@ -23,9 +23,9 @@ import tokenizer_ops as tokops
 import train_t5
 
 def main():
-    tokenizer = tokops.get_trained_tokenizer(False, '', dirs.tokenizers_dir, '')
-    train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': dirs.test_data_dir, 'split': 'train', 'mode': proofs.SPKT_MODE})
-    model = train_t5.get_init_model(False, 0, dirs.models_dir, '')
+    tokenizer = tokops.load_latest_tokenizer(dirs.tokenizers_dir)
+    train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': dirs.test_data_dir, 'split': tokops.TRAIN, 'mode': proofs.SPKT_MODE})
+    model = train_t5.load_latest_model(dirs.models_dir)
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
     train_dataloader = DataLoader(train_data, batch_size=8, shuffle=False, collate_fn=data_collator)
     for batch in train_dataloader:
@@ -38,7 +38,9 @@ def main():
         labels=batch["labels"]
     )
     print("Successfully used model.forward() on first batch:")
-    print(f"The loss is {outputs.loss} and the logits are{outputs.logits.shape}")
+    print(f"The ouputs items types are: ")
+    print({k: type(v) for k, v in outputs.items()})
+    print(f"The loss is {outputs.loss} and the logits are {outputs.logits.shape}")
 
 if __name__ == "__main__":
     main()
