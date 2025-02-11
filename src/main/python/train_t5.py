@@ -238,11 +238,11 @@ def main(config_dict):
 
 if __name__ == "__main__":
     set_all_seeds(42)
-    ops.configure_logging("train_t5.log")
+    ops.configure_logging("train_t5_test.log")
     try:
         config_dict = ops.get_config_dict(ops.parse_config_path(tool_explanation="Train the transformer as specified in the input JSON configuration."))
         params = ops.extract_params(config_dict)
-        ops.test_params(params[0], params[1])
+        ops.check_params(params[0], params[1])
     except Exception as e:
         message = f"Loading configuration information: {e}"
         logging.error(message)
