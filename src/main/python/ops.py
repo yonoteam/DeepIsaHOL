@@ -13,6 +13,29 @@ import threading
 
 import proofs
 
+def print_dict(d, max=None):
+    for i, (k, v) in enumerate(d.items()):
+        print(f"{k}: {v}")
+        if i == max:
+            break
+
+def save_dict_as_json(data, file_path, indent=4):
+    """
+    Saves a dictionary as a JSON file.
+
+    :param data: dictionary to save
+    :param file_path: path to the output JSON file
+    :param indent: indentation level for pretty-printing (default: 4)
+    """
+    try:
+        with open(file_path, 'w') as json_file:
+            json.dump(data, json_file, indent=indent)
+        logging.info(f"Dictionary successfully saved to {file_path}")
+    except Exception as e:
+        message = f"Error saving dictionary to JSON: {e}"
+        logging.error(message)
+        print(message)
+
 def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     """
     Executes `f` with arguments `args` and keyword arguments `kwargs`.
@@ -41,7 +64,7 @@ def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     logging.info("Timeout reached. Function did not complete.")
     return None
 
-# CONFIGURATION SETUP
+# CONFIGURATION
 
 def configure_logging(log_file_name, log_level=logging.DEBUG, save_dir=os.getcwd()):
     """

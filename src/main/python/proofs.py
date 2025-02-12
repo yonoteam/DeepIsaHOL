@@ -4,8 +4,10 @@
 # Utility for reading JSONs of proofs
 
 import os
+import math
 import json
 import logging
+import statistics
 
 from pathlib import Path
 from collections import Counter
@@ -80,10 +82,9 @@ def valid_data_dir(json_data_dir):
 
 def generate_paths_from(json_data_dir):
     """
-    Generator for all "proofN.json" file-paths in the 
-    input directory.
+    Generator for all "proofN.json" file-paths in the input directory.
 
-    :param json_data_dir: path to the search directory
+    :param json_data_dir: path to the data directory with 'proofN.json's
     :returns: generator of all "proofN.json" files
     :rtype: generator
     """
@@ -96,7 +97,7 @@ def generate_from(json_data_dir):
     """
     Generator for all "proofN.json" files in the input directory.
 
-    :param json_data_dir: path to the search directory
+    :param json_data_dir: path to the data directory with 'proofN.json's
     :returns: generator of all "proofN.json" files
     :rtype: generator
     """
@@ -108,7 +109,7 @@ def get_proofs_paths(json_data_dir):
     """
     Finds all paths "proofN.json" in the input directory.
 
-    :param json_data_dir: path to the search directory
+    :param json_data_dir: path to the data directory with 'proofN.json's
     :returns: sorted list of paths to JSON files
     :rtype: list(str)
     """
@@ -120,7 +121,7 @@ def find_erroneous(json_data_dir, f=lambda x: x):
     and apply `f` to it. If it fails, it stores the failing
     file path in the returned list.
 
-    :param json_data_dir: path to the search directory
+    :param json_data_dir: path to the data directory with 'proofN.json's
     :param f: function to apply to each JSON file
     :returns: list of paths to files that failed to load or process
     :rtype: list(str)
@@ -139,7 +140,7 @@ def delete_erroneous(json_data_dir):
     """
     Deletes all erroneous "proofN.json" in the input directory.
 
-    :param json_data_dir: path to the search directory
+    :param json_data_dir: path to the data directory with 'proofN.json's
     :returns: tuple of lists, the first representing the 
         deleted files and the second, those that failed to 
         be deleted with their respective exceptions
@@ -164,8 +165,7 @@ def apply(f, inits, json_data_dir):
     :param f: function of type (S x json_proof) -> S 
         to apply to each proof
     :param inits: initial store S for the results
-    :param json_data_dir: path to the directory holding
-        the proof JSON files
+    :param json_data_dir: path to the directory with 'proofN.json's
     :returns: the accumulated results of applying f to
         each proof in the directory
     :rtype: S
@@ -350,8 +350,7 @@ def estimate_vocab_size(json_data_dir, coverage_threshold=0.95):
     """Estimates the optimal vocabulary size for tokenization
     of the proofs in the input directory.
     
-    :param json_data_dir: path to the directory holding
-        the proof JSON files
+    :param json_data_dir: path to the directory with 'proofN.json's
     :returns: the estimated optimal vocabulary size
     :rtype: int
     """
@@ -372,12 +371,51 @@ def estimate_vocab_size(json_data_dir, coverage_threshold=0.95):
 def get_tokenizer_corpus(json_data_dir, readable=False):
     """Tokenizer's training corpus generator.
     
-    :param json_data_dir: path to the search directory
+    :param json_data_dir: path to the data directory with 'proofN.json's with 'proofN.json's
     :returns: generator of proof strings
     :rtype: generator
     """
     for proof in generate_from(json_data_dir):
         yield string_from(proof, readable)
+
+def estimate_stats(json_data_dir, mode=STATE_MODE):
+    """Estimates the average, maximum, minimum, median, mode, and total size
+    of the (input and target) tokens in the input directory's dataset.
+    
+    :param json_data_dir: path to the data directory with 'proofN.json's with 'proofN.json's
+    :returns: generator of proof strings
+    :rtype: generator
+    """
+    def accumulate_approx_lengths(lengths, proof):
+        lengths[0].extend(len(x.split()) for x, _ in inputs_targets_from(proof, mode=mode))
+        lengths[1].extend(len(y.split()) for _, y in inputs_targets_from(proof, mode=mode))
+        return lengths
+    
+    def get_stats(nums):
+        return {
+            "avg": sum(nums) / len(nums) if nums else 0,
+            "max": max(nums, default=0),
+            "min": min(nums, default=0),
+            "median": statistics.median(nums) if nums else 0,
+            "mode": statistics.mode(nums) if nums else 0
+        }
+
+    x_lengths, y_lengths = apply(accumulate_approx_lengths, ([],[]), json_data_dir)
+    x_stats = get_stats(x_lengths)
+    y_stats = get_stats(y_lengths)
+    return {
+        "x_avg": x_stats["avg"],
+        "y_avg": y_stats["avg"],
+        "x_max": x_stats["max"],
+        "y_max": y_stats["max"],
+        "x_min": x_stats["min"],
+        "y_min": y_stats["min"],
+        "x_median": x_stats["median"],
+        "y_median": y_stats["median"],
+        "x_mode": x_stats["mode"],
+        "y_mode": y_stats["mode"],
+        "total_datapoints": len(x_lengths)
+    }
 
 
 # SKELETON

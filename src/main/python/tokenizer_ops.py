@@ -91,7 +91,7 @@ def tokenize(tokenizer, x, y):
         x, 
         max_length=max_length, 
         truncation=True, 
-        return_overflowing_tokens=True,            
+        return_overflowing_tokens=True,
         stride=10,
         padding="max_length",
         return_tensors="pt"
