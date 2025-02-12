@@ -1,7 +1,7 @@
 # Mantainers: 
 #   Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
 # 
-# A collection of useful methods/operations
+# A collection of reused methods/operations
 
 import os
 import time
@@ -64,7 +64,8 @@ def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     logging.info("Timeout reached. Function did not complete.")
     return None
 
-# CONFIGURATION
+
+# CONFIGURATION SETUP
 
 def configure_logging(log_file_name, log_level=logging.DEBUG, save_dir=os.getcwd()):
     """
@@ -110,35 +111,27 @@ def get_config_dict(json_path):
     
     return config
 
-def extract_params(config_dict):
+def check_params(config_dict):
     """
-    Retrieves configuration parameters from the input dictionary with the fields 
+    If the input configuration is not correct, it raises an error. Otherwise, it does nothing.
+    It tests the existence of the following parameters.
     'data_dir' - (str) path to a directory recursively containing at leasst one proofN.json
     'model_name' - (str) a Hugging Face model name
     'all_models_dir' - (str) the directory where the tokenizers, datasets and models are saved
     'mode' - (str) any of the proofs.MODES
     'num_epochs' - (int) the number of times the training loop is repeated
 
-    :param config_dict: dictionary containing the training configuration
-    :rtype: (str, str, str, str, int) tuple
+    :param config_dict: (dict) dictionary containing the training configuration
     """
     try:
         data_dir = config_dict["data_dir"]
-        model_name = config_dict["model_name"]
+        _ = config_dict["model_name"]
         all_models_dir = config_dict["all_models_dir"]
-        mode = config_dict["mode"]
-        num_epochs = int(config_dict["num_epochs"])
-        return data_dir, all_models_dir, model_name, mode, num_epochs
+        _ = config_dict["mode"]
+        _ = int(config_dict["num_epochs"])
     except KeyError as e:
         raise Exception(f"Error extracting parameters from configuration dictionary: {e}")
-
-def check_params(data_dir, all_models_dir):
-    """
-    If the input parameters are not correct, it raises an error. Otherwise, it does nothing.
-
-    :param data_dir: (str) path to a directory recursively containing at leasst one proofN.json
-    :param all_models_dir: (str) the directory where the tokenizers, datasets and models are saved
-    """
+    
     if not proofs.valid_data_dir(data_dir):
         message = f"""No subdirectory in '{data_dir}' contains  a 
         JSON file that starts with 'proof' and ends with '.json'.""".format()
@@ -147,7 +140,10 @@ def check_params(data_dir, all_models_dir):
     if not os.path.isdir(all_models_dir):
         message = f"""Input '{all_models_dir}' is not a directory."""
         raise Exception(f"Error: {message}")
-    
+
+
+# CONFIGURATION RETRIEVAL
+
 def get_directory_paths(config_dict):
     """
     Returns candidate paths to save tokenizers, datasets, and models from the inputs.

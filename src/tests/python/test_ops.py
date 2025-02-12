@@ -32,29 +32,20 @@ def correct_get_config_dict():
         print(f"correct_get_config_dict failed to extract a dictionary from input path: {e}")
         raise e
     
-def correct_extract_params():
-    try:
-        params = ops.extract_params(correct_get_config_dict())
-        print("Test passed: correct_extract_params")
-        return params
-    except Exception as e:
-        print(f"correct_extract_params failed to extract information from input dictionary: {e}")
-        raise e
-    
 def correct_params():
     try:
-        data_dir, all_models_dir, model_name, mode, num_epochs = correct_extract_params()
-        if data_dir != "/path/to/data":
+        config_dict = correct_get_config_dict()
+        if config_dict["data_dir"] != "/path/to/data":
             raise Exception(f"correct_params failed, 'data_dir' is not '/path/to/data'")
-        if all_models_dir != "/path/to/all/models":
+        if config_dict["all_models_dir"] != "/path/to/all/models":
             raise Exception(f"correct_params failed, 'all_models_dir' is not '/path/to/all/models'")
-        if model_name != "model_name":
+        if config_dict["model_name"] != "model_name":
             raise Exception(f"correct_params failed, 'model_name' is not the string 'model_name'")
-        if mode != "state":
+        if config_dict["mode"] != "state":
             raise Exception(f"correct_params failed, 'mode' is not the string 'state'")
-        if num_epochs != 10:
+        if config_dict["num_epochs"] != 10:
             raise Exception(f"correct_params failed, 'num_epochs' is not {10}")
-        ops.check_params(TEST_DIR, SRC_DIR)
+        ops.check_params(config_dict)
         print("Test passed: correct_params")
     except Exception as e:
         print(f"correct_params failed: {e}")

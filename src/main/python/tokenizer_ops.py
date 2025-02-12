@@ -10,6 +10,7 @@ import torch
 import ops
 import proofs
 
+from datasets import IterableDataset
 from transformers import AutoTokenizer
 
 TRAIN = "train"
@@ -59,7 +60,7 @@ def get_trained_tokenizer(config_dict, remote=False):
 
 # GENERATE DATASETS
 
-def generate_proof_paths(json_data_dir, split="none"):
+def generate_proof_paths(json_data_dir, split=NONE):
     if not proofs.valid_data_dir(json_data_dir):
         raise Exception(f"Error: bad input {json_data_dir} is not an existing directory or does not contain a proofN.json.")
 
@@ -133,6 +134,18 @@ def generate_model_inputs(tokenizer, json_data_dir, split, mode=proofs.STATE_MOD
             for model_input in model_inputs:
                 yield model_input
 
+# TODO: add support for HF datasets library
+def get_dataset(tokenizer, config_dict, split=NONE):
+    dataset = IterableDataset.from_generator(
+        generate_model_inputs, 
+        gen_kwargs={
+            'tokenizer': tokenizer, 
+            'json_data_dir': config_dict["data_dir"], 
+            'split': split, 
+            'mode': config_dict["mode"]
+        }
+    )
+    return dataset
 
 # SAVE AND LOAD DATASETS
 
@@ -160,10 +173,9 @@ if __name__ == "__main__":
     try:
         explanation = "Train a new tokenizer as specified in the input JSON configuration."
         config_dict = ops.get_config_dict(ops.parse_config_path(tool_explanation=explanation))
-        data_dir, all_models_dir, model_name, mode, _ = ops.extract_params(config_dict)
-        ops.check_params(data_dir, all_models_dir)
+        ops.check_params(config_dict)
     except Exception as e:
         raise Exception(f"Error loading configuration information: {e}")
     
     tokenizers_dir, _, _ = ops.get_directory_paths(config_dict)
-    _ = train_and_save_tokenizer(tokenizers_dir, data_dir, model_name)
+    _ = train_and_save_tokenizer(tokenizers_dir, config_dict["data_dir"], config_dict["model_name"])

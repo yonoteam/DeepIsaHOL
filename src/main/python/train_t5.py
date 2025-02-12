@@ -23,9 +23,9 @@ from transformers import (
     DataCollatorForSeq2Seq, 
     get_scheduler
 )
-from datasets import IterableDataset
 from accelerate import Accelerator
 from accelerate.utils import broadcast_object_list
+
 
 # CONFIGURATION
 
@@ -55,19 +55,6 @@ def get_remotes(config_dict):
         tokenizer_remote = True
     return model_remote, dataset_remote, tokenizer_remote
 
-# TODO: add support for HF datasets library
-def load_datasets(tokenizer, mode, data_dir):
-    train_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'train', 'mode': mode})
-    valid_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'valid', 'mode': mode})
-    test_data = IterableDataset.from_generator(tokops.generate_model_inputs, gen_kwargs={'tokenizer': tokenizer, 'json_data_dir': data_dir, 'split': 'test', 'mode': mode})
-    logging.info(f"Datasets loaded.")
-    return train_data, valid_data, test_data
-
-def get_datasets(remote, mode, tokenizer, data_dir, datasets_dir):
-    if remote:
-         tokops.make_and_save_datasets(tokenizer, data_dir, datasets_dir, mode=mode)
-    train_data, valid_data, test_data = load_datasets(tokenizer, mode, data_dir)
-    return train_data, valid_data, test_data
 
 # MODEL
 
@@ -171,8 +158,6 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, acc
 
 # ALGORITHM
 def main(config_dict):
-    data_dir, all_models_dir, model_name, mode, num_epochs = ops.extract_params(config_dict)
-
     try:
         accelerator = Accelerator(mixed_precision="fp16")
         if accelerator.is_main_process:
@@ -196,7 +181,8 @@ def main(config_dict):
             vocab_size = len(tokenizer)
 
             # Data
-            train_data, valid_data, _ = load_datasets(tokenizer, mode, data_dir)
+            train_data = tokops.get_dataset(tokenizer, config_dict, split = tokops.TRAIN)
+            valid_data = tokops.get_dataset(tokenizer, config_dict, split = tokops.VALID)
 
             # Model
             model = get_model(config_dict, vocab_size, remote=model_remote)
@@ -219,7 +205,7 @@ def main(config_dict):
         valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
 
         # Training loop
-        train(model, train_dataloader, valid_dataloader, num_epochs, models_dir, accelerator)
+        train(model, train_dataloader, valid_dataloader, config_dict["num_epochs"], models_dir, accelerator)
     
     except Exception as e:
         logging.error(f"Error in main: {e}")
@@ -241,8 +227,7 @@ if __name__ == "__main__":
     ops.configure_logging("train_t5_test.log")
     try:
         config_dict = ops.get_config_dict(ops.parse_config_path(tool_explanation="Train the transformer as specified in the input JSON configuration."))
-        params = ops.extract_params(config_dict)
-        ops.check_params(params[0], params[1])
+        ops.check_params(config_dict)
     except Exception as e:
         message = f"Loading configuration information: {e}"
         logging.error(message)
