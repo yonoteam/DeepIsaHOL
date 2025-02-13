@@ -11,7 +11,11 @@ import logging
 import argparse
 import threading
 
+import torch
+from accelerate import Accelerator
+
 import proofs
+import accelerate_test
 
 def print_dict(d, max=None):
     for i, (k, v) in enumerate(d.items()):
@@ -204,3 +208,29 @@ def save_hf_data_in(hf_data, saving_dir):
         logging.warning(f"Directory '{new_dir}' already exists. Skipping save.")
     except Exception as e:
         logging.error(f"Failed to save hugging face data: {e}")
+
+
+# OPERATING WITH ACCELERATE
+
+def wrap_w_accelerator(f):
+    try:
+        accelerator = Accelerator(mixed_precision="fp16")
+        if accelerator.is_main_process:
+            logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
+        accelerate_test.log_cuda_info(accelerator)
+
+        # Main body
+        f(accelerator)
+
+    except Exception as e:
+        logging.error(f"{e}")
+        raise e
+    finally:
+        accelerator.wait_for_everyone()
+        if torch.distributed.is_initialized():
+            try:
+                torch.distributed.destroy_process_group()
+            except Exception as e:
+                logging.error(f"Error destroying process group: {str(e)}")
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()

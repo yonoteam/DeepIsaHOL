@@ -17,7 +17,7 @@ import train_t5
 import accelerate_test
 import tokenizer_ops as tokops
 
-def prepare_mod_tok_data(accelerator, config_dict, batch_size=8, split=tokops.NONE):
+def load_model_tok_data(accelerator, config_dict, split=tokops.NONE):
     toks_dir, _, models_dir = ops.get_directory_paths(config_dict)
     if accelerator.is_main_process:
         tokenizer = tokops.load_latest_tokenizer(toks_dir)
@@ -32,14 +32,14 @@ def prepare_mod_tok_data(accelerator, config_dict, batch_size=8, split=tokops.NO
     tokenizer = broadcast_object_list([tokenizer])[0]
     dataset = broadcast_object_list([dataset])[0]
     model = broadcast_object_list([model])[0]
+    return model, tokenizer, dataset
 
+def prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=8):
+    batch_size = batch_size // accelerator.num_processes
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
-
     dataloader, model = accelerator.prepare(dataloader, model)
-
-    return model, tokenizer, dataloader
-
+    return model, dataloader
 
 def compare_predictions(model, tokenizer, dataloader, max_length=512):
     model.eval()
@@ -71,30 +71,10 @@ def compare_predictions(model, tokenizer, dataloader, max_length=512):
     match_ratio = exact_matches / total_samples if total_samples > 0 else 0
     return exact_matches, total_samples, mismatches
 
-def wrap_on_accel(f):
-    try:
-        accelerator = Accelerator(mixed_precision="fp16")
-        if accelerator.is_main_process:
-            logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
-        accelerate_test.log_cuda_info(accelerator)
-        f(accelerator)
-    except Exception as e:
-        logging.error(f"{e}")
-        raise e
-    finally:
-        accelerator.wait_for_everyone()
-        if torch.distributed.is_initialized():
-            try:
-                torch.distributed.destroy_process_group()
-            except Exception as e:
-                logging.error(f"Error destroying process group: {str(e)}")
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-
-def on_data(config_dict, split=tokops.NONE):
+def on_dataset(config_dict, split=tokops.NONE):
     def predict_eval(accelerator, config_dict):
-        model, tokenizer, dataloader = prepare_mod_tok_data(accelerator, config_dict, batch_size=8, split=split)
+        model, tokenizer, dataset = load_model_tok_data(accelerator, config_dict, split=split)
+        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=8)
         compare_predictions(model, tokenizer, dataloader)
     
-    wrap_on_accel(lambda acc: predict_eval(acc, config_dict))
+    ops.wrap_w_accelerator(lambda acc: predict_eval(acc, config_dict))
