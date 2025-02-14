@@ -13,7 +13,6 @@ import random
 
 import ops
 import tokenizer_ops as tokops
-import accelerate_test
 
 from torch.utils.data import DataLoader
 from transformers import (
@@ -23,7 +22,6 @@ from transformers import (
     DataCollatorForSeq2Seq, 
     get_scheduler
 )
-from accelerate import Accelerator
 from accelerate.utils import broadcast_object_list
 
 
@@ -158,7 +156,7 @@ def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
         logging.info(f"Epoch {epoch + 1} of {num_epochs}")
         train(model, train_dataloader, optimizer, lr_scheduler, accelerator)
         if accelerator.is_main_process:
-            tokops.save_hf_data_in(accelerator.unwrap_model(model), config_dict["models_dir"])
+            ops.save_hf_data_in(accelerator.unwrap_model(model), config_dict["models_dir"])
             logging.info(f"Finished training loop. Checkpoint saved for epoch {epoch}.")
         validate(model, valid_dataloader, accelerator)
         accelerator.wait_for_everyone()

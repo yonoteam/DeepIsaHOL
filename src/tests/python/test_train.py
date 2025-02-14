@@ -9,8 +9,7 @@ import os
 from torch.utils.data import DataLoader
 from datasets import IterableDataset
 from transformers import (
-    DataCollatorForSeq2Seq, 
-    T5ForConditionalGeneration)
+    DataCollatorForSeq2Seq)
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.dirname(os.path.dirname(TEST_DIR))

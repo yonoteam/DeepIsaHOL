@@ -4,7 +4,6 @@
 # Utility for reading JSONs of proofs
 
 import os
-import math
 import json
 import logging
 import statistics
