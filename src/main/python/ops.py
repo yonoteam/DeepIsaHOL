@@ -40,6 +40,23 @@ def save_dict_as_json(data, file_path, indent=4):
         logging.error(message)
         print(message)
 
+def save_tuple_list_as_txt(list_of_tuples, file_path):
+    """Writes a list of tuples of strings to a .txt file.
+
+    :param list_of_tuples: A list of tuples of strings.
+    :param filename: The name of the .txt file to write to.
+    """
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            for tup in list_of_tuples:
+                line = "\n".join(tup)
+                f.write(line + "\n\n")
+        logging.info(f"List successfully saved to {file_path}")
+    except Exception as e:
+        message = f"Error saving list of tuples of strings to txt: {e}"
+        logging.error(message)
+        print(message)
+
 def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     """
     Executes `f` with arguments `args` and keyword arguments `kwargs`.

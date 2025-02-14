@@ -53,6 +53,15 @@ def get_remotes(config_dict):
         tokenizer_remote = True
     return model_remote, dataset_remote, tokenizer_remote
 
+def log_dataloading(dataloader, accelerator):
+    for batch in dataloader:
+        break
+    pi = accelerator.process_index
+    batch_shape = {k: v.shape for k, v in batch.items()}
+    logging.info(f"{pi}: The fist batch info is:")
+    logging.info(f"{pi}: {batch_shape}")
+    logging.info(f"{pi}: {batch['input_ids'][0][:10]}")
+
 def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=8):
     batch_size = batch_size // accelerator.num_processes
     # Dataloaders
@@ -65,11 +74,13 @@ def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerato
     lr_scheduler = get_scheduler("constant", optimizer=optimizer)
 
     # Accelerate them
-    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(
-            train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
-        )
+    train_dataloader = accelerator.prepare_data_loader(train_dataloader)
+    valid_dataloader = accelerator.prepare_data_loader(valid_dataloader)
+    log_dataloading(train_dataloader, accelerator)
+    model, optimizer, lr_scheduler = accelerator.prepare(
+            model, optimizer, lr_scheduler
+    )
     return train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
-
 
 # RETRIEVE MODEL
 
