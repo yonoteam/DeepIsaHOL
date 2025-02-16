@@ -28,6 +28,11 @@ object Utils {
 
   def valid_afp: Boolean = AFP_ROOTS.exists() && AFP_ROOTS.isFile // TODO: add more checks
 
+  def is_isa_root_dir(dir: Path): Boolean = {
+    val root_file = dir.resolve("ROOT")
+    Files.exists(root_file) && Files.isRegularFile(root_file)
+  }
+
   // Warning: functions finding logic-related info in this file depend on the correctness of this regex
   val root_rgx: Regex = """session\s+"?([\w+-]+)"?\s*(\(\s*([^"]+)\s*\))?\s*(in\s+"?([\w\/-]+)"?)?\s*=""".r
 

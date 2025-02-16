@@ -38,7 +38,11 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   // MINION CONFIGURATION
   private val session_roots = if (work_dir.contains(Directories.isabelle_afp) && Utils.valid_afp) {
     Seq(Path.of(Directories.isabelle_afp))
-  } else Nil
+  } else if (Utils.is_isa_root_dir(Path.of(work_dir))) {
+    Seq(Path.of(work_dir))
+  } else {
+    Nil
+  }
 
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = Path.of(Directories.isabelle_app),
