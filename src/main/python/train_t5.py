@@ -162,12 +162,13 @@ def train(model, dataloader, optimizer, lr_scheduler, accelerator):
         logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
             
 def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict):
+    _, _, models_dir = ops.get_directory_paths(config_dict)
     num_epochs = config_dict["num_epochs"]
     for epoch in range(num_epochs):
         logging.info(f"Epoch {epoch + 1} of {num_epochs}")
         train(model, train_dataloader, optimizer, lr_scheduler, accelerator)
         if accelerator.is_main_process:
-            ops.save_hf_data_in(accelerator.unwrap_model(model), config_dict["models_dir"])
+            ops.save_hf_data_in(accelerator.unwrap_model(model), models_dir)
             logging.info(f"Finished training loop. Checkpoint saved for epoch {epoch}.")
         validate(model, valid_dataloader, accelerator)
         accelerator.wait_for_everyone()
