@@ -224,7 +224,9 @@ def save_hf_data_in(hf_data, saving_dir):
     except FileExistsError:
         logging.warning(f"Directory '{new_dir}' already exists. Skipping save.")
     except Exception as e:
-        logging.error(f"Failed to save hugging face data: {e}")
+        message = f"Failed to save hugging face data: {e}"
+        logging.error(message)
+        raise Exception(message)
 
 
 # OPERATING WITH ACCELERATE

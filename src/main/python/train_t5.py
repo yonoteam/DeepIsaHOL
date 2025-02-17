@@ -53,15 +53,6 @@ def get_remotes(config_dict):
         tokenizer_remote = True
     return model_remote, dataset_remote, tokenizer_remote
 
-def log_dataloading(dataloader, accelerator):
-    for batch in dataloader:
-        break
-    pi = accelerator.process_index
-    batch_shape = {k: v.shape for k, v in batch.items()}
-    logging.info(f"{pi}: The fist batch info is:")
-    logging.info(f"{pi}: {batch_shape}")
-    logging.info(f"{pi}: {batch['input_ids'][0][:10]}")
-
 def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=8):
     batch_size = batch_size // accelerator.num_processes
     # Dataloaders
@@ -81,6 +72,41 @@ def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerato
             model, optimizer, lr_scheduler
     )
     return train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
+
+# LOGGING
+
+def log_dataloading(dataloader, accelerator):
+    for batch in dataloader:
+        break
+    pi = accelerator.process_index
+    batch_shape = {k: v.shape for k, v in batch.items()}
+    logging.info(f"{pi}: The fist batch info is:")
+    logging.info(f"{pi}: {batch_shape}")
+    logging.info(f"{pi}: {batch['input_ids'][0][:10]}")
+
+def log_exploding_gradients(model, accelerator, threshold=1e4):
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            max_grad = param.grad.abs().max().item()
+            if max_grad > threshold:
+                logging.warning(f"{accelerator.process_index}: Exploding gradient detected! Layer: {name}, max grad: {max_grad}")
+
+def log_nan_inputs(batch_idx, batch, accelerator):
+    for k, v in batch.items():
+        if torch.isnan(v.float()).any():
+            logging.warning(f"{accelerator.process_index}: NaN detected in {k} of batch {batch_idx}")
+            logging.info(f"{accelerator.process_index}: batch {batch_idx} is {batch}")
+
+def log_empty_labels(batch_idx, batch, accelerator):
+    labels = batch["labels"]
+    if labels.eq(-100).all():
+        logging.warning(f"{accelerator.process_index}: Empty labels detected at batch {batch_idx}")
+        logging.info(f"{accelerator.process_index}: batch {batch_idx} is {batch}")
+
+def log_nan_loss(loss, batch_idx, batch, accelerator):
+    if torch.isnan(loss).any():
+        logging.error(f"{accelerator.process_index}: NaN loss detected at batch {batch_idx}")
+        logging.info(f"{accelerator.process_index}: batch {batch_idx} is {batch}")
 
 # RETRIEVE MODEL
 
@@ -155,10 +181,12 @@ def train(model, dataloader, optimizer, lr_scheduler, accelerator):
         if batch_idx % 100 == 0:
             logging.info(f"Train step number {batch_idx}")
         
-    logging.info(f"Total number of steps was {batch_idx + 1}")
-    avg_train_loss = train_loss / (batch_idx + 1)
+    logging.info(f"{accelerator.process_index}: Total number of steps was {batch_idx + 1}")
     accelerator.wait_for_everyone()
+    avg_train_loss = train_loss / (batch_idx + 1)
     if accelerator.is_main_process:
+        # total = accelerator.gather(torch.tensor([batch_idx + 1], device=accelerator.device)).sum().item()
+        # logging.info(f"Total number of steps was {total}")
         logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
             
 def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict):
