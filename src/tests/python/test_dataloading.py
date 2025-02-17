@@ -1,7 +1,9 @@
 # Mantainers: 
 #   Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
 # 
-# Test file for 
+# Logging script for a (multi-process) run through the datasets
+# that also tests that the model, tokenizer, and datasets are
+# loaded correctly
 
 import os
 import sys
