@@ -30,13 +30,17 @@ def main(config_dict, split=tokops.NONE):
     dataloader = DataLoader(dataset, batch_size=8, shuffle=False, collate_fn=data_collator)
     total_samples = 0
     for batch_idx, batch in enumerate(dataloader):
+        if batch_idx == 0:
+            vals_shape = {k: v.shape for k, v in batch.items()}
+            logging.info(f"The first batch info is:")
+            logging.info(f"{vals_shape}")
         batch_size = batch["input_ids"].shape[0]
         total_samples += batch_size
     logging.info(f"Total number of batches was {batch_idx + 1}")
     logging.info(f"Total number of samples was {total_samples}")
 
 if __name__ == "__main__":
-    ops.configure_logging("test_dataloading.log")
+    ops.configure_logging("count_samples.log")
     try:
         config_dict = ops.get_config_dict(ops.parse_config_path(tool_explanation="Train the transformer as specified in the input JSON configuration."))
         ops.check_params(config_dict)

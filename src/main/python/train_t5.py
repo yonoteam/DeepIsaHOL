@@ -80,7 +80,7 @@ def log_dataloading(dataloader, accelerator):
         break
     pi = accelerator.process_index
     batch_shape = {k: v.shape for k, v in batch.items()}
-    logging.info(f"{pi}: The fist batch info is:")
+    logging.info(f"{pi}: The first batch info is:")
     logging.info(f"{pi}: {batch_shape}")
     logging.info(f"{pi}: {batch['input_ids'][0][:10]}")
 
