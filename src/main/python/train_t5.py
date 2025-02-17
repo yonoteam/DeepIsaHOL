@@ -181,7 +181,7 @@ def train(model, dataloader, optimizer, lr_scheduler, accelerator):
         if batch_idx % 100 == 0:
             logging.info(f"Train step number {batch_idx}")
         
-    logging.info(f"{accelerator.process_index}: Total number of steps was {batch_idx + 1}")
+    logging.info(f"{accelerator.process_index}: Total number of batches was {batch_idx + 1}")
     accelerator.wait_for_everyone()
     avg_train_loss = train_loss / (batch_idx + 1)
     if accelerator.is_main_process:

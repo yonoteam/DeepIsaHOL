@@ -60,10 +60,10 @@ def log_dataset_info(dataloader, accelerator):
         train_t5.log_nan_inputs(batch_idx, batch, accelerator)
         train_t5.log_empty_labels(batch_idx, batch, accelerator)
     accelerator.wait_for_everyone()
-    logging.info(f"{accelerator.process_index}: Total number of steps was {batch_idx + 1}")
+    logging.info(f"{accelerator.process_index}: Total number of batches was {batch_idx + 1}")
     if accelerator.is_main_process:
         total = accelerator.gather(torch.tensor([batch_idx + 1], device=accelerator.device)).sum().item()
-        logging.info(f"Total number of steps was {total}")
+        logging.info(f"Total number of batches was {total}")
 
 def main(accelerator, config_dict):
     model, tokenizer, dataset = test_load_model_tok_data(accelerator, config_dict, split=tokops.TRAIN)
