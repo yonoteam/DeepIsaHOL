@@ -16,6 +16,7 @@ from accelerate import Accelerator
 
 import proofs
 import accelerate_test
+from tokenizer_ops import SPLITS
 
 def print_dict(d, max=None):
     for i, (k, v) in enumerate(d.items()):
@@ -126,21 +127,21 @@ def get_config_dict(json_path):
     """
     if not os.path.isfile(json_path):
         raise Exception(f"The configuration file '{json_path}' does not exist.")
-
     with open(json_path, "r") as file:
         config = json.load(file)
-    
     return config
 
 def check_params(config_dict):
     """
-    If the input configuration is not correct, it raises an error. Otherwise, it does nothing.
+    If the input configuration dictionary is not correct, it raises an error. Otherwise, it does nothing.
     It tests the existence of the following parameters.
     'data_dir' - (str) path to a directory recursively containing at leasst one proofN.json
     'model_name' - (str) a Hugging Face model name
     'all_models_dir' - (str) the directory where the tokenizers, datasets and models are saved
-    'mode' - (str) any of the proofs.MODES
-    'num_epochs' - (int) the number of times the training loop is repeated
+    'data_mode' - (str) any of the proofs.MODES
+    'data_split' - (str) any of the possible dataset splits as in tokenizer_ops.SPLITS. It will be ignnored in the non-testing scripts.
+    'batch_size' - (int) the number of samples per batch
+    'num_epochs' - (int) the number of times the training/validation loop is repeated
 
     :param config_dict: (dict) dictionary containing the training configuration
     """
@@ -148,39 +149,52 @@ def check_params(config_dict):
         data_dir = config_dict["data_dir"]
         _ = config_dict["model_name"]
         all_models_dir = config_dict["all_models_dir"]
-        _ = config_dict["mode"]
+        data_mode = config_dict["data_mode"]
+        data_split = config_dict["data_split"]
+        _ = int(config_dict["batch_size"])
         _ = int(config_dict["num_epochs"])
     except KeyError as e:
-        raise Exception(f"Error extracting parameters from configuration dictionary: {e}")
+        raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
+    except ValueError as e:
+        raise ValueError(f"Error extracting parameter from configuration dictionary: {e}")
+    except Exception as e:
+        raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
     
     if not proofs.valid_data_dir(data_dir):
-        message = f"""No subdirectory in '{data_dir}' contains  a 
-        JSON file that starts with 'proof' and ends with '.json'.""".format()
-        raise Exception(f"Error: {message}.")
+        message = f"""No subdirectory in '{data_dir}' contains  a JSON file that starts with 'proof' and ends with '.json'.""".format()
+        raise ValueError(f"Error: {message}.")
     
     if not os.path.isdir(all_models_dir):
         message = f"""Input '{all_models_dir}' is not a directory."""
-        raise Exception(f"Error: {message}")
+        raise ValueError(f"Error: {message}")
+    
+    valid_modes = proofs.MODES.values()
+    if not data_mode in valid_modes:
+        message = f"""Input '{data_mode}' is not a valid data mode: {valid_modes}"""
+        raise ValueError(f"Error: {message}")
+    
+    valid_splits = SPLITS.values()
+    if not data_split in valid_splits:
+        message = f"""Input '{data_split}' is not a valid dataset split: {valid_splits}"""
+        raise ValueError(f"Error: {message}")
 
 
 # CONFIGURATION RETRIEVAL
 
 def get_directory_paths(config_dict):
     """
-    Returns candidate paths to save tokenizers, datasets, and models from the inputs.
+    Returns candidate paths to save tokenizers, datasets, and models from the input configuration.
 
-    :param all_models_dir: (str) the directory where the tokenizers, datasets and models are saved
-    :param model_name: (str) a Hugging Face model name
-    :param mode: (str) any of the proofs.MODES
+    :param config_dict: (dict) dictionary containing the training configuration
     :rtype: (str, str, str) tuple
     """
     all_models_dir = config_dict["all_models_dir"]
     model_name = config_dict["model_name"]
-    mode = config_dict["mode"]
+    data_mode = config_dict["data_mode"]
     local_model_dir = os.path.join(all_models_dir, model_name)
     tokenizers_dir = os.path.join(local_model_dir, "tokenizers")
-    datasets_dir = os.path.join(tokenizers_dir, f"datasets/{mode}")
-    models_dir = os.path.join(local_model_dir, "models", mode)
+    datasets_dir = os.path.join(tokenizers_dir, f"datasets/{data_mode}")
+    models_dir = os.path.join(local_model_dir, "models", data_mode)
     return tokenizers_dir, datasets_dir, models_dir
 
 def get_latest_dir_from(saving_dir, adding_one=False):

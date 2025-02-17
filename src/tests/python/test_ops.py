@@ -12,10 +12,12 @@ MAIN_DIR = os.path.join(SRC_DIR, 'main/python')
 sys.path.insert(0, MAIN_DIR)
 
 import ops
+import proofs
+import tokenizer_ops as tokops
 
 def correct_parse_config_path():
     try:
-        config_path = ops.parse_config_path(tool_explanation="Tests successful information retrieval from input JSON configuration.")
+        config_path = ops.parse_config_path(tool_explanation="Tests for successful information retrieval from input JSON configuration.")
         print("Test passed: correct_parse_config_path")
         return config_path
     except Exception as e:
@@ -29,23 +31,38 @@ def correct_get_config_dict():
         print("Test passed: correct_get_config_dict")
         return config_dict
     except Exception as e:
-        print(f"correct_get_config_dict failed to extract a dictionary from input path: {e}")
+        print(f"correct_get_config_dict failed to extract training configuration from input path: {e}")
         raise e
     
 def correct_params():
     try:
         config_dict = correct_get_config_dict()
-        if config_dict["data_dir"] != "/path/to/data":
-            raise Exception(f"correct_params failed, 'data_dir' is not '/path/to/data'")
-        if config_dict["all_models_dir"] != "/path/to/all/models":
-            raise Exception(f"correct_params failed, 'all_models_dir' is not '/path/to/all/models'")
-        if config_dict["model_name"] != "model_name":
-            raise Exception(f"correct_params failed, 'model_name' is not the string 'model_name'")
-        if config_dict["mode"] != "state":
-            raise Exception(f"correct_params failed, 'mode' is not the string 'state'")
-        if config_dict["num_epochs"] != 10:
-            raise Exception(f"correct_params failed, 'num_epochs' is not {10}")
-        ops.check_params(config_dict)
+        expected_data_dir = "/path/to/data/dir/produced/by/isabelle_rl/proof_data_generation"
+        if config_dict["data_dir"] != expected_data_dir:
+            raise ValueError(f"'data_dir' is not {expected_data_dir}")
+        
+        expected_all_dir = "/path/to/all/models"
+        if config_dict["all_models_dir"] != expected_all_dir:
+            raise ValueError(f"'all_models_dir' is not {expected_all_dir}")
+        
+        expected_model_name = "hugging_face_model_name"
+        if config_dict["model_name"] != expected_model_name:
+            raise ValueError(f"'model_name' is not the string {expected_model_name}")
+        
+        expected_data_mode = proofs.STATE_MODE
+        if config_dict["data_mode"] != expected_data_mode:
+            raise ValueError(f"'data_mode' is not the string {expected_data_mode}")
+        
+        expected_data_split = tokops.NONE
+        if config_dict["data_split"] != expected_data_split:
+            raise ValueError(f"'data_split' is not the string {expected_data_split}")
+        
+        if config_dict["batch_size"] != 8:
+            raise ValueError(f"'batch_size' is not {8}")
+        
+        if config_dict["num_epochs"] != 1:
+            raise ValueError(f"'num_epochs' is not {1}")
+        
         print("Test passed: correct_params")
     except Exception as e:
         print(f"correct_params failed: {e}")

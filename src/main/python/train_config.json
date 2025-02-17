@@ -1,7 +1,10 @@
 {
-    "data_dir": "/path/to/data",
-    "model_name": "model_name",
+    "_doc": "Sample script configuration file. \n The `data_mode`'s are listed in `proof.py`\n The `data_split`'s appear in `tokenizer_ops.py`. The parameter will be ignored in non-testing scripts. This field (_doc) is optional.",
+    "data_dir": "/path/to/data/dir/produced/by/isabelle_rl/proof_data_generation",
+    "model_name": "hugging_face_model_name",
     "all_models_dir": "/path/to/all/models",
-    "mode": "state",
-    "num_epochs": 10
+    "data_mode": "state",
+    "data_split": "none",
+    "batch_size": 8,
+    "num_epochs": 1
 }

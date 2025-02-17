@@ -282,7 +282,7 @@ def string_from(proof_json, readable=False):
 
     return sep_space.join(str_list) 
 
-def inputs_targets_from(proof_json, mode=STATE_MODE, readable=False):
+def inputs_targets_from(proof_json, data_mode=STATE_MODE, readable=False):
     data = []
     sep_space = '\n' if readable else ' '
     for i, step in enumerate(proof_json['proof']['steps'][1:], 1):
@@ -292,20 +292,20 @@ def inputs_targets_from(proof_json, mode=STATE_MODE, readable=False):
             ' '.join([USER_STATE_SEP, step['step']['user_state']])
         ]
 
-        if mode.startswith(SP_MODE):
+        if data_mode.startswith(SP_MODE):
             xs.append(DEPS_SEP)
             for thm in proof_json['proof']['deps']:
                 zs = ' '.join([NAME_SEP, thm['thm']['name']]) + ' ' + ' '.join([TERM_SEP, thm['thm']['term']])
                 xs.append(zs)
 
         # TODO: add isar/apply-dependent keyword retrieval
-        if mode.startswith(SPK_MODE):
+        if data_mode.startswith(SPK_MODE):
             xs.append(METHODS_SEP)
             for method in proof_json['proof']['methods']:
                 zs = ' '.join([NAME_SEP, method['name']])
                 xs.append(zs)
 
-        if mode.startswith(SPKT_MODE):
+        if data_mode.startswith(SPKT_MODE):
             xs.append(VARS_SEP)
             for var_dict in step['step'].get('variables', []):
                 for _, var in var_dict.items():
@@ -377,7 +377,7 @@ def get_tokenizer_corpus(json_data_dir, readable=False):
     for proof in generate_from(json_data_dir):
         yield string_from(proof, readable)
 
-def estimate_stats(json_data_dir, mode=STATE_MODE):
+def estimate_stats(json_data_dir, data_mode=STATE_MODE):
     """Estimates the average, maximum, minimum, median, mode, and total size
     of the (input and target) tokens in the input directory's dataset.
     
@@ -386,8 +386,8 @@ def estimate_stats(json_data_dir, mode=STATE_MODE):
     :rtype: generator
     """
     def accumulate_approx_lengths(lengths, proof):
-        lengths[0].extend(len(x.split()) for x, _ in inputs_targets_from(proof, mode=mode))
-        lengths[1].extend(len(y.split()) for _, y in inputs_targets_from(proof, mode=mode))
+        lengths[0].extend(len(x.split()) for x, _ in inputs_targets_from(proof, data_mode=data_mode))
+        lengths[1].extend(len(y.split()) for _, y in inputs_targets_from(proof, data_mode=data_mode))
         return lengths
     
     def get_stats(nums):

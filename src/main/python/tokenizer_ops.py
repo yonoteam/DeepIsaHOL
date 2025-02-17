@@ -17,6 +17,16 @@ TRAIN = "train"
 VALID = "valid"
 TEST = "test"
 NONE = "none"
+SPLITS = {
+    "TRAIN": TRAIN, 
+    "VALID": VALID, 
+    "TEST": TEST, 
+    "NONE": NONE
+}
+
+def print_splits():
+    for key, mode in SPLITS.items():
+        print(f"{key}: '{mode}'")
 
 # TRAINING FROM SCRATCH
 
@@ -116,7 +126,7 @@ def tokenize(tokenizer, x, y):
         model_inputs.append(to_add)
     return model_inputs
 
-def generate_model_inputs(tokenizer, json_data_dir, split, mode=proofs.STATE_MODE):
+def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=proofs.STATE_MODE):
     """
     Generator function for train, validation, and test data.
 
@@ -129,7 +139,7 @@ def generate_model_inputs(tokenizer, json_data_dir, split, mode=proofs.STATE_MOD
     """
     for path in generate_proof_paths(json_data_dir, split):
         proof = proofs.get_proof_json(path)
-        for input_text, target_text in proofs.inputs_targets_from(proof, mode):
+        for input_text, target_text in proofs.inputs_targets_from(proof, data_mode):
             model_inputs = tokenize(tokenizer, input_text, target_text)
             for model_input in model_inputs:
                 yield model_input
@@ -142,18 +152,18 @@ def get_dataset(tokenizer, config_dict, split=NONE):
             'tokenizer': tokenizer, 
             'json_data_dir': config_dict["data_dir"], 
             'split': split, 
-            'mode': config_dict["mode"]
+            'mode': config_dict["data_mode"]
         }
     )
     return dataset
 
 # SAVE AND LOAD DATASETS
 
-def make_and_save_datasets(tokenizer, data_dir, datasets_dir, mode=proofs.STATE_MODE):
+def make_and_save_datasets(tokenizer, data_dir, datasets_dir, data_mode=proofs.STATE_MODE):
     root_dirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir() and proofs.valid_data_dir(entry)]
     for root_dir in root_dirs:
         for split in [TRAIN, VALID, TEST]:
-            dataset = list(generate_model_inputs(tokenizer, root_dir, split=split, mode=mode))
+            dataset = list(generate_model_inputs(tokenizer, root_dir, split=split, data_mode=data_mode))
             save_name = os.path.join(os.path.basename(root_dir), split + '.pt')
             save_path = os.path.join(datasets_dir, save_name)
             os.makedirs(os.path.dirname(save_path), exist_ok=True)

@@ -177,7 +177,7 @@ def print_proof():
 
 def inputs_targets_from(test_dir=TEST_DIR):
     try:
-        iter_f = lambda data_list, proof: proofs.inputs_targets_from(proof, mode=proofs.SPKT_MODE, readable=False)
+        iter_f = lambda data_list, proof: proofs.inputs_targets_from(proof, data_mode=proofs.SPKT_MODE, readable=False)
         proofs.apply(iter_f, [], test_dir)
         print("input_targets_from() passed")
     except Exception as e:
