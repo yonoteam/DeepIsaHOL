@@ -152,7 +152,7 @@ def get_dataset(tokenizer, config_dict, split=NONE):
             'tokenizer': tokenizer, 
             'json_data_dir': config_dict["data_dir"], 
             'split': split, 
-            'mode': config_dict["data_mode"]
+            'data_mode': config_dict["data_mode"]
         }
     )
     return dataset

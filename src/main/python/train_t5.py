@@ -178,7 +178,7 @@ def train(model, dataloader, optimizer, lr_scheduler, accelerator):
         train_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
 
         # progress feedback
-        if batch_idx % 100 == 0:
+        if batch_idx % 1000 == 0:
             logging.info(f"Train step number {batch_idx}")
         
     logging.info(f"{accelerator.process_index}: Total number of batches was {batch_idx + 1}")
