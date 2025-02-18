@@ -64,6 +64,8 @@ def log_dataset_info(dataloader, accelerator):
         train_t5.log_empty_labels(batch_idx, batch, accelerator)
         batch_size = batch["input_ids"].shape[0]
         total_samples += batch_size
+        if batch_idx % 1000 == 0:
+            logging.info(f"Train step number {batch_idx}")
     accelerator.wait_for_everyone()
     logging.info(f"{accelerator.process_index}: Total number of batches was {batch_idx + 1}")
     if accelerator.is_main_process:
