@@ -156,7 +156,7 @@ def report_loss(losses, local_loss_sum, local_batch_count, accelerator, save_fil
     accelerator.wait_for_everyone()
     return losses
 
-def validate(model, dataloader, accelerator):
+def validate(model, dataloader, epoch, accelerator):
     model.eval()
     local_valid_loss_sum = 0.0
     losses = []
@@ -172,11 +172,11 @@ def validate(model, dataloader, accelerator):
             local_valid_loss_sum += loss.item()
             if batch_idx % 100 == 0:
                 logging.info(f"{process_idx}: valid step number {batch_idx}")
-                losses = report_loss(losses, local_valid_loss_sum, batch_idx + 1, accelerator, save_file="validation_loss.png", title="Average validation loss")
+                losses = report_loss(losses, local_valid_loss_sum, batch_idx + 1, accelerator, save_file=f"validation_loss{epoch}.png", title="Average validation loss")
 
-    losses = report_loss(losses, local_valid_loss_sum, batch_idx + 1, accelerator, save_file="validation_loss.png", title="Average validation loss")
+    losses = report_loss(losses, local_valid_loss_sum, batch_idx + 1, accelerator, save_file=f"validation_loss{epoch}.png", title="Average validation loss")
 
-def train(model, dataloader, optimizer, lr_scheduler, accelerator):
+def train(model, dataloader, optimizer, lr_scheduler, epoch, accelerator):
     model.train()
     local_loss_sum = 0.0
     losses = []
@@ -202,23 +202,23 @@ def train(model, dataloader, optimizer, lr_scheduler, accelerator):
         local_loss_sum += loss.item()
         if batch_idx % 1000 == 0:
             logging.info(f"{process_idx}: train step number {batch_idx}")
-            losses = report_loss(losses, local_loss_sum, batch_idx + 1, accelerator, save_file="training_loss.png", title="Average training loss")
+            losses = report_loss(losses, local_loss_sum, batch_idx + 1, accelerator, save_file=f"training_loss{epoch}.png", title="Average training loss")
         
     logging.info(f"{process_idx}: Total number of batches was {batch_idx + 1}")
     logging.info(f"{process_idx}: Final learning rate was: {lr_scheduler.get_last_lr()[0]}")
-    losses = report_loss(losses, local_loss_sum, batch_idx + 1, accelerator)
+    losses = report_loss(losses, local_loss_sum, batch_idx + 1, accelerator, save_file=f"training_loss{epoch}.png", title="Average training loss")
             
 def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict):
     _, _, models_dir = ops.get_directory_paths(config_dict)
     num_epochs = config_dict["num_epochs"]
     for epoch in range(num_epochs):
         logging.info(f"Epoch {epoch + 1} of {num_epochs}")
-        train(model, train_dataloader, optimizer, lr_scheduler, accelerator)
+        train(model, train_dataloader, optimizer, lr_scheduler, epoch, accelerator)
         if accelerator.is_main_process:
             ops.save_hf_data_in(accelerator.unwrap_model(model), models_dir)
             logging.info(f"Finished training loop. Checkpoint saved for epoch {epoch}.")
-        validate(model, valid_dataloader, accelerator)
         accelerator.wait_for_everyone()
+        validate(model, valid_dataloader, epoch, accelerator)
     if accelerator.is_main_process:
         logging.info("Training complete.")
 
