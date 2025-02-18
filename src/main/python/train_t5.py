@@ -189,12 +189,12 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, accelerator):
             labels=batch["labels"]
         )
         loss = outputs.loss
-        log_nan_loss(loss, batch_idx, batch, accelerator)
+        # log_nan_loss(loss, batch_idx, batch, accelerator)
         
         # Backpropagation
         optimizer.zero_grad()
         accelerator.backward(loss) # loss.backward()
-        log_exploding_gradients(model, accelerator)
+        # log_exploding_gradients(model, accelerator)
         optimizer.step()
         lr_scheduler.step()
 
