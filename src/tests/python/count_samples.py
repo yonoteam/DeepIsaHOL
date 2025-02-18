@@ -36,6 +36,8 @@ def main(config_dict, split=tokops.NONE):
             logging.info(f"{vals_shape}")
         batch_size = batch["input_ids"].shape[0]
         total_samples += batch_size
+        if batch_idx % 1000 == 0:
+            logging.info(f"Processed {batch_idx} batches so far")
     logging.info(f"Total number of batches was {batch_idx + 1}")
     logging.info(f"Total number of samples was {total_samples}")
 

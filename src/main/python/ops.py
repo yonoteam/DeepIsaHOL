@@ -12,6 +12,7 @@ import argparse
 import threading
 
 import torch
+import matplotlib.pyplot as plt
 from accelerate import Accelerator
 
 import proofs
@@ -23,6 +24,30 @@ def print_dict(d, max=None):
         print(f"{k}: {v}")
         if i == max:
             break
+
+def plot_curve(points, save_path="curve.png", title="Graph of (x, y) pairs", x_label="X-axis", y_label="Y-axis"):
+    """
+    Plots a curve from a list of (x, y) pairs and saves the graph.
+
+    :param points: List of (x, y) tuples.
+    :param save_path: Path to save the image.
+    :param title: Title of the graph.
+    :param x_label: Label for the x-axis.
+    :param y_label: Label for the y-axis.
+    """
+    x_vals, y_vals = zip(*points)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(x_vals, y_vals, marker='o', linestyle='-', color='b', label="Curve")
+    
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.legend()
+    plt.grid(True)
+
+    plt.savefig(save_path, dpi=300)
+    plt.close()
 
 def save_dict_as_json(data, file_path, indent=4):
     """

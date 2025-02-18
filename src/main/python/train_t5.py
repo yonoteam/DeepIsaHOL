@@ -141,9 +141,26 @@ def get_model(config_dict, vocab_size, remote=False):
 
 # TRAINING LOOPS
 
+def report_loss(losses, local_loss_sum, local_batch_count, accelerator, save_file="train_loss.png", title="Average loss"):
+    accelerator.wait_for_everyone()
+    local_loss_tensor = torch.tensor(local_loss_sum, device=accelerator.device)
+    local_batch_tensor = torch.tensor(local_batch_count, device=accelerator.device)
+    global_loss = accelerator.reduce(local_loss_tensor, reduction="sum")
+    global_batch_count = accelerator.reduce(local_batch_tensor, reduction="sum")
+    accelerator.wait_for_everyone()
+    if accelerator.is_main_process:
+        avg_loss = global_loss.item() / global_batch_count.item()
+        losses.append((local_batch_count, avg_loss))
+        logging.info(f"Current step's ({local_batch_count}) average loss is {avg_loss:.4f}")
+        ops.plot_curve(losses, save_path=save_file, title=title, x_label="Steps", y_label="Loss")
+    accelerator.wait_for_everyone()
+    return losses
+
 def validate(model, dataloader, accelerator):
     model.eval()
-    valid_loss = 0.0
+    local_valid_loss_sum = 0.0
+    losses = []
+    process_idx = accelerator.process_index
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
             outputs = model(
@@ -152,15 +169,18 @@ def validate(model, dataloader, accelerator):
                 labels=batch["labels"]
             )
             loss = outputs.loss
-            valid_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
-    avg_valid_loss = valid_loss / (batch_idx + 1)
-    accelerator.wait_for_everyone()
-    if accelerator.is_main_process:
-        logging.info(f"Validation Loss: {avg_valid_loss:.4f}")
+            local_valid_loss_sum += loss.item()
+            if batch_idx % 100 == 0:
+                logging.info(f"{process_idx}: valid step number {batch_idx}")
+                losses = report_loss(losses, local_valid_loss_sum, batch_idx + 1, accelerator, save_file="validation_loss.png", title="Average validation loss")
+
+    losses = report_loss(losses, local_valid_loss_sum, batch_idx + 1, accelerator, save_file="validation_loss.png", title="Average validation loss")
 
 def train(model, dataloader, optimizer, lr_scheduler, accelerator):
     model.train()
-    train_loss = 0.0
+    local_loss_sum = 0.0
+    losses = []
+    process_idx = accelerator.process_index
     for batch_idx, batch in enumerate(dataloader):
         # model.forward() and loss calculation
         outputs = model(
@@ -169,25 +189,24 @@ def train(model, dataloader, optimizer, lr_scheduler, accelerator):
             labels=batch["labels"]
         )
         loss = outputs.loss
-
+        log_nan_loss(loss, batch_idx, batch, accelerator)
+        
         # Backpropagation
         optimizer.zero_grad()
         accelerator.backward(loss) # loss.backward()
+        log_exploding_gradients(model, accelerator)
         optimizer.step()
         lr_scheduler.step()
-        train_loss += accelerator.gather(loss).sum().item() / accelerator.num_processes
 
         # progress feedback
+        local_loss_sum += loss.item()
         if batch_idx % 1000 == 0:
-            logging.info(f"Train step number {batch_idx}")
+            logging.info(f"{process_idx}: train step number {batch_idx}")
+            losses = report_loss(losses, local_loss_sum, batch_idx + 1, accelerator, save_file="training_loss.png", title="Average training loss")
         
-    logging.info(f"{accelerator.process_index}: Total number of batches was {batch_idx + 1}")
-    accelerator.wait_for_everyone()
-    avg_train_loss = train_loss / (batch_idx + 1)
-    if accelerator.is_main_process:
-        # total = accelerator.gather(torch.tensor([batch_idx + 1], device=accelerator.device)).sum().item()
-        # logging.info(f"Total number of steps was {total}")
-        logging.info(f"Average Training Loss: {avg_train_loss:.4f}, LearnRate: {lr_scheduler.get_last_lr()[0]}")
+    logging.info(f"{process_idx}: Total number of batches was {batch_idx + 1}")
+    logging.info(f"{process_idx}: Final learning rate was: {lr_scheduler.get_last_lr()[0]}")
+    losses = report_loss(losses, local_loss_sum, batch_idx + 1, accelerator)
             
 def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict):
     _, _, models_dir = ops.get_directory_paths(config_dict)
