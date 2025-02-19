@@ -11,9 +11,8 @@ SRC_DIR = os.path.dirname(os.path.dirname(TEST_DIR))
 MAIN_DIR = os.path.join(SRC_DIR, 'main/python')
 sys.path.insert(0, MAIN_DIR)
 
+import isa_data
 import ops
-import proofs
-import tokenizer_ops as tokops
 
 def correct_parse_config_path():
     try:
@@ -49,11 +48,11 @@ def correct_params():
         if config_dict["model_name"] != expected_model_name:
             raise ValueError(f"'model_name' is not the string {expected_model_name}")
         
-        expected_data_mode = proofs.STATE_MODE
+        expected_data_mode = isa_data.FORMATS["S"]
         if config_dict["data_mode"] != expected_data_mode:
             raise ValueError(f"'data_mode' is not the string {expected_data_mode}")
         
-        expected_data_split = tokops.NONE
+        expected_data_split = isa_data.SPLITS["NONE"]
         if config_dict["data_split"] != expected_data_split:
             raise ValueError(f"'data_split' is not the string {expected_data_split}")
         

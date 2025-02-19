@@ -16,12 +16,12 @@ SRC_DIR = os.path.dirname(os.path.dirname(TEST_DIR))
 MAIN_DIR = os.path.join(SRC_DIR, 'main/python')
 sys.path.insert(0, MAIN_DIR)
 
+import isa_data
 import ops
-import tokenizer_ops as tokops
 import train_t5
 import eval_t5
 
-def test_load_model_tok_data(accelerator, config_dict, split=tokops.NONE):
+def test_load_model_tok_data(accelerator, config_dict, split=isa_data.FORMATS["NONE"]):
     try:
         model, tokenizer, train_data = eval_t5.load_model_tok_data(accelerator, config_dict, split=split)
         logging.info("eval_t5.test_load_model_tok_data passed")
@@ -75,7 +75,7 @@ def log_dataset_info(dataloader, accelerator):
         logging.info(f"Total number of samples was {samples}")
 
 def main(accelerator, config_dict):
-    model, tokenizer, dataset = test_load_model_tok_data(accelerator, config_dict, split=tokops.TRAIN)
+    model, tokenizer, dataset = test_load_model_tok_data(accelerator, config_dict, split=isa_data.FORMATS["TRAIN"])
     model, dataloader = test_prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=24)
     log_model_forward(model, dataloader, accelerator)
     log_dataset_info(dataloader, accelerator)

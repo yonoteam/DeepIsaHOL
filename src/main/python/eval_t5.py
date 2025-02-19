@@ -11,11 +11,12 @@ from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq
 from accelerate.utils import broadcast_object_list
 
+import isa_data
 import ops
 import train_t5
 import tokenizer_ops as tokops
 
-def load_model_tok_data(accelerator, config_dict, split=tokops.NONE):
+def load_model_tok_data(accelerator, config_dict, split=isa_data.SPLITS["NONE"]):
     toks_dir, _, models_dir = ops.get_directory_paths(config_dict)
     if accelerator.is_main_process:
         tokenizer = tokops.load_latest_tokenizer(toks_dir)
@@ -99,7 +100,7 @@ def exact_equality(in_out_predicts, extending=True):
             mismatches.append((input, target, predict))
     return match_count, mismatches
 
-def with_metric(eval_metric, config_dict, split=tokops.NONE):
+def with_metric(eval_metric, config_dict, split=isa_data.SPLITS["NONE"]):
     def general_body(accelerator):
         model, tokenizer, dataset = load_model_tok_data(accelerator, config_dict, split=split)
         model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=8)

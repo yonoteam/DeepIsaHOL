@@ -15,9 +15,9 @@ import torch
 import matplotlib.pyplot as plt
 from accelerate import Accelerator
 
+import isa_data
 import proofs
 import accelerate_test
-from tokenizer_ops import SPLITS
 
 def print_dict(d, max=None):
     for i, (k, v) in enumerate(d.items()):
@@ -163,8 +163,8 @@ def check_params(config_dict):
     'data_dir' - (str) path to a directory recursively containing at leasst one proofN.json
     'model_name' - (str) a Hugging Face model name
     'all_models_dir' - (str) the directory where the tokenizers, datasets and models are saved
-    'data_mode' - (str) any of the proofs.MODES
-    'data_split' - (str) any of the possible dataset splits as in tokenizer_ops.SPLITS. It will be ignnored in the non-testing scripts.
+    'data_mode' - (str) any of the isa_data.FORMATS
+    'data_split' - (str) any of the possible dataset splits as in isa_data.SPLITS. It will be ignnored in the non-testing scripts.
     'batch_size' - (int) the number of samples per batch
     'num_epochs' - (int) the number of times the training/validation loop is repeated
 
@@ -193,12 +193,12 @@ def check_params(config_dict):
         message = f"""Input '{all_models_dir}' is not a directory."""
         raise ValueError(f"Error: {message}")
     
-    valid_modes = proofs.MODES.values()
+    valid_modes = isa_data.FORMATS.values()
     if not data_mode in valid_modes:
         message = f"""Input '{data_mode}' is not a valid data mode: {valid_modes}"""
         raise ValueError(f"Error: {message}")
     
-    valid_splits = SPLITS.values()
+    valid_splits = isa_data.SPLITS.values()
     if not data_split in valid_splits:
         message = f"""Input '{data_split}' is not a valid dataset split: {valid_splits}"""
         raise ValueError(f"Error: {message}")

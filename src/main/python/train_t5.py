@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import random
 
+import isa_data
 import ops
 import tokenizer_ops as tokops
 
@@ -90,7 +91,7 @@ def log_exploding_gradients(model, batch_idx, accelerator, threshold=1e4):
             if param.grad is not None:
                 max_grad = param.grad.abs().max().item()
                 if max_grad > threshold:
-                    logging.warning(f"{accelerator.process_index}: Exploding gradient detected! Layer: {name}, max grad: {max_grad}")
+                    logging.warning(f"{accelerator.process_index}: Exploding gradient detected at batch {batch_idx}! Layer: {name}, max grad: {max_grad}")
 
 def log_nan_inputs(batch_idx, batch, accelerator):
     for k, v in batch.items():
@@ -237,8 +238,8 @@ def load_model_tok_data(accelerator, config_dict, model_remote=False):
         vocab_size = len(tokenizer)
 
         # Data
-        train_data = tokops.get_dataset(tokenizer, config_dict, split = tokops.TRAIN)
-        valid_data = tokops.get_dataset(tokenizer, config_dict, split = tokops.VALID)
+        train_data = tokops.get_dataset(tokenizer, config_dict, split = isa_data.SPLITS["TRAIN"])
+        valid_data = tokops.get_dataset(tokenizer, config_dict, split = isa_data.SPLITS["VALID"])
 
         # Model
         model = get_model(config_dict, vocab_size, remote=model_remote)

@@ -7,26 +7,12 @@ import os
 import logging
 import torch
 
+import isa_data
 import ops
 import proofs
 
 from datasets import IterableDataset
 from transformers import AutoTokenizer
-
-TRAIN = "train"
-VALID = "valid"
-TEST = "test"
-NONE = "none"
-SPLITS = {
-    "TRAIN": TRAIN, 
-    "VALID": VALID, 
-    "TEST": TEST, 
-    "NONE": NONE
-}
-
-def print_splits():
-    for key, mode in SPLITS.items():
-        print(f"{key}: '{mode}'")
 
 # TRAINING FROM SCRATCH
 
@@ -70,7 +56,7 @@ def get_trained_tokenizer(config_dict, remote=False):
 
 # GENERATE DATASETS
 
-def generate_proof_paths(json_data_dir, split=NONE):
+def generate_proof_paths(json_data_dir, split=isa_data.SPLITS["NONE"]):
     if not proofs.valid_data_dir(json_data_dir):
         raise Exception(f"Error: bad input {json_data_dir} is not an existing directory or does not contain a proofN.json.")
 
@@ -78,19 +64,19 @@ def generate_proof_paths(json_data_dir, split=NONE):
         json_files = [file for file in files if file.startswith("proof") and file.endswith(".json")]
         json_files = [os.path.join(subdir, file) for file in sorted(json_files)]
 
-        if split == NONE:
+        if split == isa_data.SPLITS["NONE"]:
             yield from json_files
         else:
             total_proofs = len(json_files)
             train_size = int(total_proofs * 0.64)
             valid_size = int(total_proofs * 0.16)
-            if split == TRAIN:
+            if split == isa_data.SPLITS["TRAIN"]:
                 train_split = json_files[:train_size]
                 yield from train_split
-            elif split == VALID:
+            elif split == isa_data.SPLITS["VALID"]:
                 valid_split = json_files[train_size:train_size + valid_size]
                 yield from valid_split
-            elif split == TEST:
+            elif split == isa_data.SPLITS["TEST"]:
                 test_split = json_files[train_size + valid_size:]
                 yield from test_split
             else:
@@ -126,7 +112,7 @@ def tokenize(tokenizer, x, y):
         model_inputs.append(to_add)
     return model_inputs
 
-def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=proofs.STATE_MODE):
+def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=isa_data.FORMATS["S"]):
     """
     Generator function for train, validation, and test data.
 
@@ -145,7 +131,7 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=proofs.STAT
                 yield model_input
 
 # TODO: add support for HF datasets library
-def get_dataset(tokenizer, config_dict, split=NONE):
+def get_dataset(tokenizer, config_dict, split=isa_data.SPLITS["NONE"]):
     dataset = IterableDataset.from_generator(
         generate_model_inputs, 
         gen_kwargs={
@@ -159,10 +145,10 @@ def get_dataset(tokenizer, config_dict, split=NONE):
 
 # SAVE AND LOAD DATASETS
 
-def make_and_save_datasets(tokenizer, data_dir, datasets_dir, data_mode=proofs.STATE_MODE):
+def make_and_save_datasets(tokenizer, data_dir, datasets_dir, data_mode=isa_data.FORMATS["S"]):
     root_dirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir() and proofs.valid_data_dir(entry)]
     for root_dir in root_dirs:
-        for split in [TRAIN, VALID, TEST]:
+        for split in [isa_data.SPLITS["TRAIN"], isa_data.SPLITS["VALID"], isa_data.SPLITS["TEST"]]:
             dataset = list(generate_model_inputs(tokenizer, root_dir, split=split, data_mode=data_mode))
             save_name = os.path.join(os.path.basename(root_dir), split + '.pt')
             save_path = os.path.join(datasets_dir, save_name)

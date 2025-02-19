@@ -13,6 +13,8 @@ from collections import Counter
 from copy import deepcopy
 from tqdm import tqdm
 
+import isa_data
+
 ACTION_SEP = 'ACTION_SEP'
 USER_STATE_SEP = 'USER_STATE'
 GOAL_SEP = 'GOAL_SEP'
@@ -26,21 +28,6 @@ ISAR_KWS_SEP = 'ISAR_KWS_SEP'
 DEPS_SEP = 'DEPS_SEP'
 NAME_SEP = 'NAME_SEP'
 METHODS_SEP = 'METHODS_SEP'
-
-STATE_MODE = 'state'
-SP_MODE = 'state_prems'
-SPK_MODE = 'state_prems_kwrds'
-SPKT_MODE = 'state_prems_kwrds_terms'
-MODES = {
-    "STATE_MODE": STATE_MODE, 
-    "SP_MODE": SP_MODE, 
-    "SPK_MODE": SPK_MODE, 
-    "SPKT_MODE": SPKT_MODE
-}
-
-def print_modes():
-    for key, mode in MODES.items():
-        print(f"{key}: '{mode}'")
 
 # DIRECTORY OPERATIONS
 
@@ -282,7 +269,7 @@ def string_from(proof_json, readable=False):
 
     return sep_space.join(str_list) 
 
-def inputs_targets_from(proof_json, data_mode=STATE_MODE, readable=False):
+def inputs_targets_from(proof_json, data_mode=isa_data.FORMATS["S"], readable=False):
     data = []
     sep_space = '\n' if readable else ' '
     for i, step in enumerate(proof_json['proof']['steps'][1:], 1):
@@ -292,20 +279,20 @@ def inputs_targets_from(proof_json, data_mode=STATE_MODE, readable=False):
             ' '.join([USER_STATE_SEP, step['step']['user_state']])
         ]
 
-        if data_mode.startswith(SP_MODE):
+        if data_mode.startswith(isa_data.FORMATS["SP"]):
             xs.append(DEPS_SEP)
             for thm in proof_json['proof']['deps']:
                 zs = ' '.join([NAME_SEP, thm['thm']['name']]) + ' ' + ' '.join([TERM_SEP, thm['thm']['term']])
                 xs.append(zs)
 
         # TODO: add isar/apply-dependent keyword retrieval
-        if data_mode.startswith(SPK_MODE):
+        if data_mode.startswith(isa_data.FORMATS["SPK"]):
             xs.append(METHODS_SEP)
             for method in proof_json['proof']['methods']:
                 zs = ' '.join([NAME_SEP, method['name']])
                 xs.append(zs)
 
-        if data_mode.startswith(SPKT_MODE):
+        if data_mode.startswith(isa_data.FORMATS["SPKT"]):
             xs.append(VARS_SEP)
             for var_dict in step['step'].get('variables', []):
                 for _, var in var_dict.items():
@@ -377,7 +364,7 @@ def get_tokenizer_corpus(json_data_dir, readable=False):
     for proof in generate_from(json_data_dir):
         yield string_from(proof, readable)
 
-def estimate_stats(json_data_dir, data_mode=STATE_MODE):
+def estimate_stats(json_data_dir, data_mode=isa_data.FORMATS["S"]):
     """Estimates the average, maximum, minimum, median, mode, and total size
     of the (input and target) tokens in the input directory's dataset.
     

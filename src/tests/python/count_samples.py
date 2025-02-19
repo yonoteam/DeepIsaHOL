@@ -17,11 +17,12 @@ SRC_DIR = os.path.dirname(os.path.dirname(TEST_DIR))
 MAIN_DIR = os.path.join(SRC_DIR, 'main/python')
 sys.path.insert(0, MAIN_DIR)
 
+import isa_data
 import ops
 import tokenizer_ops as tokops
 import train_t5
 
-def main(config_dict, split=tokops.NONE):
+def main(config_dict, split=isa_data.SPLITS["NONE"]):
     toks_dir, _, models_dir = ops.get_directory_paths(config_dict)
     tokenizer = tokops.load_latest_tokenizer(toks_dir)
     dataset = tokops.get_dataset(tokenizer, config_dict, split = split)
