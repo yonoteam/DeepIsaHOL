@@ -143,26 +143,25 @@ def get_model(config_dict, vocab_size, remote=False):
 
 # TRAINING LOOPS
 
-def report_loss(losses, local_loss_sum, local_batch_count, accelerator, save_file="train_loss.png", title="Average loss"):
+def record(metrics, locals, accelerator, save_file="metrics.json"):
     accelerator.wait_for_everyone()
-    local_loss_tensor = torch.tensor(local_loss_sum, device=accelerator.device)
-    local_batch_tensor = torch.tensor(local_batch_count, device=accelerator.device)
-    global_loss = accelerator.reduce(local_loss_tensor, reduction="sum")
-    global_batch_count = accelerator.reduce(local_batch_tensor, reduction="sum")
-    accelerator.wait_for_everyone()
+    local_stats = torch.tensor([locals["loss_sum"], locals["corrects_sum"], locals["valid_toks"], locals["train_step"]], device=accelerator.device)
+    global_loss, global_corrects_sum, global_valid_toks, global_train_step = accelerator.reduce(local_stats, reduction="sum")
     if accelerator.is_main_process:
-        avg_loss = global_loss.item() / global_batch_count.item()
-        losses.append((local_batch_count, avg_loss))
-        logging.info(f"Current step's ({local_batch_count}) average loss is {avg_loss:.4f}")
-        ops.plot_curve(losses, save_path=save_file, title=title, x_label="Steps", y_label="Loss")
+        avg_loss = global_loss.item() / global_train_step.item()
+        metrics["loss"].append(avg_loss)
+        metrics["accuracy"].append(global_corrects_sum.item() / global_valid_toks.item())
+        metrics["steps"].append(global_train_step.item())
+        logging.info(f"Current step's ({locals["train_step"]}) average loss is {avg_loss:.4f}")
+        ops.save_dict_as_json(metrics, save_file)
     accelerator.wait_for_everyone()
-    return losses
+    return metrics
 
 def validate(model, dataloader, epoch, accelerator):
     model.eval()
-    local_valid_loss_sum = 0.0
-    losses = []
     process_idx = accelerator.process_index
+    metrics = {"loss": [], "accuracy": [], "steps": []}
+    locals = {"loss_sum": 0.0, "corrects_sum": 0, "valid_toks": 0, "train_step": 0}
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
             outputs = model(
@@ -171,18 +170,26 @@ def validate(model, dataloader, epoch, accelerator):
                 labels=batch["labels"]
             )
             loss = outputs.loss
-            local_valid_loss_sum += loss.item()
-            if batch_idx % 100 == 0:
-                logging.info(f"{process_idx}: valid step number {batch_idx}")
-                losses = report_loss(losses, local_valid_loss_sum, batch_idx + 1, accelerator, save_file=f"validation_loss{epoch}.png", title="Average validation loss")
 
-    losses = report_loss(losses, local_valid_loss_sum, batch_idx + 1, accelerator, save_file=f"validation_loss{epoch}.png", title="Average validation loss")
+            # Metrics
+            predictions = outputs.logits.argmax(dim=-1)
+            valids_mask = batch["labels"] != 0
+            corrects = (predictions[valids_mask] == batch["labels"][valids_mask]).sum().item()
+            locals["corrects_sum"] += corrects
+            locals["valid_toks"] += valids_mask.sum().item()
+            locals["loss_sum"] += loss.item()
+            locals["train_step"] = batch_idx + 1
+
+            if batch_idx % 1000 == 0:
+                logging.info(f"{process_idx}: valid step number {batch_idx}")
+                metrics = record(metrics, locals, accelerator, save_file=f"valid_metrics{epoch}.json")
+    metrics = record(metrics, locals, accelerator, save_file=f"valid_metrics{epoch}.json")
 
 def train(model, dataloader, optimizer, lr_scheduler, epoch, accelerator):
     model.train()
-    local_loss_sum = 0.0
-    losses = []
     process_idx = accelerator.process_index
+    metrics = {"loss": [], "accuracy": [], "steps": []}
+    locals = {"loss_sum": 0.0, "corrects_sum": 0, "valid_toks": 0, "train_step": 0}
     for batch_idx, batch in enumerate(dataloader):
         # model.forward() and loss calculation
         outputs = model(
@@ -200,15 +207,23 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, accelerator):
         optimizer.step()
         lr_scheduler.step()
 
+        # Metrics
+        predictions = outputs.logits.argmax(dim=-1)
+        valids_mask = batch["labels"] != 0
+        corrects = (predictions[valids_mask] == batch["labels"][valids_mask]).sum().item()
+        locals["corrects_sum"] += corrects
+        locals["valid_toks"] += valids_mask.sum().item()
+        locals["loss_sum"] += loss.item()
+        locals["train_step"] = batch_idx + 1
+
         # progress feedback
-        local_loss_sum += loss.item()
         if batch_idx % 1000 == 0:
             logging.info(f"{process_idx}: train step number {batch_idx}")
-            losses = report_loss(losses, local_loss_sum, batch_idx + 1, accelerator, save_file=f"training_loss{epoch}.png", title="Average training loss")
+            metrics = record(metrics, locals, accelerator, save_file=f"train_metrics{epoch}.json")
         
     logging.info(f"{process_idx}: Total number of batches was {batch_idx + 1}")
     logging.info(f"{process_idx}: Final learning rate was: {lr_scheduler.get_last_lr()[0]}")
-    losses = report_loss(losses, local_loss_sum, batch_idx + 1, accelerator, save_file=f"training_loss{epoch}.png", title="Average training loss")
+    metrics = record(metrics, locals, accelerator, save_file=f"valid_metrics{epoch}.json")
             
 def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict):
     _, _, models_dir = ops.get_directory_paths(config_dict)
