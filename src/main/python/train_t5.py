@@ -84,12 +84,13 @@ def log_dataloading(dataloader, accelerator):
     logging.info(f"{pi}: {batch_shape}")
     logging.info(f"{pi}: {batch['input_ids'][0][:10]}")
 
-def log_exploding_gradients(model, accelerator, threshold=1e4):
-    for name, param in model.named_parameters():
-        if param.grad is not None:
-            max_grad = param.grad.abs().max().item()
-            if max_grad > threshold:
-                logging.warning(f"{accelerator.process_index}: Exploding gradient detected! Layer: {name}, max grad: {max_grad}")
+def log_exploding_gradients(model, batch_idx, accelerator, threshold=1e4):
+    if batch_idx % 500 == 0:
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                max_grad = param.grad.abs().max().item()
+                if max_grad > threshold:
+                    logging.warning(f"{accelerator.process_index}: Exploding gradient detected! Layer: {name}, max grad: {max_grad}")
 
 def log_nan_inputs(batch_idx, batch, accelerator):
     for k, v in batch.items():
@@ -189,12 +190,12 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, accelerator):
             labels=batch["labels"]
         )
         loss = outputs.loss
-        # log_nan_loss(loss, batch_idx, batch, accelerator)
+        log_nan_loss(loss, batch_idx, batch, accelerator)
         
         # Backpropagation
         optimizer.zero_grad()
         accelerator.backward(loss) # loss.backward()
-        # log_exploding_gradients(model, accelerator)
+        log_exploding_gradients(model, batch_idx, accelerator)
         optimizer.step()
         lr_scheduler.step()
 
