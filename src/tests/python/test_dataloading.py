@@ -76,7 +76,7 @@ def log_dataset_info(dataloader, accelerator):
 
 def main(accelerator, config_dict):
     model, tokenizer, dataset = test_load_model_tok_data(accelerator, config_dict, split=isa_data.FORMATS["TRAIN"])
-    model, dataloader = test_prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=24)
+    model, dataloader = test_prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=config_dict["batch_size"])
     log_model_forward(model, dataloader, accelerator)
     log_dataset_info(dataloader, accelerator)
     

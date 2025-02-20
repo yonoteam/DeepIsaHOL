@@ -280,7 +280,7 @@ def main(accelerator, config_dict):
 
     model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict, model_remote)
 
-    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=8)
+    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=config_dict["batch_size"])
 
     do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict)
 

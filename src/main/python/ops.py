@@ -56,6 +56,7 @@ def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     logging.info("Timeout reached. Function did not complete.")
     return None
 
+
 # SAVING DATA
 
 def save_plot(x_vals, y_vals, save_path: Union[str, os.PathLike]="curve.png", title="Graph of y vs x", x_label="X-axis", y_label="Y-axis") -> None:

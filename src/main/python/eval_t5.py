@@ -103,7 +103,7 @@ def exact_equality(in_out_predicts, extending=True):
 def with_metric(eval_metric, config_dict, split=isa_data.SPLITS["NONE"]):
     def general_body(accelerator):
         model, tokenizer, dataset = load_model_tok_data(accelerator, config_dict, split=split)
-        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=8)
+        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=config_dict["batch_size"])
         match_count, mismatches, total_samples = execute(eval_metric, model, tokenizer, dataloader)
         report(match_count, mismatches, total_samples, accelerator)
     
