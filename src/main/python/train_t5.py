@@ -37,9 +37,9 @@ def set_all_seeds(seed):
 
 def get_remotes(config_dict):
     tokenizers_dir, datasets_dir, models_dir = ops.get_directory_paths(config_dict)
-    model_path = os.path.join(models_dir, "1", "model.safetensors")
+    model_path = os.path.join(ops.get_latest_dir_from(models_dir), "model.safetensors")
     dataset_path = os.path.join(datasets_dir, "datasets.pt")
-    tokenizer_path = os.path.join(tokenizers_dir, "1", "tokenizer.json")
+    tokenizer_path = os.path.join(ops.get_latest_dir_from(tokenizers_dir), "tokenizer.json")
     if os.path.isfile(model_path):
         model_remote = False
     else:
