@@ -108,7 +108,7 @@ def log_empty_labels(batch_idx, batch, accelerator):
 def log_nan_loss(loss, batch_idx, batch, accelerator):
     if torch.isnan(loss).any():
         logging.error(f"{accelerator.process_index}: NaN loss detected at batch {batch_idx}")
-        logging.info(f"{accelerator.process_index}: batch {batch_idx} is {batch}")
+        ops.save_batch(batch, f"nan_loss_batch{batch_idx}.pt")
 
 # RETRIEVE MODEL
 

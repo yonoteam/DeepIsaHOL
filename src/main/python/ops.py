@@ -11,9 +11,12 @@ import logging
 import argparse
 import threading
 
+from typing import Union
+
 import torch
 import matplotlib.pyplot as plt
 from accelerate import Accelerator
+from transformers.tokenization_utils_base import BatchEncoding
 
 import isa_data
 import proofs
@@ -24,62 +27,6 @@ def print_dict(d, max=None):
         print(f"{k}: {v}")
         if i == max:
             break
-
-def save_plot(x_vals, y_vals, save_path="curve.png", title="Graph of y vs x", x_label="X-axis", y_label="Y-axis"):
-    """
-    Plots a curve from the inputs and saves the graph.
-
-    :param points: List of (x, y) tuples.
-    :param save_path: Path to save the image.
-    :param title: Title of the graph.
-    :param x_label: Label for the x-axis.
-    :param y_label: Label for the y-axis.
-    """
-    plt.figure(figsize=(8, 5))
-    plt.plot(x_vals, y_vals, marker='o', linestyle='-', color='b', label="Curve")
-    
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.title(title)
-    plt.legend()
-    plt.grid(True)
-
-    plt.savefig(save_path, dpi=300)
-    plt.close()
-
-def save_dict_as_json(data, file_path, indent=4):
-    """
-    Saves a dictionary as a JSON file.
-
-    :param data: dictionary to save
-    :param file_path: path to the output JSON file
-    :param indent: indentation level for pretty-printing (default: 4)
-    """
-    try:
-        with open(file_path, 'w') as json_file:
-            json.dump(data, json_file, indent=indent)
-        logging.info(f"Dictionary successfully saved to {file_path}")
-    except Exception as e:
-        message = f"Error saving dictionary to JSON: {e}"
-        logging.error(message)
-        print(message)
-
-def save_tuple_list_as_txt(list_of_tuples, file_path):
-    """Writes a list of tuples of strings to a .txt file.
-
-    :param list_of_tuples: A list of tuples of strings.
-    :param filename: The name of the .txt file to write to.
-    """
-    try:
-        with open(file_path, 'w', encoding='utf-8') as f:
-            for tup in list_of_tuples:
-                line = "\n".join(tup)
-                f.write(line + "\n\n")
-        logging.info(f"List successfully saved to {file_path}")
-    except Exception as e:
-        message = f"Error saving list of tuples of strings to txt: {e}"
-        logging.error(message)
-        print(message)
 
 def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     """
@@ -108,6 +55,82 @@ def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
 
     logging.info("Timeout reached. Function did not complete.")
     return None
+
+# SAVING DATA
+
+def save_plot(x_vals, y_vals, save_path: Union[str, os.PathLike]="curve.png", title="Graph of y vs x", x_label="X-axis", y_label="Y-axis") -> None:
+    """
+    Plots a curve from the inputs and saves the graph.
+
+    :param x_vals: independent variable values.
+    :param y_vals: dependent variable values.
+    :param save_path: Path to save the image.
+    :param title: Title of the graph.
+    :param x_label: Label for the x-axis.
+    :param y_label: Label for the y-axis.
+    """
+    plt.figure(figsize=(8, 5))
+    plt.plot(x_vals, y_vals, marker='o', linestyle='-', color='b', label="Curve")
+    
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.legend()
+    plt.grid(True)
+
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+
+def save_dict_as_json(data: dict, save_path: Union[str, os.PathLike], indent=4) -> None:
+    """
+    Saves a dictionary as a JSON file.
+
+    :param data: dictionary to save
+    :param save_path: path to the output JSON file
+    :param indent: indentation level for pretty-printing (default: 4)
+    """
+    try:
+        with open(save_path, 'w') as json_file:
+            json.dump(data, json_file, indent=indent)
+        logging.info(f"Dictionary successfully saved to {save_path}")
+    except Exception as e:
+        message = f"Error saving dictionary to JSON: {e}"
+        logging.error(message)
+        print(message)
+
+def save_tuple_list_as_txt(list_of_tuples, save_path: Union[str, os.PathLike]) -> None:
+    """Writes a list of tuples of strings to a .txt file.
+
+    :param list_of_tuples: A list of tuples of strings.
+    :param filename: The name of the .txt file to write to.
+    """
+    try:
+        with open(save_path, 'w', encoding='utf-8') as f:
+            for tup in list_of_tuples:
+                line = "\n".join(tup)
+                f.write(line + "\n\n")
+        logging.info(f"List successfully saved to {save_path}")
+    except Exception as e:
+        message = f"Error saving list of tuples of strings to txt: {e}"
+        logging.error(message)
+        print(message)
+
+def save_batch(tensors: BatchEncoding, save_path: Union[str, os.PathLike]) -> None:
+    """
+    Saves a transformers BatchEncoding as a dictionary of tensors to a file.
+
+    :param tensors: batch encoding of tensors.
+    :param save_path: Path to the output file.
+    """
+    try:
+        save_dict = {k: v for k, v in tensors.items()}
+        with open(save_path, 'wb') as f:
+            torch.save(save_dict, f, weights_only=True)
+        logging.info(f"List of tensors successfully saved to {save_path}")
+    except Exception as e:
+        message = f"Error saving tensors to file: {e}"
+        logging.error(message)
+        print(message)
 
 
 # CONFIGURATION SETUP
