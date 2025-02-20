@@ -24,18 +24,18 @@ def correct_parse_config_path():
         print("using default path instead for remaining tests")
         return os.path.join(MAIN_DIR, "train_config.json")
     
-def correct_get_config_dict():
+def correct_get_json_dict():
     try:
-        config_dict = ops.get_config_dict(correct_parse_config_path())
-        print("Test passed: correct_get_config_dict")
+        config_dict = ops.get_json_dict(correct_parse_config_path())
+        print("Test passed: correct_get_json_dict")
         return config_dict
     except Exception as e:
-        print(f"correct_get_config_dict failed to extract training configuration from input path: {e}")
+        print(f"correct_get_json_dict failed to extract training configuration from input path: {e}")
         raise e
     
 def correct_params():
     try:
-        config_dict = correct_get_config_dict()
+        config_dict = correct_get_json_dict()
         expected_data_dir = "/path/to/data/dir/produced/by/isabelle_rl/proof_data_generation"
         if config_dict["data_dir"] != expected_data_dir:
             raise ValueError(f"'data_dir' is not {expected_data_dir}")

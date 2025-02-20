@@ -168,7 +168,7 @@ if __name__ == "__main__":
     ops.configure_logging("tokenizer.log")
     try:
         explanation = "Train a new tokenizer as specified in the input JSON configuration."
-        config_dict = ops.get_config_dict(ops.parse_config_path(tool_explanation=explanation))
+        config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation=explanation))
         ops.check_params(config_dict)
     except Exception as e:
         raise Exception(f"Error loading configuration information: {e}")

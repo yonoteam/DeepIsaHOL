@@ -25,9 +25,9 @@ def print_dict(d, max=None):
         if i == max:
             break
 
-def plot_curve(points, save_path="curve.png", title="Graph of (x, y) pairs", x_label="X-axis", y_label="Y-axis"):
+def save_plot(x_vals, y_vals, save_path="curve.png", title="Graph of y vs x", x_label="X-axis", y_label="Y-axis"):
     """
-    Plots a curve from a list of (x, y) pairs and saves the graph.
+    Plots a curve from the inputs and saves the graph.
 
     :param points: List of (x, y) tuples.
     :param save_path: Path to save the image.
@@ -35,8 +35,6 @@ def plot_curve(points, save_path="curve.png", title="Graph of (x, y) pairs", x_l
     :param x_label: Label for the x-axis.
     :param y_label: Label for the y-axis.
     """
-    x_vals, y_vals = zip(*points)
-
     plt.figure(figsize=(8, 5))
     plt.plot(x_vals, y_vals, marker='o', linestyle='-', color='b', label="Curve")
     
@@ -143,18 +141,37 @@ def parse_config_path(tool_explanation="Does something as specified in the confi
     args = parser.parse_args()
     return args.config_path
 
-def get_config_dict(json_path):
+def get_json_dict(json_path):
     """
-    Extracts a dictionary from the input path to a JSON file.
-    
+    A method to extract a dictionary from the input path 
+    that returns an empty dictionary on failure
+
     :param json_path: Path to the JSON file.
     :rtype: dict
     """
-    if not os.path.isfile(json_path):
-        raise Exception(f"The configuration file '{json_path}' does not exist.")
-    with open(json_path, "r") as file:
-        config = json.load(file)
-    return config
+    result = {}
+    try:
+        if not os.path.exists(json_path):
+            logging.error(f"Path '{json_path}' does not exist.")
+            return result
+
+        if not os.path.isfile(json_path):
+            logging.error(f"Path '{json_path}' is not a file.")
+            return result
+        
+        with open(json_path, "r") as file:
+            result = json.load(file)
+            return result
+    except FileNotFoundError as e:
+        logging.error(f"File not found: {e}")
+    except json.JSONDecodeError as e:
+        logging.error(f"Error decoding JSON from '{json_path}': {e}")
+    except OSError as e:
+        logging.error(f"OS error occurred: {e}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+
+    return result
 
 def check_params(config_dict):
     """
