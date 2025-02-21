@@ -28,6 +28,25 @@ def print_dict(d, max=None):
         if i == max:
             break
 
+def to_plot(read_dir):
+    def plot_loop_loss_accur(loop_name:str):
+        metric_path = os.path.join(read_dir, f"{loop_name}_metrics1.json")
+        metric_dict = get_json_dict(metric_path)
+        save_plot(metric_dict["steps"], 
+                  metric_dict["loss"], 
+                  save_path=os.path.join(read_dir, f"{loop_name}_loss.png"), 
+                  title="Loss", 
+                  x_label="Steps", 
+                  y_label="Loss")
+        save_plot(metric_dict["steps"], 
+                  metric_dict["accuracy"], 
+                  save_path=os.path.join(read_dir, f"{loop_name}_accur.png"), 
+                  title="Accuracy", 
+                  x_label="Steps",
+                  y_label="Accuracy")
+    plot_loop_loss_accur("train")
+    plot_loop_loss_accur("valid")
+
 def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     """
     Executes `f` with arguments `args` and keyword arguments `kwargs`.
@@ -247,7 +266,7 @@ def check_params(config_dict):
 
 # CONFIGURATION RETRIEVAL
 
-def get_directory_paths(config_dict):
+def get_directory_paths(config_dict:dict):
     """
     Returns candidate paths to save tokenizers, datasets, and models from the input configuration.
 

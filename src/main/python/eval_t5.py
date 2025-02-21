@@ -57,6 +57,10 @@ def report(match_count, mismatches, total_samples, accelerator):
         ops.save_tuple_list_as_txt(all_mismatches, save_file)
     accelerator.wait_for_everyone()
 
+# def execute(eval_metric, step_metric, metrics, model, accelerator):
+#     model.eval()
+#     metrics = {"matches": 0, "samples": 0, "mismatches": []}
+
 def execute(eval_metric, model, tokenizer, dataloader, accelerator, max_length=512):
     model.eval()
     match_count = 0
