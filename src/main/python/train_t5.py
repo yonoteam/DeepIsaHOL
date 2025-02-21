@@ -185,7 +185,7 @@ def validate(model, dataloader, epoch, accelerator):
                 metrics = record(metrics, locals, accelerator, save_file=f"valid_metrics{epoch}.json")
     metrics = record(metrics, locals, accelerator, save_file=f"valid_metrics{epoch}.json")
 
-def train(model, dataloader, optimizer, lr_scheduler, epoch, accelerator):
+def train(model, dataloader, optimizer, lr_scheduler, epoch, config_dict, accelerator):
     model.train()
     process_idx = accelerator.process_index
     metrics = {"loss": [], "accuracy": [], "steps": []}
@@ -220,17 +220,22 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, accelerator):
         if batch_idx % 1000 == 0:
             logging.info(f"{process_idx}: train step number {batch_idx}")
             metrics = record(metrics, locals, accelerator, save_file=f"train_metrics{epoch}.json")
-        
+        if batch_idx % 10000 == 0 and batch_idx > 0:
+                if accelerator.is_main_process:
+                    _, _, models_dir = ops.get_directory_paths(config_dict)
+                    ops.save_hf_data_in(accelerator.unwrap_model(model), models_dir)
+        accelerator.wait_for_everyone()
+
     logging.info(f"{process_idx}: Total number of batches was {batch_idx + 1}")
     logging.info(f"{process_idx}: Final learning rate was: {lr_scheduler.get_last_lr()[0]}")
-    metrics = record(metrics, locals, accelerator, save_file=f"valid_metrics{epoch}.json")
+    _ = record(metrics, locals, accelerator, save_file=f"valid_metrics{epoch}.json")
             
 def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict):
     _, _, models_dir = ops.get_directory_paths(config_dict)
     num_epochs = config_dict["num_epochs"]
     for epoch in range(num_epochs):
         logging.info(f"Epoch {epoch + 1} of {num_epochs}")
-        train(model, train_dataloader, optimizer, lr_scheduler, epoch, accelerator)
+        train(model, train_dataloader, optimizer, lr_scheduler, epoch, config_dict, accelerator)
         if accelerator.is_main_process:
             ops.save_hf_data_in(accelerator.unwrap_model(model), models_dir)
             logging.info(f"Finished training loop. Checkpoint saved for epoch {epoch}.")
