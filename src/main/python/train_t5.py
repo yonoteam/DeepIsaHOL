@@ -62,7 +62,7 @@ def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerato
     valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
 
     # Optimizer and Scheduler
-    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.01)
     lr_scheduler = get_scheduler("constant", optimizer=optimizer)
 
     # Accelerate them
@@ -286,7 +286,7 @@ def main(accelerator, config_dict):
 
 if __name__ == "__main__":
     set_all_seeds(42)
-    ops.configure_logging("train_t5.log")
+    ops.configure_logging("t5.log")
     try:
         config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation="Train the transformer as specified in the input JSON configuration."))
         ops.check_params(config_dict)
