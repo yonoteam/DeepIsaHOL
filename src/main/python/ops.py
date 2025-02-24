@@ -28,24 +28,21 @@ def print_dict(d, max=None):
         if i == max:
             break
 
-def to_plot(read_dir):
-    def plot_loop_loss_accur(loop_name:str):
-        metric_path = os.path.join(read_dir, f"{loop_name}_metrics1.json")
-        metric_dict = get_json_dict(metric_path)
-        save_plot(metric_dict["steps"], 
-                  metric_dict["loss"], 
-                  save_path=os.path.join(read_dir, f"{loop_name}_loss.png"), 
-                  title="Loss", 
-                  x_label="Steps", 
-                  y_label="Loss")
-        save_plot(metric_dict["steps"], 
-                  metric_dict["accuracy"], 
-                  save_path=os.path.join(read_dir, f"{loop_name}_accur.png"), 
-                  title="Accuracy", 
-                  x_label="Steps",
-                  y_label="Accuracy")
-    plot_loop_loss_accur("train")
-    plot_loop_loss_accur("valid")
+def to_plot(read_json_path:str, loop_name:str, start_from:int=0):
+    read_dir = os.path.dirname(read_json_path)
+    metric_dict = get_json_dict(read_json_path)
+    save_plot(metric_dict["steps"][start_from:], 
+                metric_dict["loss"][start_from:], 
+                save_path=os.path.join(read_dir, f"{loop_name}_loss.png"), 
+                title=f"{loop_name} Loss", 
+                x_label="Steps", 
+                y_label="Loss")
+    save_plot(metric_dict["steps"][start_from:], 
+                metric_dict["accuracy"][start_from:], 
+                save_path=os.path.join(read_dir, f"{loop_name}_accur.png"), 
+                title=f"{loop_name} Accuracy", 
+                x_label="Steps",
+                y_label="Accuracy")
 
 def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     """
