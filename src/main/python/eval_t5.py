@@ -8,11 +8,16 @@ import logging
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForSeq2Seq
+from transformers import (
+    DataCollatorForSeq2Seq,
+    pipeline
+)
 from accelerate.utils import broadcast_object_list
 
 import ops
+import proofs
 import train_t5
+from repl import REPL
 import tokenizer_ops as tokops
 
 def load_model_tok_data(config_dict, accelerator=None):
@@ -184,6 +189,57 @@ def report_matching(metrics, records, accelerator=None):
     else:
         records = report_matchingN(metrics, records, accelerator)
     return records
+
+# REPLING
+
+def group_paths_by_logic(data_dir, split):
+    grouped = {}
+    for path in tokops.generate_proof_paths(data_dir, split=split):
+        rel_path = os.path.relpath(path, data_dir)
+        logic = rel_path.split(os.sep)[0]
+        if logic not in grouped:
+            grouped[logic] = []
+        grouped[logic].append(path)
+    return grouped
+
+# TODO: Create necessary repl methods for this function to work
+def step_repling(config_dict, model, tokenizer, max_length=512):
+    grouped = group_paths_by_logic(config_dict["data_dir"], config_dict["data_split"])
+    generator = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+    proof_counter = 0
+    success_counter = 0
+    for logic in grouped.keys():
+        try:
+            repl = REPL(logic)
+            for path in grouped[logic]:
+                try:
+                    proof = proofs.get_proof_json(path)
+                    acts = proofs.full_actions_of(proof)
+                    user_state0 = repl.apply(acts[0])
+                    x = ' '.join([acts[0], proofs.USER_STATE_SEP, user_state0])
+                    predicts = generator(
+                        x, 
+                        max_length=max_length, num_return_sequences=5,
+                        num_beams=5
+                    )
+                    for predict in predicts:
+                        _ = repl.apply(predict)
+                        err = repl.latest_error()
+                        if not err:
+                            success_counter += 1
+                            break
+                        _ = repl.go_back()
+                    proof_counter += 1
+                except Exception as e:
+                    logging.warning(f"Error processing proof at {path}: {e}")
+                finally:
+                    repl.reset()
+        except Exception as e:
+            logging.warning(f"Error initializing REPL for {logic}: {e}")
+        finally:
+            repl.shutdown()
+    return proof_counter, success_counter
+
 
 # EVALUATION LOOP
 
