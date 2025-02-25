@@ -310,7 +310,9 @@ def execute(eval_metric, dataloader, model, log_steps = 10000, step_kwargs={}, r
         for batch_idx, batch in enumerate(dataloader):
             metrics = step(batch_idx, batch, metrics, **step_kwargs)
             if batch_idx % log_steps == 0:
+                logging.info(f"Recording evalutation progress.")
                 records = report(metrics, records, **report_kwargs) 
+                logging.info(f"Recorded evalutation progress.")
     _ = report(metrics, records, **report_kwargs)
 
 def with_metric(eval_str, config_dict):
