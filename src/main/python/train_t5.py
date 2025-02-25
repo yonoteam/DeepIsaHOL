@@ -203,7 +203,7 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, config_dict, accele
         # Backpropagation
         optimizer.zero_grad()
         accelerator.backward(loss) # loss.backward()
-        log_exploding_gradients(model, batch_idx, accelerator)
+        # log_exploding_gradients(model, batch_idx, accelerator)
         optimizer.step()
         lr_scheduler.step()
 
