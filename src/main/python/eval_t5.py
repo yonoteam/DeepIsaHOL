@@ -108,7 +108,10 @@ def report_validationN(metrics, records, accelerator):
         records["first_token_accuracy"].append(global_first_corrects.item() / global_first_toks.item())
         records["prediction_accuracy"].append(global_correct_predicted.item() / global_num_toks.item())
         ops.save_dict_as_json(records, "validation_records.json")
+    else:
+        records = None
     accelerator.wait_for_everyone()
+    records = broadcast_object_list([records])[0]
     return records
 
 def report_validation(metrics, records, accelerator=None):
@@ -181,13 +184,16 @@ def report_matchingN(metrics, records, accelerator):
     ], device=accelerator.device)
 
     global_step, global_exact_count, global_total_count, global_coincide_count = accelerator.reduce(local_vals, reduction="sum")
-    
+
     if accelerator.is_main_process:
         records["latest_step"] = global_step.item()
         records["exact_accuracy"].append(global_exact_count.item() / global_total_count.item())
         records["coincide_accuracy"].append(global_coincide_count.item() / global_total_count.item())
         ops.save_dict_as_json(records, "matching_records.json")
+    else:
+        records = None
     accelerator.wait_for_everyone()
+    records = broadcast_object_list([records])[0]
     return records
 
 def report_matching(metrics, records, accelerator=None):
