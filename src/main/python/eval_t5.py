@@ -99,9 +99,9 @@ def report_validationN(metrics, records, accelerator):
         metrics["total_toks"]
     ], device=accelerator.device)
 
-    if accelerator.is_main_process:
-        global_step, global_loss_sum, global_unpadded_corrects, global_unpadded_toks, global_first_corrects, global_first_toks, global_correct_predicted, global_num_toks = accelerator.reduce(local_vals, reduction="sum")
+    global_step, global_loss_sum, global_unpadded_corrects, global_unpadded_toks, global_first_corrects, global_first_toks, global_correct_predicted, global_num_toks = accelerator.reduce(local_vals, reduction="sum")
 
+    if accelerator.is_main_process:
         records["latest_step"] = global_step.item()
         records["avg_loss"].append(global_loss_sum.item() / global_step.item())
         records["unpadded_accuracy"].append(global_unpadded_corrects.item() / global_unpadded_toks.item())
@@ -180,9 +180,9 @@ def report_matchingN(metrics, records, accelerator):
         metrics["coincide_count"]
     ], device=accelerator.device)
 
+    global_step, global_exact_count, global_total_count, global_coincide_count = accelerator.reduce(local_vals, reduction="sum")
+    
     if accelerator.is_main_process:
-        global_step, global_exact_count, global_total_count, global_coincide_count = accelerator.reduce(local_vals, reduction="sum")
-
         records["latest_step"] = global_step.item()
         records["exact_accuracy"].append(global_exact_count.item() / global_total_count.item())
         records["coincide_accuracy"].append(global_coincide_count.item() / global_total_count.item())
