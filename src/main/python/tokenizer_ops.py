@@ -18,7 +18,7 @@ from transformers import AutoTokenizer
 
 def train_tokenizer(model_name, data_dir):
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_name)      
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
         training_corpus = proofs.get_tokenizer_corpus(data_dir)
         estimated_vocab_size = proofs.estimate_vocab_size(data_dir, 0.98)
         vocab_size = int(1.5 * estimated_vocab_size)
@@ -100,6 +100,8 @@ def tokenize(tokenizer, x, y):
         padding="max_length",
         return_tensors="pt"
     )
+    labels = targets["input_ids"].squeeze()
+    # labels[labels == tokenizer.pad_token_id] = -100
     n_overflowed = inputs["input_ids"].shape[0]
     model_inputs = []
     for i in range(n_overflowed):
@@ -107,7 +109,7 @@ def tokenize(tokenizer, x, y):
             "input_ids": inputs["input_ids"][i],
             "attention_mask": inputs["attention_mask"][i],
             "overflow_sample_idx": inputs["overflow_to_sample_mapping"][i],
-            "labels": targets["input_ids"].squeeze()
+            "labels": labels
         }
         model_inputs.append(to_add)
     return model_inputs
