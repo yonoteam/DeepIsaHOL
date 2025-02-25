@@ -173,7 +173,7 @@ def validate(model, dataloader, epoch, accelerator):
 
             # Metrics
             predictions = outputs.logits.argmax(dim=-1)
-            valids_mask = batch["labels"] != 0 # tokenizer.pad_token_id
+            valids_mask = batch["labels"] != -100 # tokenizer.pad_token_id
             corrects = (predictions[valids_mask] == batch["labels"][valids_mask]).sum().item()
             locals["corrects_sum"] += corrects
             locals["valid_toks"] += valids_mask.sum().item()
@@ -209,7 +209,7 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, config_dict, accele
 
         # Metrics
         predictions = outputs.logits.argmax(dim=-1)
-        valids_mask = batch["labels"] != 0
+        valids_mask = batch["labels"] != -100
         corrects = (predictions[valids_mask] == batch["labels"][valids_mask]).sum().item()
         locals["corrects_sum"] += corrects
         locals["valid_toks"] += valids_mask.sum().item()

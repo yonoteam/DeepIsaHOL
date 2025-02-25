@@ -20,7 +20,17 @@ import train_t5
 from repl import REPL
 import tokenizer_ops as tokops
 
-def load_model_tok_data(config_dict, accelerator=None):
+
+# LOADING
+
+def load_model_tok_data1(config_dict):
+    toks_dir, _, models_dir = ops.get_directory_paths(config_dict)
+    tokenizer = tokops.load_latest_tokenizer(toks_dir)
+    dataset = tokops.get_dataset(tokenizer, config_dict, split = config_dict["data_split"])
+    model = train_t5.load_latest_model(models_dir)
+    return model, tokenizer, dataset
+
+def load_model_tok_dataN(config_dict, accelerator):
     toks_dir, _, models_dir = ops.get_directory_paths(config_dict)
     if accelerator.is_main_process:
         tokenizer = tokops.load_latest_tokenizer(toks_dir)
@@ -37,13 +47,30 @@ def load_model_tok_data(config_dict, accelerator=None):
     model = broadcast_object_list([model])[0]
     return model, tokenizer, dataset
 
-def prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=8):
+def load_model_tok_data(config_dict, accelerator=None):
+    if accelerator is None or accelerator.num_processes <= 1:
+        return load_model_tok_data1(config_dict)
+    else:
+        return load_model_tok_dataN(config_dict, accelerator)
+    
+def prepare_model_and_dataloader1(model, tokenizer, dataset, batch_size=8):
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
+    return model, dataloader
+
+def prepare_model_and_dataloaderN(model, tokenizer, dataset, accelerator, batch_size=8):
     batch_size = batch_size // accelerator.num_processes
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
     dataloader, model = accelerator.prepare(dataloader, model)
     logging.info(f"Prepared model and dataloader.")
     return model, dataloader
+
+def prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=8, accelerator=None):
+    if accelerator is None or accelerator.num_processes <= 1:
+        return prepare_model_and_dataloader1(model, tokenizer, dataset, batch_size=batch_size)
+    else:
+        return prepare_model_and_dataloaderN(model, tokenizer, dataset, accelerator, batch_size=batch_size)
 
 # VALIDATION
 
@@ -59,30 +86,27 @@ def step_validation(batch_idx, batch, metrics, model=None):
 
     loss = outputs.loss.item()
     predictions = outputs.logits.argmax(dim=-1)
-    valid_unpad_mask = labels != 0
+    non_pad_mask = labels != -100
     corrects = (predictions == labels)
-    unpadded_corrects = (corrects & valid_unpad_mask)
-    unpadded_corrects_sum = unpadded_corrects.sum().item()
-    num_unpadded_toks = valid_unpad_mask.sum().item()
+    non_pad_corrects = (corrects & non_pad_mask)
+    non_pad_corrects_sum = non_pad_corrects.sum().item()
+    num_non_pad_toks = non_pad_mask.sum().item()
 
     metrics["step"] = batch_idx + 1
     metrics["loss_sum"] += loss
     metrics["losses"].append(loss)
-    metrics["unpadded_corrects_sum"] += unpadded_corrects_sum
-    metrics["total_unpadded_toks"] += num_unpadded_toks
-    metrics["accuracies"].append(unpadded_corrects_sum / num_unpadded_toks)
+    metrics["non_pad_corrects_sum"] += non_pad_corrects_sum
+    metrics["total_non_pad_toks"] += num_non_pad_toks
+    metrics["accuracies"].append(non_pad_corrects_sum / num_non_pad_toks)
     metrics["first_correct_sum"] += corrects[:, 0].sum().item()
     metrics["total_first_toks"] += torch.numel(labels[:, 0])
-    metrics["correct_toks_sum"] += corrects.sum().item()
-    metrics["total_toks"] += torch.numel(labels)
     return metrics 
 
 def report_validation1(metrics, records):
     records["latest_step"] = metrics["step"]
     records["avg_loss"].append(metrics["loss_sum"] / metrics["step"])
-    records["unpadded_accuracy"].append(metrics["unpadded_corrects_sum"] / metrics["total_unpadded_toks"])
+    records["non_pad_accuracy"].append(metrics["non_pad_corrects_sum"] / metrics["total_non_pad_toks"])
     records["first_token_accuracy"].append(metrics["first_correct_sum"] / metrics["total_first_toks"])
-    records["prediction_accuracy"].append(metrics["correct_toks_sum"] / metrics["total_toks"])
     ops.save_dict_as_json(records, "validation_records.json")
     return records
 
@@ -91,22 +115,19 @@ def report_validationN(metrics, records, accelerator):
     local_vals = torch.tensor([
         metrics["step"],
         metrics["loss_sum"],
-        metrics["unpadded_corrects_sum"],
-        metrics["total_unpadded_toks"],
+        metrics["non_pad_corrects_sum"],
+        metrics["total_non_pad_toks"],
         metrics["first_correct_sum"],
-        metrics["total_first_toks"],
-        metrics["correct_toks_sum"],
-        metrics["total_toks"]
+        metrics["total_first_toks"]
     ], device=accelerator.device)
 
-    global_step, global_loss_sum, global_unpadded_corrects, global_unpadded_toks, global_first_corrects, global_first_toks, global_correct_predicted, global_num_toks = accelerator.reduce(local_vals, reduction="sum")
+    global_step, global_loss_sum, global_non_pad_corrects, global_non_pad_toks, global_first_corrects, global_first_toks = accelerator.reduce(local_vals, reduction="sum")
 
     if accelerator.is_main_process:
-        records["latest_step"] = global_step.item()
+        records["latest_step"] = metrics["step"]
         records["avg_loss"].append(global_loss_sum.item() / global_step.item())
-        records["unpadded_accuracy"].append(global_unpadded_corrects.item() / global_unpadded_toks.item())
+        records["non_pad_accuracy"].append(global_non_pad_corrects.item() / global_non_pad_toks.item())
         records["first_token_accuracy"].append(global_first_corrects.item() / global_first_toks.item())
-        records["prediction_accuracy"].append(global_correct_predicted.item() / global_num_toks.item())
         ops.save_dict_as_json(records, "validation_records.json")
     else:
         records = None
@@ -167,28 +188,39 @@ def step_matching(batch_idx, batch, metrics, tokenizer=None, model=None, max_len
     metrics = get_matches(metrics, itps, max_matches=max_matches)
     return metrics
 
-def report_matching1(metrics, records):
+def report_matching1(metrics, records, max_matches=20):
     records["latest_step"] = metrics["step"]
     records["exact_accuracy"].append(metrics["exacts_count"] / metrics["total_count"])
     records["coincide_accuracy"].append(metrics["coincide_count"] / metrics["total_count"])
+    if len(records["exact_matches"]) < max_matches:
+        records["exact_matches"].extend(metrics["exact_matches"])
+    if len(records["mismatches"]) < max_matches:
+        records["mismatches"].extend(metrics["mismatches"])
+    if len(records["coincidences"]) < max_matches:
+        records["coincidences"].extend(metrics["coincidences"])
     ops.save_dict_as_json(records, "matching_records.json")
     return records
 
-def report_matchingN(metrics, records, accelerator):
+def report_matchingN(metrics, records, accelerator, max_matches=20):
     accelerator.wait_for_everyone()
     local_vals = torch.tensor([
-        metrics["step"],
         metrics["exacts_count"],
         metrics["total_count"],
         metrics["coincide_count"]
     ], device=accelerator.device)
 
-    global_step, global_exact_count, global_total_count, global_coincide_count = accelerator.reduce(local_vals, reduction="sum")
+    global_exact_count, global_total_count, global_coincide_count = accelerator.reduce(local_vals, reduction="sum")
 
     if accelerator.is_main_process:
-        records["latest_step"] = global_step.item()
+        records["latest_step"] = metrics["step"]
         records["exact_accuracy"].append(global_exact_count.item() / global_total_count.item())
         records["coincide_accuracy"].append(global_coincide_count.item() / global_total_count.item())
+        if len(records["exact_matches"]) < max_matches:
+            records["exact_matches"].extend(metrics["exact_matches"])
+        if len(records["mismatches"]) < max_matches:
+            records["mismatches"].extend(metrics["mismatches"])
+        if len(records["coincidences"]) < max_matches:
+            records["coincidences"].extend(metrics["coincidences"])
         ops.save_dict_as_json(records, "matching_records.json")
     else:
         records = None
@@ -196,12 +228,12 @@ def report_matchingN(metrics, records, accelerator):
     records = broadcast_object_list([records])[0]
     return records
 
-def report_matching(metrics, records, accelerator=None):
+def report_matching(metrics, records, accelerator=None, max_matches=20):
     if accelerator is None or accelerator.num_processes <= 1:
-        records = report_matching1(metrics, records)
+        records = report_matching1(metrics, records, max_matches=max_matches)
         accel_prefix = ""
     else:
-        records = report_matchingN(metrics, records, accelerator)
+        records = report_matchingN(metrics, records, accelerator, max_matches=max_matches)
         accel_prefix = f"{accelerator.process_index}: "
 
     log_message = f"""{accel_prefix}Latest step ({records['latest_step']}) completed. 
@@ -270,20 +302,17 @@ METRICS = {
             "step": 0,
             "loss_sum": 0.0,
             "losses": [],
-            "unpadded_corrects_sum": 0,
-            "total_unpadded_toks": 0,
+            "non_pad_corrects_sum": 0,
+            "total_non_pad_toks": 0,
             "accuracies": [],
             "first_correct_sum": 0,
-            "total_first_toks": 0,
-            "correct_toks_sum": 0,
-            "total_toks": 0
+            "total_first_toks": 0
         },
         "records0": {
             "latest_step": 0,
             "avg_loss": [],
-            "unpadded_accuracy": [],
-            "first_token_accuracy": [],
-            "prediction_accuracy": []
+            "non_pad_accuracy": [],
+            "first_token_accuracy": []
         }
     },
     "matching": {
@@ -301,7 +330,10 @@ METRICS = {
         "records0": {
             "latest_step": 0,
             "exact_accuracy": [],
-            "coincide_accuracy": []
+            "coincide_accuracy": [],
+            "exact_matches": [],
+            "mismatches": [],
+            "coincidences": []
         }
     }
 }
@@ -328,6 +360,7 @@ def with_metric(eval_str, config_dict):
         model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=config_dict["batch_size"])
         if eval_str == "validation":
             step_kwargs = {"model": model}
+            report_kwargs = {"accelerator": accelerator}
         elif eval_str == "matching":
             step_kwargs = {
                 "tokenizer": tokenizer, 
@@ -335,7 +368,7 @@ def with_metric(eval_str, config_dict):
                 "max_length": tokenizer.model_max_length, 
                 "max_matches": 20
             }
-        report_kwargs = {"accelerator": accelerator}
+            report_kwargs = {"max_matches": 20, "accelerator": accelerator}
         execute(
             eval_metric, 
             dataloader, 
@@ -344,6 +377,7 @@ def with_metric(eval_str, config_dict):
             step_kwargs=step_kwargs,
             report_kwargs=report_kwargs
         )
+        logging.info(f"Finished evaluation.")
     
     ops.wrap_w_accelerator(lambda acc: general_body(acc))
 

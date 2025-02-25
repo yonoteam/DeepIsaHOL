@@ -101,7 +101,7 @@ def tokenize(tokenizer, x, y):
         return_tensors="pt"
     )
     labels = targets["input_ids"].squeeze()
-    # labels[labels == tokenizer.pad_token_id] = -100
+    labels[labels == tokenizer.pad_token_id] = -100
     n_overflowed = inputs["input_ids"].shape[0]
     model_inputs = []
     for i in range(n_overflowed):
@@ -134,15 +134,17 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=isa_data.FO
 
 # TODO: add support for HF datasets library
 def get_dataset(tokenizer, config_dict, split=isa_data.SPLITS["NONE"]):
+    mode = config_dict["data_mode"]
     dataset = IterableDataset.from_generator(
         generate_model_inputs, 
         gen_kwargs={
             'tokenizer': tokenizer, 
             'json_data_dir': config_dict["data_dir"], 
             'split': split, 
-            'data_mode': config_dict["data_mode"]
+            'data_mode': mode
         }
     )
+    logging.info(f"Loading dataset from the {split} split with data format {mode}.")
     return dataset
 
 # SAVE AND LOAD DATASETS
