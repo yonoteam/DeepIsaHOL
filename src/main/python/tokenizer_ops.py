@@ -144,7 +144,7 @@ def get_dataset(tokenizer, config_dict, split=isa_data.SPLITS["NONE"]):
             'data_mode': mode
         }
     )
-    logging.info(f"Loading dataset from the {split} split with data format {mode}.")
+    logging.info(f"Loading dataset from the '{split}' split with data format '{mode}'.")
     return dataset
 
 # SAVE AND LOAD DATASETS
