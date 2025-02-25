@@ -42,6 +42,7 @@ def prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_s
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
     dataloader, model = accelerator.prepare(dataloader, model)
+    logging.info(f"Prepared model and dataloader.")
     return model, dataloader
 
 # VALIDATION
@@ -78,7 +79,7 @@ def step_validation(batch_idx, batch, metrics, model=None):
 
 def report_validation1(metrics, records):
     records["latest_step"] = metrics["step"]
-    records["loss_sum"].append(metrics["loss_sum"])
+    records["avg_loss"].append(metrics["loss_sum"] / metrics["step"])
     records["unpadded_accuracy"].append(metrics["unpadded_corrects_sum"] / metrics["total_unpadded_toks"])
     records["first_token_accuracy"].append(metrics["first_correct_sum"] / metrics["total_first_toks"])
     records["prediction_accuracy"].append(metrics["correct_toks_sum"] / metrics["total_toks"])
@@ -102,7 +103,7 @@ def report_validationN(metrics, records, accelerator):
         global_step, global_loss_sum, global_unpadded_corrects, global_unpadded_toks, global_first_corrects, global_first_toks, global_correct_predicted, global_num_toks = accelerator.reduce(local_vals, reduction="sum")
 
         records["latest_step"] = global_step.item()
-        records["loss_sum"].append(global_loss_sum.item())
+        records["avg_loss"].append(global_loss_sum.item() / global_step.item())
         records["unpadded_accuracy"].append(global_unpadded_corrects.item() / global_unpadded_toks.item())
         records["first_token_accuracy"].append(global_first_corrects.item() / global_first_toks.item())
         records["prediction_accuracy"].append(global_correct_predicted.item() / global_num_toks.item())
@@ -113,8 +114,14 @@ def report_validationN(metrics, records, accelerator):
 def report_validation(metrics, records, accelerator=None):
     if accelerator is None or accelerator.num_processes <= 1:
         records = report_validation1(metrics, records)
+        accel_prefix = ""
     else:
         records = report_validationN(metrics, records, accelerator)
+        accel_prefix = f"{accelerator.process_index}: "
+    
+    log_message = f"""{accel_prefix}Latest step ({records['latest_step']}) completed. 
+        Current average loss is {records['avg_loss'][-1]}."""
+    logging.info(log_message)
     return records
 
 # MATCHING
@@ -186,8 +193,14 @@ def report_matchingN(metrics, records, accelerator):
 def report_matching(metrics, records, accelerator=None):
     if accelerator is None or accelerator.num_processes <= 1:
         records = report_matching1(metrics, records)
+        accel_prefix = ""
     else:
         records = report_matchingN(metrics, records, accelerator)
+        accel_prefix = f"{accelerator.process_index}: "
+
+    log_message = f"""{accel_prefix}Latest step ({records['latest_step']}) completed. 
+        Coincidence accuracy is {records['coincide_accuracy'][-1]}."""
+    logging.info(log_message)
     return records
 
 # REPLING
@@ -261,7 +274,7 @@ METRICS = {
         },
         "records0": {
             "latest_step": 0,
-            "loss_sum": [],
+            "avg_loss": [],
             "unpadded_accuracy": [],
             "first_token_accuracy": [],
             "prediction_accuracy": []
@@ -311,14 +324,15 @@ def with_metric(eval_str, config_dict):
             step_kwargs = {
                 "tokenizer": tokenizer, 
                 "model": model, 
-                "max_length": tokenizer.model_max_length, "max_matches": 20
+                "max_length": tokenizer.model_max_length, 
+                "max_matches": 20
             }
         report_kwargs = {"accelerator": accelerator}
         execute(
             eval_metric, 
             dataloader, 
             model, 
-            log_steps=10000, 
+            log_steps=1000, 
             step_kwargs=step_kwargs,
             report_kwargs=report_kwargs
         )
