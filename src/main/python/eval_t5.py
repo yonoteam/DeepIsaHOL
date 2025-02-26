@@ -103,7 +103,7 @@ def step_validation(batch_idx, batch, metrics, model=None):
     return metrics 
 
 def report_validation1(metrics, records):
-    records["latest_step"] = metrics["step"]
+    records["steps"].append(metrics["step"])
     records["avg_loss"].append(metrics["loss_sum"] / metrics["step"])
     records["non_pad_accuracy"].append(metrics["non_pad_corrects_sum"] / metrics["total_non_pad_toks"])
     records["first_token_accuracy"].append(metrics["first_correct_sum"] / metrics["total_first_toks"])
@@ -124,7 +124,7 @@ def report_validationN(metrics, records, accelerator):
     global_step, global_loss_sum, global_non_pad_corrects, global_non_pad_toks, global_first_corrects, global_first_toks = accelerator.reduce(local_vals, reduction="sum")
 
     if accelerator.is_main_process:
-        records["latest_step"] = metrics["step"]
+        records["steps"].append(metrics["step"])
         records["avg_loss"].append(global_loss_sum.item() / global_step.item())
         records["non_pad_accuracy"].append(global_non_pad_corrects.item() / global_non_pad_toks.item())
         records["first_token_accuracy"].append(global_first_corrects.item() / global_first_toks.item())
@@ -143,7 +143,7 @@ def report_validation(metrics, records, accelerator=None):
         records = report_validationN(metrics, records, accelerator)
         accel_prefix = f"{accelerator.process_index}: "
     
-    log_message = f"""{accel_prefix}Latest step ({records['latest_step']}) completed. 
+    log_message = f"""{accel_prefix}Latest step ({records['steps'][-1]}) completed. 
         Current average loss is {records['avg_loss'][-1]}."""
     logging.info(log_message)
     return records
@@ -189,7 +189,7 @@ def step_matching(batch_idx, batch, metrics, tokenizer=None, model=None, max_len
     return metrics
 
 def report_matching1(metrics, records, max_matches=20):
-    records["latest_step"] = metrics["step"]
+    records["steps"].append(metrics["step"])
     records["exact_accuracy"].append(metrics["exacts_count"] / metrics["total_count"])
     records["coincide_accuracy"].append(metrics["coincide_count"] / metrics["total_count"])
     if len(records["exact_matches"]) < max_matches:
@@ -212,7 +212,7 @@ def report_matchingN(metrics, records, accelerator, max_matches=20):
     global_exact_count, global_total_count, global_coincide_count = accelerator.reduce(local_vals, reduction="sum")
 
     if accelerator.is_main_process:
-        records["latest_step"] = metrics["step"]
+        records["steps"].append(metrics["step"])
         records["exact_accuracy"].append(global_exact_count.item() / global_total_count.item())
         records["coincide_accuracy"].append(global_coincide_count.item() / global_total_count.item())
         if len(records["exact_matches"]) < max_matches:
@@ -236,7 +236,7 @@ def report_matching(metrics, records, accelerator=None, max_matches=20):
         records = report_matchingN(metrics, records, accelerator, max_matches=max_matches)
         accel_prefix = f"{accelerator.process_index}: "
 
-    log_message = f"""{accel_prefix}Latest step ({records['latest_step']}) completed. 
+    log_message = f"""{accel_prefix}Latest step ({records['steps'][-1]}) completed. 
         Coincidence accuracy is {records['coincide_accuracy'][-1]}."""
     logging.info(log_message)
     return records
@@ -309,7 +309,7 @@ METRICS = {
             "total_first_toks": 0
         },
         "records0": {
-            "latest_step": 0,
+            "steps": [],
             "avg_loss": [],
             "non_pad_accuracy": [],
             "first_token_accuracy": []
@@ -328,7 +328,7 @@ METRICS = {
             "coincidences": []
         },
         "records0": {
-            "latest_step": 0,
+            "steps": [],
             "exact_accuracy": [],
             "coincide_accuracy": [],
             "exact_matches": [],
