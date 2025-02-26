@@ -357,7 +357,7 @@ def with_metric(eval_str, config_dict):
     eval_metric = METRICS[eval_str]
     def general_body(accelerator):
         model, tokenizer, dataset = load_model_tok_data(config_dict, accelerator=accelerator)
-        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=config_dict["batch_size"])
+        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["batch_size"], accelerator=accelerator)
         if eval_str == "validation":
             step_kwargs = {"model": model}
             report_kwargs = {"accelerator": accelerator}
