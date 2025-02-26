@@ -178,6 +178,7 @@ def step_matching(batch_idx, batch, metrics, tokenizer=None, model=None, max_len
     input_ids = batch['input_ids']
     attention_mask = batch['attention_mask']
     labels = batch['labels']
+    labels = torch.where(labels == -100, tokenizer.pad_token_id, labels)
 
     if isinstance(model, torch.nn.parallel.DistributedDataParallel):
         model = model.module
