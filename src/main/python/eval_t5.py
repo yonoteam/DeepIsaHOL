@@ -56,6 +56,7 @@ def load_model_tok_data(config_dict, accelerator=None):
 def prepare_model_and_dataloader1(model, tokenizer, dataset, batch_size=8):
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
+    logging.info(f"Prepared model and dataloader.")
     return model, dataloader
 
 def prepare_model_and_dataloaderN(model, tokenizer, dataset, accelerator, batch_size=8):
@@ -177,6 +178,10 @@ def step_matching(batch_idx, batch, metrics, tokenizer=None, model=None, max_len
     input_ids = batch['input_ids']
     attention_mask = batch['attention_mask']
     labels = batch['labels']
+
+    if isinstance(model, torch.nn.parallel.DistributedDataParallel):
+        model = model.module
+
     outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=max_length)
 
     orig_input = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
