@@ -291,7 +291,7 @@ def main(accelerator, config_dict):
 
 if __name__ == "__main__":
     set_all_seeds(42)
-    ops.configure_logging("t5.log")
+    ops.configure_logging("t5_train.log")
     try:
         config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation="Train the transformer as specified in the input JSON configuration."))
         ops.check_params(config_dict)

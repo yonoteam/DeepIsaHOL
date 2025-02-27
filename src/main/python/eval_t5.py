@@ -150,83 +150,113 @@ def report_validation(metrics, records, accelerator=None):
     return records
 
 # MATCHING
+def upd_with_mask(
+        upd_list: list, 
+        inputs: torch.Tensor, 
+        targets: torch.Tensor, 
+        predicts: torch.Tensor, 
+        mask: torch.Tensor, 
+        max_matches=20
+    ):
+    if len(upd_list) < max_matches:
+        positions_of_true = mask.nonzero(as_tuple=True)[0]
+        if positions_of_true.numel() > 0:
+            fst_pos = positions_of_true[0].item()
+            upd_list.append([inputs[fst_pos].tolist(), targets[fst_pos].tolist(), predicts[fst_pos].tolist()])
+    return upd_list
 
-def get_matches(metrics, ins_outs_predicts, max_matches=20):
-    match_count = 0
-    mismatch_count = 0
-    coincide_count = 0
-    for input, target, predict in ins_outs_predicts:
-        metrics["total_count"] += 1
-        if predict.strip() == target.strip():
-            metrics["exacts_count"] += 1
-            if match_count < 2 and len(metrics["exact_matches"]) < max_matches:
-                metrics["exact_matches"].append((input, target, predict))
-                match_count += 1
-        elif mismatch_count < 2 and len(metrics["mismatches"]) < max_matches:
-            metrics["mismatches"].append((input, target, predict))
-            mismatch_count += 1
+def get_matches(
+        metrics: dict, 
+        inputs: torch.Tensor, 
+        targets: torch.Tensor, 
+        predicts: torch.Tensor,
+        pad_token:int = 0, 
+        max_matches:int = 20
+    ):
+    def start_is_padded(t1):
+        return torch.all(t1[:,0] == pad_token).item()
+    
+    if start_is_padded(predicts):
+        predicts = predicts[:,1:]
 
-        common_prefix = os.path.commonprefix([target, predict])
-        if common_prefix:
-            metrics["coincide_count"] += 1
-            if coincide_count < 2 and len(metrics["coincidences"]) < max_matches:
-                metrics["coincidences"].append((input, target, predict))
-                coincide_count += 1
+    if targets.size(1) > predicts.size(1):
+        trim_max = predicts.size(1)
+        trimmed = targets.narrow(1, 0, trim_max)
+    else: # assuming equal size in remaining dimensions
+        trim_max = targets.size(1)
+        trimmed = targets
+    
+    # total count
+    batch_size = targets.size(0)
+    metrics["total_count"] += batch_size
+
+    # exact matches
+    exact_mask = torch.all(trimmed == predicts[:,:trim_max], dim=1)
+    metrics["exacts_count"] += exact_mask.sum().item()
+    metrics["exact_matches"] = upd_with_mask(metrics["exact_matches"], inputs, targets, predicts, exact_mask, max_matches=max_matches)
+    
+    # coincidences
+    coincide_mask = (trimmed[:,0] == predicts[:,0]) & ~exact_mask
+    metrics["coincide_count"] += coincide_mask.sum().item()
+    metrics["coincidences"] = upd_with_mask(metrics["coincidences"], inputs, targets, predicts, coincide_mask, max_matches=max_matches)
+
+    # completely wrong
+    wrong_mask = torch.all(trimmed != predicts[:,trim_max], dim=1)
+    metrics["all_wrong_count"] += wrong_mask.sum().item()
+    metrics["mismatches"] = upd_with_mask(metrics["mismatches"], inputs, targets, predicts, wrong_mask, max_matches=max_matches)
+
     return metrics
     
-def step_matching(batch_idx, batch, metrics, tokenizer=None, model=None, max_length=512, max_matches=20):
+def step_matching(batch_idx, batch, metrics, model=None, pad_token=0, eos_token=1, max_matches=20):
     input_ids = batch['input_ids']
     attention_mask = batch['attention_mask']
     labels = batch['labels']
-    labels = torch.where(labels == -100, tokenizer.pad_token_id, labels)
+
+    pad_mask = labels == -100
+    labels[pad_mask] = pad_token
+    eos_positions = (labels == eos_token).nonzero(as_tuple=True)[1]
+    max_eos_position = eos_positions.max() + 5 if eos_positions.numel() > 0 else None
+
 
     if isinstance(model, torch.nn.parallel.DistributedDataParallel):
         model = model.module
 
-    outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=max_length)
-
-    orig_input = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
-    orig_output = tokenizer.batch_decode(labels, skip_special_tokens=True)
-    predictions = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-    itps = zip(orig_input, orig_output, predictions)
+    predictions = model.generate(input_ids=input_ids, attention_mask=attention_mask, max_length=max_eos_position)
 
     metrics["step"] = batch_idx + 1
-    metrics = get_matches(metrics, itps, max_matches=max_matches)
+    metrics = get_matches(metrics, input_ids, labels, predictions, pad_token=pad_token, max_matches=max_matches)
     return metrics
 
-def report_matching1(metrics, records, max_matches=20):
+def report_matching1(metrics, records):
     records["steps"].append(metrics["step"])
     records["exact_accuracy"].append(metrics["exacts_count"] / metrics["total_count"])
     records["coincide_accuracy"].append(metrics["coincide_count"] / metrics["total_count"])
-    if len(records["exact_matches"]) < max_matches:
-        records["exact_matches"].extend(metrics["exact_matches"])
-    if len(records["mismatches"]) < max_matches:
-        records["mismatches"].extend(metrics["mismatches"])
-    if len(records["coincidences"]) < max_matches:
-        records["coincidences"].extend(metrics["coincidences"])
+    records["all_wrong_ratio"].append(metrics["all_wrong_count"] / metrics["total_count"])
+    records["exact_matches"] = metrics["exact_matches"]
+    records["mismatches"] = metrics["mismatches"]
+    records["coincidences"] = metrics["coincidences"]
     ops.save_dict_as_json(records, "matching_records.json")
     return records
 
-def report_matchingN(metrics, records, accelerator, max_matches=20):
+def report_matchingN(metrics, records, accelerator):
     accelerator.wait_for_everyone()
     local_vals = torch.tensor([
         metrics["exacts_count"],
         metrics["total_count"],
-        metrics["coincide_count"]
+        metrics["coincide_count"],
+        metrics["all_wrong_count"]
     ], device=accelerator.device)
 
-    global_exact_count, global_total_count, global_coincide_count = accelerator.reduce(local_vals, reduction="sum")
+    global_exact_count, global_total_count, global_coincide_count, global_wrongs_count = accelerator.reduce(local_vals, reduction="sum")
 
     if accelerator.is_main_process:
         records["steps"].append(metrics["step"])
         records["exact_accuracy"].append(global_exact_count.item() / global_total_count.item())
         records["coincide_accuracy"].append(global_coincide_count.item() / global_total_count.item())
-        if len(records["exact_matches"]) < max_matches:
-            records["exact_matches"].extend(metrics["exact_matches"])
-        if len(records["mismatches"]) < max_matches:
-            records["mismatches"].extend(metrics["mismatches"])
-        if len(records["coincidences"]) < max_matches:
-            records["coincidences"].extend(metrics["coincidences"])
+        records["all_wrong_ratio"].append(global_wrongs_count.item() / global_total_count.item())
+        records["exact_matches"] = metrics["exact_matches"]
+        records["mismatches"] = metrics["mismatches"]
+        records["coincidences"] = metrics["coincidences"]
         ops.save_dict_as_json(records, "matching_records.json")
     else:
         records = None
@@ -304,7 +334,7 @@ METRICS = {
     "validation": {
         "step": step_validation,
         "report": report_validation,
-        "metrics0": {
+        "metrics": {
             "step": 0,
             "loss_sum": 0.0,
             "losses": [],
@@ -314,7 +344,7 @@ METRICS = {
             "first_correct_sum": 0,
             "total_first_toks": 0
         },
-        "records0": {
+        "records": {
             "steps": [],
             "avg_loss": [],
             "non_pad_accuracy": [],
@@ -324,31 +354,33 @@ METRICS = {
     "matching": {
         "step": step_matching,
         "report": report_matching,
-        "metrics0": {
+        "metrics": {
             "step": 0,
             "total_count": 0,
             "exacts_count": 0,
             "coincide_count": 0,
+            "all_wrong_count": 0,
             "exact_matches": [],
-            "mismatches": [],
-            "coincidences": []
+            "coincidences": [],
+            "mismatches": []
         },
-        "records0": {
+        "records": {
             "steps": [],
             "exact_accuracy": [],
             "coincide_accuracy": [],
+            "all_wrong_ratio": [],
             "exact_matches": [],
-            "mismatches": [],
-            "coincidences": []
+            "coincidences": [],
+            "mismatches": []
         }
     }
 }
 
-def execute(eval_metric, dataloader, model, log_steps = 10000, step_kwargs={}, report_kwargs={}):
+def execute(eval_metric, dataloader, model, log_steps = 1000, step_kwargs={}, report_kwargs={}):
     step = eval_metric["step"]
     report = eval_metric["report"]
-    metrics = eval_metric["metrics0"]
-    records = eval_metric["records0"]
+    metrics = eval_metric["metrics"]
+    records = eval_metric["records"]
     model.eval()
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
@@ -365,15 +397,14 @@ def with_metric(eval_str, config_dict):
         model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["batch_size"], accelerator=accelerator)
         if eval_str == "validation":
             step_kwargs = {"model": model}
-            report_kwargs = {"accelerator": accelerator}
         elif eval_str == "matching":
             step_kwargs = {
-                "tokenizer": tokenizer, 
                 "model": model, 
-                "max_length": tokenizer.model_max_length, 
+                "pad_token": tokenizer.pad_token_id,
+                "eos_token": tokenizer.eos_token_id,
                 "max_matches": 20
             }
-            report_kwargs = {"max_matches": 20, "accelerator": accelerator}
+        report_kwargs = {"accelerator": accelerator}
         execute(
             eval_metric, 
             dataloader, 
