@@ -264,12 +264,12 @@ def report_matchingN(metrics, records, accelerator):
     records = broadcast_object_list([records])[0]
     return records
 
-def report_matching(metrics, records, accelerator=None, max_matches=20):
+def report_matching(metrics, records, accelerator=None):
     if accelerator is None or accelerator.num_processes <= 1:
-        records = report_matching1(metrics, records, max_matches=max_matches)
+        records = report_matching1(metrics, records)
         accel_prefix = ""
     else:
-        records = report_matchingN(metrics, records, accelerator, max_matches=max_matches)
+        records = report_matchingN(metrics, records, accelerator)
         accel_prefix = f"{accelerator.process_index}: "
 
     log_message = f"""{accel_prefix}Latest step ({records['steps'][-1]}) completed. 
