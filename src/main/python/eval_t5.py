@@ -201,7 +201,7 @@ def get_matches(
     metrics["coincidences"] = upd_with_mask(metrics["coincidences"], inputs, targets, predicts, coincide_mask, max_matches=max_matches)
 
     # completely wrong
-    wrong_mask = torch.all(trimmed != predicts[:,trim_max], dim=1)
+    wrong_mask = torch.all(trimmed != predicts[:,:trim_max], dim=1)
     metrics["all_wrong_count"] += wrong_mask.sum().item()
     metrics["mismatches"] = upd_with_mask(metrics["mismatches"], inputs, targets, predicts, wrong_mask, max_matches=max_matches)
 
@@ -428,4 +428,4 @@ if __name__ == "__main__":
         logging.error(message)
         raise Exception("Error " + message)
     
-    with_metric("validation", config_dict)
+    with_metric("matching", config_dict)
