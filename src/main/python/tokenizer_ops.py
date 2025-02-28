@@ -5,14 +5,14 @@
 
 import os
 import logging
+
 import torch
+from datasets import IterableDataset
+from transformers import AutoTokenizer
 
 import isa_data
 import ops
 import proofs
-
-from datasets import IterableDataset
-from transformers import AutoTokenizer
 
 # TRAINING FROM SCRATCH
 
@@ -81,6 +81,22 @@ def generate_proof_paths(json_data_dir, split=isa_data.SPLITS["NONE"]):
                 yield from test_split
             else:
                 raise Exception(f"Error: bad input {split}, expected train, valid, or test.")
+
+def accumulate_tokenized_lengths(lengths, proof, tokenizer, data_mode=isa_data.FORMATS["S"]):
+    """
+    Accumulator to be used with proofs.compute_stats. It computes the exact number of tokens 
+    by using the tokenizer to split the proof's strings of inputs (and targets).
+
+    :param lengths: pair of lists (for lengths of input-target pairs) to accumulate
+    :param proof: dictionary abstracting a proof
+    :param tokenizer: a Hugging Face tokenizer 
+    :param data_mode: the data format
+    :rtype: tuple(list)
+    """
+    x_y_pairs = proofs.inputs_targets_from(proof, data_mode=data_mode)
+    lengths[0].extend(len(tokenizer(x)["input_ids"]) for x, _ in x_y_pairs)
+    lengths[1].extend(len(tokenizer(y)["input_ids"]) for _, y in x_y_pairs)
+    return lengths
         
 def tokenize(tokenizer, x, y):
     max_length = tokenizer.model_max_length

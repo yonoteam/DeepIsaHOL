@@ -357,26 +357,38 @@ def estimate_vocab_size(json_data_dir, coverage_threshold=0.95):
 def get_tokenizer_corpus(json_data_dir, readable=False):
     """Tokenizer's training corpus generator.
     
-    :param json_data_dir: path to the data directory with 'proofN.json's with 'proofN.json's
+    :param json_data_dir: path to the data directory with 'proofN.json's  files
     :returns: generator of proof strings
     :rtype: generator
     """
     for proof in generate_from(json_data_dir):
         yield string_from(proof, readable)
 
-def estimate_stats(json_data_dir, data_mode=isa_data.FORMATS["S"]):
-    """Estimates the average, maximum, minimum, median, mode, and total size
-    of the (input and target) tokens in the input directory's dataset.
-    
-    :param json_data_dir: path to the data directory with 'proofN.json's with 'proofN.json's
-    :returns: generator of proof strings
-    :rtype: generator
+def accumulate_approx_split_lengths(lengths, proof, data_mode=isa_data.FORMATS["S"]):
     """
-    def accumulate_approx_lengths(lengths, proof):
-        lengths[0].extend(len(x.split()) for x, _ in inputs_targets_from(proof, data_mode=data_mode))
-        lengths[1].extend(len(y.split()) for _, y in inputs_targets_from(proof, data_mode=data_mode))
-        return lengths
+    Accumulator to be used with proofs.compute_stats. It estimates the number of tokens 
+    by splitting the proof's strings of inputs (and targets) with blank spaces.
+
+    :param lengths: pair of lists (for lengths of input-target pairs) to accumulate
+    :param proof: dictionary abstracting a proof
+    :param data_mode: the data format
+    :rtype: tuple(list)
+    """
+    x_y_pairs = inputs_targets_from(proof, data_mode=data_mode)
+    lengths[0].extend(len(x.split()) for x, _ in x_y_pairs)
+    lengths[1].extend(len(y.split()) for _, y in x_y_pairs)
+    return lengths 
+
+def compute_stats(accumulator, json_data_dir, **kwargs):
+    """Computes the average, maximum, minimum, median, mode, and total size
+    of the (input and target) tokens in the input directory's dataset using
+    the estimation from the accumulator.
     
+    :param accumulator: function tuple(list) -> tuple(list) with the lengths to process
+    :param data_mode: the data format mode
+    :returns: dictionary containing the tokenization statistics
+    :rtype: dict
+    """
     def get_stats(nums):
         return {
             "avg": sum(nums) / len(nums) if nums else 0,
@@ -385,10 +397,10 @@ def estimate_stats(json_data_dir, data_mode=isa_data.FORMATS["S"]):
             "median": statistics.median(nums) if nums else 0,
             "mode": statistics.mode(nums) if nums else 0
         }
-
-    x_lengths, y_lengths = apply(accumulate_approx_lengths, ([],[]), json_data_dir)
-    x_stats = get_stats(x_lengths)
-    y_stats = get_stats(y_lengths)
+    
+    accumulate = lambda acc, proof: accumulator(acc, proof, **kwargs)
+    x_lengths, y_lengths = apply(accumulate, ([],[]), json_data_dir)
+    x_stats, y_stats = map(get_stats, [x_lengths, y_lengths])
     return {
         "x_avg": x_stats["avg"],
         "y_avg": y_stats["avg"],
