@@ -265,7 +265,8 @@ def check_params(config_dict):
 
 def get_directory_paths(config_dict:dict):
     """
-    Returns candidate paths to save tokenizers, datasets, and models from the input configuration.
+    Returns candidate paths to save tokenizers, datasets, and models from the input configuration. 
+    If the directories do not exist, it creates them.
 
     :param config_dict: (dict) dictionary containing the training configuration
     :rtype: (str, str, str) tuple
@@ -277,6 +278,9 @@ def get_directory_paths(config_dict:dict):
     tokenizers_dir = os.path.join(local_model_dir, "tokenizers")
     datasets_dir = os.path.join(tokenizers_dir, f"datasets/{data_mode}")
     models_dir = os.path.join(local_model_dir, "models", data_mode)
+    os.makedirs(tokenizers_dir, exist_ok=True)
+    os.makedirs(datasets_dir, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
     return tokenizers_dir, datasets_dir, models_dir
 
 def get_latest_dir_from(saving_dir, adding_one=False):
