@@ -54,14 +54,14 @@ def load_model_tok_data(config_dict, accelerator=None):
         return load_model_tok_dataN(config_dict, accelerator)
     
 def prepare_model_and_dataloader1(model, tokenizer, dataset, batch_size=8):
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="max_length", max_length=model.config.n_positions)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
     logging.info(f"Prepared model and dataloader.")
     return model, dataloader
 
 def prepare_model_and_dataloaderN(model, tokenizer, dataset, accelerator, batch_size=8):
     batch_size = batch_size // accelerator.num_processes
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="max_length", max_length=model.config.n_positions)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
     dataloader, model = accelerator.prepare(dataloader, model)
     logging.info(f"Prepared model and dataloader.")

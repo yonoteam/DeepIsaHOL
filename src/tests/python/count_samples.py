@@ -27,7 +27,7 @@ def main(config_dict, split=isa_data.SPLITS["NONE"]):
     tokenizer = tokops.load_latest_tokenizer(toks_dir)
     dataset = tokops.get_dataset(tokenizer, config_dict, split = split)
     model = train_t5.load_latest_model(models_dir)
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="max_length", max_length=model.config.n_positions)
     dataloader = DataLoader(dataset, batch_size=config_dict["batch_size"], shuffle=False, collate_fn=data_collator)
     total_samples = 0
     for batch_idx, batch in enumerate(dataloader):
