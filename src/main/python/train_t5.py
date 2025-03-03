@@ -61,9 +61,8 @@ def log_dataloading(dataloader, accelerator):
         break
     pi = accelerator.process_index
     batch_shape = {k: v.shape for k, v in batch.items()}
-    logging.info(f"{pi}: The first batch info is:")
-    logging.info(f"{pi}: {batch_shape}")
-    logging.info(f"{pi}: {batch['input_ids'][0][:10]}")
+    logging.info(f"{pi}: The first batch info is: shape = {batch_shape}")
+    logging.info(f"{pi}: first tokens = {batch['input_ids'][0][:20]}")
 
 def log_exploding_gradients(model, batch_idx, accelerator, threshold=1e4):
     if batch_idx % 500 == 0:

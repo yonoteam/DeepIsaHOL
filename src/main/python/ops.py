@@ -351,7 +351,7 @@ def exists_previous(case_name, dir_path):
         else:
             previous = False
         message = f"""
-        Is there a previous {case_name} in the directory {dir_path}?: {previous}.
+        Is there a previous {case_name} in the directory '{dir_path}'?: {previous}.
         Therefore, {case_name} has to be retrieved remotely?: {not previous}
         """
         logging.info(message)
