@@ -237,7 +237,7 @@ def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
 # MAIN
 
 def load_model_tok_data(accelerator, config_dict):
-    logging.info(f"{accelerator.process_index}: the type of config_dict is {type(config_dict)} and its contents are {ops.print_dict(config_dict)}")
+    logging.info(f"{accelerator.process_index}: the type of config_dict is {type(config_dict)} and its contents are {ops.dict_to_string(config_dict)}")
 
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:

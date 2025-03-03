@@ -22,11 +22,16 @@ import isa_data
 import proofs
 import accelerate_test
 
-def print_dict(d, max=None):
+def dict_to_string(d, max=None):
+    s = ""
     for i, (k, v) in enumerate(d.items()):
-        print(f"{k}: {v}")
+        s = s + f"{k}: {v}\n"
         if i == max:
-            break
+            return s
+    return s
+
+def print_dict(d, max=None):
+    print(dict_to_string(d, max=max))
 
 def to_plot(read_json_path:str, loop_name:str, start_from:int=0):
     read_dir = os.path.dirname(read_json_path)
