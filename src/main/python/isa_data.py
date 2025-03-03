@@ -15,6 +15,16 @@ def print_formats():
     for key, mode in FORMATS.items():
         print(f"{key}: '{mode}'")
 
+CTX_LENGTHS = {
+    "state": 512,
+    "state_prems": 1024,
+    "state_prems_kwrds": 1024,
+    "state_prems_kwrds_terms": 1024
+}
+
+def get_context_length(mode):
+    return CTX_LENGTHS.get(mode, 512)
+
 SPLITS = {
     "TRAIN": "train", 
     "VALID": "valid", 
@@ -23,5 +33,5 @@ SPLITS = {
 }
 
 def print_splits():
-    for key, mode in SPLITS.items():
-        print(f"{key}: '{mode}'")
+    for key, split in SPLITS.items():
+        print(f"{key}: '{split}'")

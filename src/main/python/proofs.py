@@ -352,6 +352,7 @@ def estimate_vocab_size(json_data_dir, coverage_threshold=0.95):
             optimal_vocab_size = i + 1
             break
     
+    logging.info(f"Estimated vocab size is {optimal_vocab_size}")
     return optimal_vocab_size
 
 def get_tokenizer_corpus(json_data_dir, readable=False):

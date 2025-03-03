@@ -97,7 +97,7 @@ def accumulate_tokenized_lengths(lengths, proof, tokenizer, data_mode=isa_data.F
     lengths[0].extend(len(tokenizer(x)["input_ids"]) for x, _ in x_y_pairs)
     lengths[1].extend(len(tokenizer(y)["input_ids"]) for _, y in x_y_pairs)
     return lengths
-        
+
 def tokenize(tokenizer, x, y):
     max_length = tokenizer.model_max_length
     inputs = tokenizer(
@@ -105,7 +105,7 @@ def tokenize(tokenizer, x, y):
         max_length=max_length, 
         truncation=True, 
         return_overflowing_tokens=True,
-        stride=10,
+        stride=int(max_length * 0.1),
         padding="max_length",
         return_tensors="pt"
     )
@@ -141,6 +141,9 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=isa_data.FO
     :returns: generator for tokenized inputs with labels for conditional generation
     :rtype: generator
     """
+    tok_max_length = isa_data.get_context_length(data_mode)
+    tokenizer.model_max_length = tok_max_length
+    logging.info(f"Tokenizer's model max length is {tokenizer.model_max_length}")
     for path in generate_proof_paths(json_data_dir, split):
         proof = proofs.get_proof_json(path)
         for input_text, target_text in proofs.inputs_targets_from(proof, data_mode):

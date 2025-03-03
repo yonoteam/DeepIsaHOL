@@ -112,14 +112,16 @@ def log_nan_loss(loss, batch_idx, batch, accelerator):
 
 # RETRIEVE MODEL
 
-def initialize_model_from_scratch(model_name, vocab_size):
+def initialize_model_from_scratch(model_name, vocab_size, ctxt_length):
     model = T5ForConditionalGeneration.from_pretrained(model_name)
     
     # reset the configuration for that model
     config = AutoConfig.from_pretrained(
         model_name,
         vocab_size=vocab_size,
-        n_ctx=model.config.d_model
+        n_positions=ctxt_length,
+        max_length=model.config.max_length, # maximum generation length
+        d_model=model.config.d_model
     )
     model = T5ForConditionalGeneration(config)
     logging.info(f"Initialized Hugging Face model of type {type(model)}.")
@@ -135,7 +137,8 @@ def get_model(config_dict, vocab_size, remote=False):
     model_name = config_dict["model_name"]
     _, _, models_dir = ops.get_directory_paths(config_dict)
     if remote:
-        model = initialize_model_from_scratch(model_name, vocab_size)
+        ctxt_length = isa_data.get_context_length(config_dict["data_mode"])
+        model = initialize_model_from_scratch(model_name, vocab_size, ctxt_length)
     else:
         model = load_latest_model(models_dir)
     return model
