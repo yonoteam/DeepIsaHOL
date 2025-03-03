@@ -104,9 +104,10 @@ def initialize_model(model_name, finetuning, vocab_size, ctxt_length):
 
     if finetuning:
         model = T5ForConditionalGeneration.from_pretrained(model_name, config=config)
+        logging.info(f"Fine-tuning model with context length = {model.config.n_positions}")
     else:
         model = T5ForConditionalGeneration(config)
-        logging.info(f"Trainig model from scratch.")
+        logging.info(f"Trainig model from scratch with context length = {model.config.n_positions}")
     logging.info(f"Initialized Hugging Face model of type {type(model)}.")
     return model
 
