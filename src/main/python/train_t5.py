@@ -237,6 +237,8 @@ def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
 # MAIN
 
 def load_model_tok_data(accelerator, config_dict):
+    config_dict = broadcast_object_list([config_dict])[0]
+    logging.info(f"{accelerator.process_index}: config_dict exists and it is {ops.print_dict(config_dict)}")
     if accelerator.is_main_process:
         # Tokenizer
         tokenizer = tokops.get_trained_tokenizer(config_dict, making_dirs=True)
@@ -258,7 +260,6 @@ def load_model_tok_data(accelerator, config_dict):
     train_data = broadcast_object_list([train_data])[0]
     valid_data = broadcast_object_list([valid_data])[0]
     model = broadcast_object_list([model])[0]
-    logging.info(f"{accelerator.process_index}: config_data exists and it is {ops.print_dict(config_dict)}")
     logging.info(f"{accelerator.process_index}: successfully received data.")
     return model, tokenizer, train_data, valid_data
 
