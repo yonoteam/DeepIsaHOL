@@ -258,6 +258,7 @@ def load_model_tok_data(accelerator, config_dict):
     train_data = broadcast_object_list([train_data])[0]
     valid_data = broadcast_object_list([valid_data])[0]
     model = broadcast_object_list([model])[0]
+    logging.info(f"{accelerator.process_index}: successfully received data.")
     return model, tokenizer, train_data, valid_data
 
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
