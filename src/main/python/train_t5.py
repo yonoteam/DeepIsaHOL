@@ -36,9 +36,8 @@ def set_all_seeds(seed):
     set_seed(seed)
 
 def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=8):
-    batch_size = batch_size // accelerator.num_processes
     # Dataloaders
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="max_length", max_length=model.config.n_positions)
     train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
     valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
 
