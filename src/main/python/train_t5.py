@@ -35,25 +35,6 @@ def set_all_seeds(seed):
     random.seed(seed)
     set_seed(seed)
 
-def get_remotes(config_dict):
-    tokenizers_dir, datasets_dir, models_dir = ops.get_directory_paths(config_dict)
-    model_path = os.path.join(ops.get_latest_dir_from(models_dir), "model.safetensors")
-    dataset_path = os.path.join(datasets_dir, "datasets.pt")
-    tokenizer_path = os.path.join(ops.get_latest_dir_from(tokenizers_dir), "tokenizer.json")
-    if os.path.isfile(model_path):
-        model_remote = False
-    else:
-        model_remote = True
-    if os.path.isfile(dataset_path):
-        dataset_remote = False
-    else:
-        dataset_remote = True
-    if os.path.isfile(tokenizer_path):
-        tokenizer_remote = False
-    else:
-        tokenizer_remote = True
-    return model_remote, dataset_remote, tokenizer_remote
-
 def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=8):
     batch_size = batch_size // accelerator.num_processes
     # Dataloaders
@@ -112,18 +93,21 @@ def log_nan_loss(loss, batch_idx, batch, accelerator):
 
 # RETRIEVE MODEL
 
-def initialize_model_from_scratch(model_name, vocab_size, ctxt_length):
-    model = T5ForConditionalGeneration.from_pretrained(model_name)
-    
-    # reset the configuration for that model
-    config = AutoConfig.from_pretrained(
-        model_name,
-        vocab_size=vocab_size,
-        n_positions=ctxt_length,
-        max_length=model.config.max_length, # maximum generation length
-        d_model=model.config.d_model
-    )
-    model = T5ForConditionalGeneration(config)
+def initialize_model(model_name, finetuning, vocab_size, ctxt_length):
+    config = AutoConfig.from_pretrained(model_name)
+    vocab_size = config.vocab_size if finetuning else vocab_size
+    config.update({
+        "vocab_size": vocab_size,
+        "n_positions": ctxt_length,
+        "max_length": config.max_length,  # maximum generation length
+        "d_model": config.d_model,
+    })
+
+    if finetuning:
+        model = T5ForConditionalGeneration.from_pretrained(model_name, config=config)
+    else:
+        model = T5ForConditionalGeneration(config)
+        logging.info(f"Trainig model from scratch.")
     logging.info(f"Initialized Hugging Face model of type {type(model)}.")
     return model
 
@@ -133,14 +117,16 @@ def load_latest_model(models_dir):
     logging.info(f"Loaded Hugging Face model from {latest_dir} of type {type(model)}.")
     return model
 
-def get_model(config_dict, vocab_size, remote=False):
-    model_name = config_dict["model_name"]
-    _, _, models_dir = ops.get_directory_paths(config_dict)
-    if remote:
-        ctxt_length = isa_data.get_context_length(config_dict["data_mode"])
-        model = initialize_model_from_scratch(model_name, vocab_size, ctxt_length)
-    else:
+def get_model(config_dict, vocab_size):
+    _, _, models_dir = ops.get_directory_paths(config_dict, making_dirs=True)
+    previous_model = ops.exists_previous("model", models_dir)
+
+    if previous_model:
         model = load_latest_model(models_dir)
+    else:
+        ctxt_length = isa_data.get_context_length(config_dict["data_mode"])
+        finetuning = True if config_dict["data_mode"].startswith("finetune") else False
+        model = initialize_model(config_dict["model_name"], finetuning, vocab_size, ctxt_length)
     return model
 
 
@@ -234,12 +220,12 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, config_dict, accele
     _ = record(metrics, locals, accelerator, save_file=f"valid_metrics{epoch}.json")
             
 def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict):
-    _, _, models_dir = ops.get_directory_paths(config_dict)
     num_epochs = config_dict["num_epochs"]
     for epoch in range(num_epochs):
         logging.info(f"Epoch {epoch + 1} of {num_epochs}")
         train(model, train_dataloader, optimizer, lr_scheduler, epoch, config_dict, accelerator)
         if accelerator.is_main_process:
+            _, _, models_dir = ops.get_directory_paths(config_dict)
             ops.save_hf_data_in(accelerator.unwrap_model(model), models_dir)
             logging.info(f"Finished training loop. Checkpoint saved for epoch {epoch}.")
         accelerator.wait_for_everyone()
@@ -250,14 +236,10 @@ def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
 
 # MAIN
 
-def load_model_tok_data(accelerator, config_dict, model_remote=False):
-    tokenizers_dir, _, models_dir = ops.get_directory_paths(config_dict)
-    if accelerator.is_main_process:
-        os.makedirs(models_dir, exist_ok=True)
-
+def load_model_tok_data(accelerator, config_dict):
     if accelerator.is_main_process:
         # Tokenizer
-        tokenizer = tokops.load_latest_tokenizer(tokenizers_dir)
+        tokenizer = tokops.get_trained_tokenizer(config_dict, making_dirs=True)
         vocab_size = len(tokenizer)
 
         # Data
@@ -265,7 +247,7 @@ def load_model_tok_data(accelerator, config_dict, model_remote=False):
         valid_data = tokops.get_dataset(tokenizer, config_dict, split = isa_data.SPLITS["VALID"])
 
         # Model
-        model = get_model(config_dict, vocab_size, remote=model_remote)
+        model = get_model(config_dict, vocab_size)
     else:
         tokenizer = None
         train_data, valid_data = None, None
@@ -280,13 +262,7 @@ def load_model_tok_data(accelerator, config_dict, model_remote=False):
 
 # TODO: make batch_size, lr, and vocab_size configurable from configuration JSON
 def main(accelerator, config_dict):
-    model_remote, _, _ = get_remotes(config_dict)
-    if accelerator.is_main_process:
-        logging.info(f"Model has to be retrieved remotely?: {model_remote}")
-        logging.info(f"Dataset has to be retrieved remotely?: {False}")
-        logging.info(f"Tokenizer has to be retrieved remotely?: {False}")
-
-    model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict, model_remote)
+    model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict)
 
     train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=config_dict["batch_size"])
 

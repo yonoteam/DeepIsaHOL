@@ -43,6 +43,21 @@ def to_plot(read_json_path:str, loop_name:str, start_from:int=0):
                 title=f"{loop_name} Accuracy", 
                 x_label="Steps",
                 y_label="Accuracy")
+    
+def ancester_dir_exists(path):
+    """
+    Checks if an ancester directory for the input FULL path is an existing directory.
+
+    :param path: the path to check.
+    :rtype: bool
+    """
+    while True:
+        directory = os.path.dirname(path)
+        if os.path.isdir(directory):
+            return True
+        if directory == os.path.dirname(directory): # checking if at root directory.
+            return False
+        path = directory
 
 def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     """
@@ -219,7 +234,9 @@ def check_params(config_dict):
     It tests the existence of the following parameters.
     'data_dir' - (str) path to a directory recursively containing at leasst one proofN.json
     'model_name' - (str) a Hugging Face model name
-    'all_models_dir' - (str) the directory where the tokenizers, datasets and models are saved
+    'models_dir' - (str) path to a directory for saving models
+    'tokenizers_dir' - (str) path to a directory for saving tokenizers
+    'datasets_dir' - (str) path to a directory for saving tokenized datasets
     'data_mode' - (str) any of the isa_data.FORMATS
     'data_split' - (str) any of the possible dataset splits as in isa_data.SPLITS. It will be ignnored in the non-testing scripts.
     'batch_size' - (int) the number of samples per batch
@@ -230,7 +247,9 @@ def check_params(config_dict):
     try:
         data_dir = config_dict["data_dir"]
         _ = config_dict["model_name"]
-        all_models_dir = config_dict["all_models_dir"]
+        models_dir = config_dict["models_dir"]
+        tokenizers_dir = config_dict["tokenizers_dir"]
+        datasets_dir = config_dict["datasets_dir"]
         data_mode = config_dict["data_mode"]
         data_split = config_dict["data_split"]
         _ = int(config_dict["batch_size"])
@@ -246,8 +265,16 @@ def check_params(config_dict):
         message = f"""No subdirectory in '{data_dir}' contains  a JSON file that starts with 'proof' and ends with '.json'.""".format()
         raise ValueError(f"Error: {message}.")
     
-    if not os.path.isdir(all_models_dir):
-        message = f"""Input '{all_models_dir}' is not a directory."""
+    if not ancester_dir_exists(models_dir):
+        message = f"""Input '{models_dir}' does not start with a full path."""
+        raise ValueError(f"Error: {message}")
+    
+    if not ancester_dir_exists(tokenizers_dir):
+        message = f"""Input '{tokenizers_dir}' does not start with a full path."""
+        raise ValueError(f"Error: {message}")
+    
+    if not ancester_dir_exists(datasets_dir):
+        message = f"""Input '{datasets_dir}' does not start with a full path."""
         raise ValueError(f"Error: {message}")
     
     valid_modes = isa_data.FORMATS.values()
@@ -263,24 +290,21 @@ def check_params(config_dict):
 
 # CONFIGURATION RETRIEVAL
 
-def get_directory_paths(config_dict:dict):
+def get_directory_paths(config_dict:dict, making_dirs=False):
     """
     Returns candidate paths to save tokenizers, datasets, and models from the input configuration. 
-    If the directories do not exist, it creates them.
+    If the directories do not exist and `making_dirs` is True, it creates them.
 
     :param config_dict: (dict) dictionary containing the training configuration
     :rtype: (str, str, str) tuple
     """
-    all_models_dir = config_dict["all_models_dir"]
-    model_name = config_dict["model_name"]
-    data_mode = config_dict["data_mode"]
-    local_model_dir = os.path.join(all_models_dir, model_name)
-    tokenizers_dir = os.path.join(local_model_dir, "tokenizers")
-    datasets_dir = os.path.join(tokenizers_dir, f"datasets/{data_mode}")
-    models_dir = os.path.join(local_model_dir, "models", data_mode)
-    os.makedirs(tokenizers_dir, exist_ok=True)
-    os.makedirs(datasets_dir, exist_ok=True)
-    os.makedirs(models_dir, exist_ok=True)
+    tokenizers_dir = config_dict["tokenizers_dir"]
+    datasets_dir = config_dict["datasets_dir"]
+    models_dir = config_dict["models_dir"]
+    if making_dirs:
+        os.makedirs(tokenizers_dir, exist_ok=True)
+        os.makedirs(datasets_dir, exist_ok=True)
+        os.makedirs(models_dir, exist_ok=True)
     return tokenizers_dir, datasets_dir, models_dir
 
 def get_latest_dir_from(saving_dir, adding_one=False):
@@ -308,6 +332,38 @@ def get_latest_dir_from(saving_dir, adding_one=False):
     latest_dir = os.path.join(saving_dir, str(latest_number))
     return latest_dir
 
+def exists_previous(case_name, dir_path):
+    """
+    Decides whether there is already a model, dataset, or tokenizer 
+    from a previous save-point in the input directory.
+
+    :param config_dict: dictionary containing the training configuration
+    :rtype: bool
+    """
+    def decide(file_path, case_name):
+        if os.path.isfile(file_path):
+            previous = True
+        else:
+            previous = False
+        message = f"""
+        Is there a previous {case_name} in the directory {dir_path}?: {previous}.
+        Therefore, {case_name} has to be retrieved remotely?: {not previous}
+        """
+        logging.info(message)
+        return previous
+    
+    file_path = ""
+    if case_name == "model":
+        file_path = os.path.join(get_latest_dir_from(dir_path), "model.safetensors")
+    elif case_name == "dataset":
+        file_path = os.path.join(dir_path, "datasets.pt")
+    elif case_name == "tokenizer":
+        file_path = os.path.join(get_latest_dir_from(dir_path), "tokenizer.json")
+    else:
+        raise ValueError(f"Unexpected case name {case_name} for exists_previous.")
+    
+    return decide(file_path, case_name)
+    
 def save_hf_data_in(hf_data, saving_dir):
     """
     Saves the input tokenizer or model in the latest number-named subdirectory +1.
@@ -320,7 +376,7 @@ def save_hf_data_in(hf_data, saving_dir):
         new_dir = get_latest_dir_from(saving_dir, adding_one=True)
         os.makedirs(new_dir, exist_ok=False)
         hf_data.save_pretrained(new_dir)
-        logging.info(f"Saved Hugging Face data in {new_dir}")
+        logging.info(f"Saved Hugging Face data of type {type(hf_data)} in {new_dir}")
     except FileExistsError:
         logging.warning(f"Directory '{new_dir}' already exists. Skipping save.")
     except Exception as e:

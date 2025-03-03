@@ -40,9 +40,17 @@ def correct_params():
         if config_dict["data_dir"] != expected_data_dir:
             raise ValueError(f"'data_dir' is not {expected_data_dir}")
         
-        expected_all_dir = "/path/to/all/models"
-        if config_dict["all_models_dir"] != expected_all_dir:
-            raise ValueError(f"'all_models_dir' is not {expected_all_dir}")
+        expected_models_dir = "/save/path/for/this/model_name/models/"
+        if config_dict["models_dir"] != expected_models_dir:
+            raise ValueError(f"'models_dir' is not {expected_models_dir}")
+        
+        expected_datasets_dir = "/save/path/for/this/model_name/tokenized/datasets"
+        if config_dict["datasets_dir"] != expected_datasets_dir:
+            raise ValueError(f"'datasets_dir' is not {expected_datasets_dir}")
+        
+        expected_tokenizers_dir = "/save/path/for/this/model_name/tokenizers/"
+        if config_dict["tokenizers_dir"] != expected_tokenizers_dir:
+            raise ValueError(f"'tokenizers_dir' is not {expected_tokenizers_dir}")
         
         expected_model_name = "hugging_face_model_name"
         if config_dict["model_name"] != expected_model_name:

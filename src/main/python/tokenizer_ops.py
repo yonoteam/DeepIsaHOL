@@ -27,12 +27,6 @@ def train_tokenizer(model_name, data_dir):
     except Exception as e:
         raise Exception(f"Error training tokenizer for {model_name} using data in {data_dir}: {e}")
 
-def train_and_save_tokenizer(tokenizers_dir, data_dir, model_name):
-    tokenizer = train_tokenizer(model_name, data_dir)
-    ops.save_hf_data_in(tokenizer, tokenizers_dir)
-    logging.info(f"Saved Hugging Face tokenizer.")
-    return tokenizer
-
 
 # LOAD TOKENIZER
 
@@ -42,16 +36,21 @@ def load_latest_tokenizer(tokenizers_dir):
     logging.info(f"Loaded Hugging Face tokenizer from {latest_dir} of type {type(tokenizer)}.")
     return tokenizer    
 
-def get_trained_tokenizer(config_dict, remote=False):
-    data_dir = config_dict["data_dir"]
-    model_name = config_dict["model_name"]
-    tokenizers_dir, _, _ = ops.get_directory_paths(config_dict)
-    if remote:
-        tokenizer = train_and_save_tokenizer(tokenizers_dir, data_dir, model_name)
-        return tokenizer
-    else:
+def get_trained_tokenizer(config_dict, making_dirs=False):
+    tokenizers_dir, _, _ = ops.get_directory_paths(config_dict, making_dirs=making_dirs)
+    previous_tok = ops.exists_previous("tokenizer", tokenizers_dir)
+    if previous_tok:
         tokenizer = load_latest_tokenizer(tokenizers_dir)
-        return tokenizer
+    else:
+        model_name = config_dict["model_name"]
+        finetuning = True if config_dict["data_mode"].startswith("finetune") else False
+        if finetuning:
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+        else:
+            data_dir = config_dict["data_dir"]
+            tokenizer = train_tokenizer(model_name, data_dir)
+        ops.save_hf_data_in(tokenizer, tokenizers_dir)
+    return tokenizer
 
 
 # GENERATE DATASETS
@@ -98,8 +97,9 @@ def accumulate_tokenized_lengths(lengths, proof, tokenizer, data_mode=isa_data.F
     lengths[1].extend(len(tokenizer(y)["input_ids"]) for _, y in x_y_pairs)
     return lengths
 
-def tokenize(tokenizer, x, y):
+def tokenize(tokenizer, x, y, finetuning=False):
     max_length = tokenizer.model_max_length
+    x = "isabelle next step: " + x if finetuning else x
     inputs = tokenizer(
         x, 
         max_length=max_length, 
@@ -137,33 +137,34 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=isa_data.FO
     :param tokenizer: the model's tokenizer
     :param json_data_dir: path to the search directory with proofN.json files
     :param split: 'train', 'valid', 'test', or 'none' to specify which split to load
-    :param mode: proof data format (see proofs.print_modes())
+    :param data_mode: proof data format (see isa_data.FORMATS)
     :returns: generator for tokenized inputs with labels for conditional generation
     :rtype: generator
     """
     tok_max_length = isa_data.get_context_length(data_mode)
+    finetuning = True if config_dict["data_mode"].startswith("finetune") else False
     tokenizer.model_max_length = tok_max_length
     logging.info(f"Tokenizer's model max length is {tokenizer.model_max_length}")
     for path in generate_proof_paths(json_data_dir, split):
         proof = proofs.get_proof_json(path)
         for input_text, target_text in proofs.inputs_targets_from(proof, data_mode):
-            model_inputs = tokenize(tokenizer, input_text, target_text)
+            model_inputs = tokenize(tokenizer, input_text, target_text, finetuning=finetuning)
             for model_input in model_inputs:
                 yield model_input
 
 # TODO: add support for HF datasets library
 def get_dataset(tokenizer, config_dict, split=isa_data.SPLITS["NONE"]):
-    mode = config_dict["data_mode"]
+    data_mode = config_dict["data_mode"]
     dataset = IterableDataset.from_generator(
         generate_model_inputs, 
         gen_kwargs={
             'tokenizer': tokenizer, 
             'json_data_dir': config_dict["data_dir"], 
             'split': split, 
-            'data_mode': mode
+            'data_mode': data_mode
         }
     )
-    logging.info(f"Loading dataset from the '{split}' split with data format '{mode}'.")
+    logging.info(f"Loading dataset from the '{split}' split with data format '{data_mode}'.")
     return dataset
 
 # SAVE AND LOAD DATASETS
@@ -190,11 +191,10 @@ def generate_data_path_set(datasets_dir, split):
 if __name__ == "__main__":
     ops.configure_logging("tokenizer.log")
     try:
-        explanation = "Train a new tokenizer as specified in the input JSON configuration."
+        explanation = "Creates a tokenizer as specified in the input JSON configuration."
         config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation=explanation))
         ops.check_params(config_dict)
     except Exception as e:
         raise Exception(f"Error loading configuration information: {e}")
     
-    tokenizers_dir, _, _ = ops.get_directory_paths(config_dict)
-    _ = train_and_save_tokenizer(tokenizers_dir, config_dict["data_dir"], config_dict["model_name"])
+    tokenizer = get_trained_tokenizer(config_dict, making_dirs=True)
