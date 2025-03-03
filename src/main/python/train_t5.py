@@ -237,8 +237,6 @@ def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
 # MAIN
 
 def load_model_tok_data(accelerator, config_dict):
-    logging.info(f"{accelerator.process_index}: the type of config_dict is {type(config_dict)} and its contents are {ops.dict_to_string(config_dict)}")
-
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         # Tokenizer
@@ -258,13 +256,10 @@ def load_model_tok_data(accelerator, config_dict):
 
     accelerator.wait_for_everyone()
     tokenizer = broadcast_object_list([tokenizer])[0]
-    logging.info(f"{accelerator.process_index}: the type of tokenizer is {type(tokenizer)}")
     train_data = broadcast_object_list([train_data])[0]
-    logging.info(f"{accelerator.process_index}: the type of train_data is {type(train_data)}")
     valid_data = broadcast_object_list([valid_data])[0]
-    logging.info(f"{accelerator.process_index}: the type of valid_data is {type(valid_data)}")
     model = broadcast_object_list([model])[0]    
-    logging.info(f"{accelerator.process_index}: the type of model is {type(model)}")
+    logging.info(f"{accelerator.process_index}: Successfully broadcasted data, the evidence is that the type of model is {type(model)}")
     return model, tokenizer, train_data, valid_data
 
 # TODO: make lr configurable from configuration JSON

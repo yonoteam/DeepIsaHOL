@@ -142,7 +142,7 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=isa_data.FO
     :rtype: generator
     """
     tok_max_length = isa_data.get_context_length(data_mode)
-    finetuning = True if config_dict["data_mode"].startswith("finetune") else False
+    finetuning = True if data_mode.startswith("finetune") else False
     tokenizer.model_max_length = tok_max_length
     logging.info(f"Tokenizer's model max length is {tokenizer.model_max_length}")
     for path in generate_proof_paths(json_data_dir, split):
