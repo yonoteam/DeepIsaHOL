@@ -64,13 +64,17 @@ class REPL(val logic: String = "HOL") {
   }
   
 
-  // def reset(): Unit = {
-  //   state.remove(1, state.length - 1)
-  // }
+  def reset(): Unit = {
+    state = minion.repl_reset(state)
+  }
+
+  def undo(): Unit = {
+    state = minion.repl_undo(state)
+  }
 
   // def go_back(n: Int): Unit = {
-  //   if (n < state.length) {
-  //     state.dropInPlace(n)
+  //   if (n < state_size()) {
+      
   //   } else {
   //     reset()
   //   }

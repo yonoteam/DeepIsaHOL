@@ -40,7 +40,7 @@ class REPL:
         return self._repl.state_size()
 
     def show_curr(self):
-        print(self._repl.show_curr())
+        print(self._repl.print())
 
     def print_state(self):
         return self._repl.print()
@@ -49,6 +49,12 @@ class REPL:
         result = self._repl.apply(txt)
         # print(result)
         return result
+    
+    def reset(self):
+        return self._repl.reset()
+    
+    def undo(self):
+        return self._repl.undo()
 
     @classmethod
     def shutdown(self):

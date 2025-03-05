@@ -58,7 +58,7 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   val isabelle_rl_thy : Theory = Theory(Path.of(Directories.isabelle_rl))
   
   override def toString(): String = {
-    "Minion(logic=" + logic + ", work_dir=" + work_dir + ", import_dir=" + imports_dir + ")"
+    "Minion(work_dir=" + work_dir + "logic=" + logic + ", imports_dir=" + imports_dir + ")"
   }
   
 
@@ -131,6 +131,8 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
         lazy val get_err = compileFunction[Repl_State, String](s"$ml_repl_struct.get_err")
         lazy val read_eval = compileFunction[String, Repl_State, Repl_State](s"$ml_repl_struct.read_eval")
         lazy val print = compileFunction[Repl_State, String](s"$ml_repl_struct.print")
+        lazy val undo = compileFunction[Repl_State, Repl_State](s"$ml_repl_struct.undo")
+        lazy val reset = compileFunction[Repl_State, Repl_State](s"$ml_repl_struct.reset")
       }
     }
   }
@@ -144,4 +146,8 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   def repl_apply (txt: String, state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.read_eval(txt, state).retrieveNow
 
   def repl_print (state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.print(state).retrieveNow
+
+  def repl_undo (state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.undo(state).retrieveNow
+
+  def repl_reset (state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.reset(state).retrieveNow
 }
