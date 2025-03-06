@@ -7,6 +7,8 @@ Read-Eval-Print-Loop interface
 
 package isabelle_rl
 
+import java.nio.file.{Files, Path}
+
 import scala.collection.mutable.ArrayBuffer
 
 import de.unruh.isabelle.control.{Isabelle}
@@ -16,53 +18,41 @@ import de.unruh.isabelle.pure.Implicits._
 
 import isabelle_rl._
 
-class REPL(val logic: String = "HOL") {
+class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
+  // INITIALIZATION
 
   // minion
   private val minion: Isa_Minion = new Isa_Minion(logic)
   def get_minion(): Isa_Minion = minion
   implicit val isabelle: Isabelle = minion.isabelle
 
+  // current theory path
+  private var current_thy_path: Option[Path] = minion.get_theory_file_path(thy_name)
+
   // state
   private var state: minion.ML_repl.Repl_State = {
-    val local_thys = minion.imports.to_local_list()
-    val thy0 = if (local_thys.isEmpty) {
+    go_to_end_of(thy_name)
+    state
+  }
+  println("REPL started!")
+
+  def go_to_end_of(thy_name: String): Unit = {
+    current_thy_path = minion.get_theory_file_path(thy_name)
+    val thy0 = current_thy_path match {
+      case Some(path) => minion.imports.get_end_theory(path)
+      case None => 
+        println(s"Warning: the minion did not find $thy_name. Defaulting to theory 'Main'.")
         Theory("Main")
-    } else {
-        val thy_path = local_thys.head
-        minion.imports.get_start_theory(thy_path)
     }
-    val start_state = minion.repl_init(thy0)
-    println("REPL started!")
-    start_state
+    state = minion.repl_init(thy0)
   }
 
-  def latest_error (): String = {
-    minion.repl_latest_error(state)
-  }
-
-  def state_size(): Int = {
-    minion.repl_size(state)
-  }
-
-  def show_curr(): Unit = {
-    println(minion.repl_print(state))
-  }
-  
-  def print(): String = {
-    minion.repl_print(state)
-  }
+  // OPERATIONS
 
   def apply(txt: String): String = {
     state = minion.repl_apply(txt, state)
-    this.print()
+    this.state_string()
   }
-
-  def shutdown(): Unit = {
-    isabelle.destroy()
-    sys.exit()
-  }
-  
 
   def reset(): Unit = {
     state = minion.repl_reset(state)
@@ -70,6 +60,45 @@ class REPL(val logic: String = "HOL") {
 
   def undo(): Unit = {
     state = minion.repl_undo(state)
+  }
+
+  def shutdown(): Unit = {
+    isabelle.destroy()
+    sys.exit()
+  }
+
+  // INFORMATION RETRIEVAL
+
+  def state_string(): String = {
+    minion.repl_print(state)
+  }
+
+  def state_size(): Int = {
+    minion.repl_size(state)
+  }
+
+  def latest_error(): String = {
+    minion.repl_get_error(state)
+  }
+
+  def show_curr(): Unit = {
+    println(this.state_string())
+  }
+  
+  def is_at_proof(): Boolean = {
+    minion.repl_is_at_proof(state)
+  }
+
+  def without_subgoals(): Boolean = {
+    minion.repl_without_subgoals(state)
+  }
+
+  def proof_so_far(): String = {
+    minion.repl_proof_so_far(state)
+  }
+
+  def last_usr_state(): String = {
+    minion.repl_last_usr_st(state)
   }
 
   // def go_back(n: Int): Unit = {

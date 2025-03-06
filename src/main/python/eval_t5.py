@@ -4,6 +4,7 @@
 # Utility for evaluating a Hugging Face T5 Model
 
 import os
+import re
 import logging
 
 import torch
@@ -279,52 +280,88 @@ def report_matching(metrics, records, accelerator=None):
 
 # REPLING
 
-def group_paths_by_logic(data_dir, split):
-    grouped = {}
-    for path in tokops.generate_proof_paths(data_dir, split=split):
-        rel_path = os.path.relpath(path, data_dir)
-        logic = rel_path.split(os.sep)[0]
-        if logic not in grouped:
-            grouped[logic] = []
-        grouped[logic].append(path)
-    return grouped
+def fix_missing_quotations(s):
+    double_quotes = s.count('"') % 2
+    if double_quotes:
+        s += '"'
+    return s
 
-# TODO: Create necessary repl methods for this function to work
-def step_repling(config_dict, model, tokenizer, max_length=512):
-    grouped = group_paths_by_logic(config_dict["data_dir"], config_dict["data_split"])
+def group_paths_by_logic(data_dir, split):
+    logics_dict = {}
+    proof_pattern = re.compile(r'proof(\d+)\.json$')
+
+    for path in tokops.generate_proof_paths(data_dir, split=split):
+        logic_path = os.path.relpath(path, data_dir)
+        path_parts = logic_path.split(os.sep)
+
+        logic = path_parts[0]
+        if not proof_pattern.search(path_parts[-1]):  
+            continue
+        
+        thy_name = f"{path_parts[-2]}.thy"  
+
+        proof_num = int(proof_pattern.search(path_parts[-1]).group(1))  
+
+        if logic not in logics_dict:
+            logics_dict[logic] = {}
+
+        if thy_name not in logics_dict[logic]:
+            logics_dict[logic][thy_name] = []
+
+        logics_dict[logic][thy_name].append((proof_num, path))
+
+    # sort numerically
+    for logic in logics_dict:
+        for thy_name in logics_dict[logic]:
+            logics_dict[logic][thy_name].sort()
+            logics_dict[logic][thy_name] = [p[1] for p in logics_dict[logic][thy_name]]
+
+    return logics_dict
+
+
+def attempt_proof(repl, proof_json, generator, data_mode, max_length=20):
+    xs = [repl.proof_so_far(), proofs.Separator["user_state"], repl.last_usr_state()]
+    x = " ".join(proofs.add_spk_data(proof_json, xs, data_mode=data_mode))
+    predicts = generator(
+        x, 
+        max_length=max_length, 
+        num_return_sequences=5,
+        num_beams=5
+    )
+    for predict in predicts:
+        _ = repl.apply(predict)
+        err = repl.latest_error()
+        if not err:
+            success_counter += 1
+            break
+        _ = repl.undo()
+
+def dunno(path, repl):
+    proof = proofs.get_proof_json(path)
+    acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
+    repl.apply(acts(0))
+    user_state0 = repl.apply(acts[0])
+
+def step_repling(config_dict, model, tokenizer, max_length = 20):
+    logics_dict = group_paths_by_logic(config_dict["data_dir"], config_dict["data_split"])
     generator = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
     proof_counter = 0
     success_counter = 0
-    for logic in grouped.keys():
-        try:
-            repl = REPL(logic)
-            for path in grouped[logic]:
-                try:
-                    proof = proofs.get_proof_json(path)
-                    acts = proofs.full_actions_of(proof)
-                    user_state0 = repl.apply(acts[0])
-                    x = ' '.join([acts[0], proofs.USER_STATE_SEP, user_state0])
-                    predicts = generator(
-                        x, 
-                        max_length=max_length, num_return_sequences=5,
-                        num_beams=5
-                    )
-                    for predict in predicts:
-                        _ = repl.apply(predict)
-                        err = repl.latest_error()
-                        if not err:
-                            success_counter += 1
-                            break
-                        _ = repl.go_back()
-                    proof_counter += 1
-                except Exception as e:
-                    logging.warning(f"Error processing proof at {path}: {e}")
-                finally:
-                    repl.reset()
-        except Exception as e:
-            logging.warning(f"Error initializing REPL for {logic}: {e}")
-        finally:
-            repl.shutdown()
+    for logic in logics_dict.keys():
+        for thy_name in logics_dict[logic]:
+            try:
+                repl = REPL(logic, thy_name)
+                for path in logics_dict[logic][thy_name]:
+                    try:
+                        proof_counter += 1
+                    except Exception as e:
+                        logging.warning(f"Error processing proof at {path}: {e}")
+                    finally:
+                        repl.reset()
+            except Exception as e:
+                logging.warning(f"Error initializing REPL for {logic}: {e}")
+            finally:
+                repl.shutdown()
     return proof_counter, success_counter
 
 

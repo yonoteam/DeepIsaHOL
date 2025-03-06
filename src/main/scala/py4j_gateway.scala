@@ -18,7 +18,7 @@ object Py4j_Gateway {
 
   def path_to_str(path: Path): String = path.toString()
 
-  def get_repl(logic: String="HOL"): REPL = new REPL(logic)
+  def get_repl(logic: String="HOL", thy_name:String="Scratch.thy"): REPL = new REPL(logic, thy_name)
   
   def get_minion(work_dir: String, logic: String, imports_dir: String): Isa_Minion = new Isa_Minion(work_dir, logic, imports_dir)
 

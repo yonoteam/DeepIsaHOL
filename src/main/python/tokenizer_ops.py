@@ -14,6 +14,7 @@ import isa_data
 import ops
 import proofs
 
+
 # TRAINING FROM SCRATCH
 
 def train_tokenizer(model_name, data_dir):
@@ -166,6 +167,7 @@ def get_dataset(tokenizer, config_dict, split=isa_data.SPLITS["NONE"]):
     )
     logging.info(f"Loading dataset from the '{split}' split with data format '{data_mode}'.")
     return dataset
+
 
 # SAVE AND LOAD DATASETS
 

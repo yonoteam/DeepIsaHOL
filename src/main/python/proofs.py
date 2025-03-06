@@ -15,19 +15,6 @@ from tqdm import tqdm
 
 import isa_data
 
-ACTION_SEP = 'ACTION_SEP'
-USER_STATE_SEP = 'USER_STATE'
-GOAL_SEP = 'GOAL_SEP'
-TERM_SEP = 'TERM_SEP'
-HYPS_SEP = 'HYPS_SEP'
-VARS_SEP = 'VARS_SEP'
-CONSTS_SEP = 'CONSTS_SEP'
-TYPES_SEP = 'TYPES_SEP'
-APPLY_KWS_SEP = 'APPLY_KWS_SEP'
-ISAR_KWS_SEP = 'ISAR_KWS_SEP'
-DEPS_SEP = 'DEPS_SEP'
-NAME_SEP = 'NAME_SEP'
-METHODS_SEP = 'METHODS_SEP'
 
 # DIRECTORY OPERATIONS
 
@@ -213,6 +200,65 @@ def count_steps(proof_json):
 
 # STRING REPRESENTATIONS
 
+# TODO: Delete
+ACTION_SEP = 'ACTION_SEP'
+USER_STATE_SEP = 'USER_STATE'
+GOAL_SEP = 'GOAL_SEP'
+TERM_SEP = 'TERM_SEP'
+HYPS_SEP = 'HYPS_SEP'
+VARS_SEP = 'VARS_SEP'
+CONSTS_SEP = 'CONSTS_SEP'
+TYPES_SEP = 'TYPES_SEP'
+APPLY_KWS_SEP = 'APPLY_KWS_SEP'
+ISAR_KWS_SEP = 'ISAR_KWS_SEP'
+DEPS_SEP = 'DEPS_SEP'
+NAME_SEP = 'NAME_SEP'
+METHODS_SEP = 'METHODS_SEP'
+
+Separator = {
+    "action": "ACTION_SEP",
+    "user_state": "USER_STATE",
+    "goal": "GOAL_SEP",
+    "name": "NAME_SEP",
+    "term": "TERM_SEP",
+    "hyps": "HYPS_SEP",
+    "deps": "DEPS_SEP",
+    "methods": "METHODS_SEP",
+    "apply_kwrds": "APPLY_KWS_SEP",
+    "isar_kwrds": "ISAR_KWS_SEP",
+    "variables": "VARS_SEP",
+    "constants": "CONSTS_SEP",
+    "type variables": "TYPES_SEP",
+}
+
+def add_str_deps(proof_json, str_list=None):
+    if str_list is None:
+        str_list = []
+    str_list.append(Separator["deps"])
+    for dep in proof_json['proof'].get('deps', []):
+        str_list.append(' '.join([Separator["name"], dep['thm']['name']]))
+        str_list.append(' '.join([Separator["term"], dep['thm']['term']]))
+    return str_list
+
+def add_str_keywords(proof_json, kwrds_type=None, str_list=None):
+    valid_kwds_type = kwrds_type in ["methods", "apply_kwrds", "isar_kwrds"]
+    if str_list is None or not valid_kwds_type:
+        str_list = []
+    str_list.append(Separator[kwrds_type])
+    for method in proof_json['proof'].get(kwrds_type, []):
+        str_list.append(' '.join([Separator["name"], method['name']]))
+    return str_list
+
+def add_str_terms(proof_step, terms_type=None, str_list=None):
+    valid_term_type = terms_type in ["hyps", "variables", "constants", "type variables"]
+    if str_list is None or not valid_term_type:
+        str_list = []
+    str_list.append(Separator[terms_type])
+    for terms_dict in proof_step['step'].get(terms_type, []):
+        for _, term in terms_dict.items():
+            str_list.append(' '.join([Separator["term"], term]))
+    return str_list
+
 def string_from(proof_json, readable=False):
     str_list = [orig_objective_of(proof_json)]
     sep_space = '\n' if readable else ' '
@@ -224,50 +270,26 @@ def string_from(proof_json, readable=False):
             ' '.join([GOAL_SEP, step['step']['term']])
         ])
         str_list.append(usr_act_str)
-        
-        str_list.append(HYPS_SEP)
-        for hyp_dict in step['step'].get('hyps', []):
-            for _, hyp in hyp_dict.items():
-                str_list.append(' '.join([TERM_SEP, hyp]))
+        str_list = add_str_terms(step, terms_type="hyps", str_list=str_list)
+        str_list = add_str_terms(step, terms_type="variables", str_list=str_list)
+        str_list = add_str_terms(step, terms_type="constants", str_list=str_list)
+        str_list = add_str_terms(step, terms_type="type variables", str_list=str_list)
 
-        str_list.append(VARS_SEP)
-        for var_dict in step['step'].get('variables', []):
-            for _, var in var_dict.items():
-                str_list.append(' '.join([TERM_SEP, var]))
+    str_list = add_str_keywords(proof_json, kwrds_type="apply_kwrds", str_list=str_list)
+    str_list = add_str_keywords(proof_json, kwrds_type="isar_kwrds", str_list=str_list)
+    str_list = add_str_deps(proof_json, str_list)
+    str_list = add_str_keywords(proof_json, kwrds_type="methods", str_list=str_list)
 
-        str_list.append(VARS_SEP)
-        for var_dict in step['step'].get('variables', []):
-            for _, var in var_dict.items():
-                str_list.append(' '.join([TERM_SEP, var]))
+    return sep_space.join(str_list)
 
-        str_list.append(CONSTS_SEP)
-        for const_dict in step['step'].get('constants', []):
-            for _, const in const_dict.items():
-                str_list.append(' '.join([TERM_SEP, const]))
+def add_spk_data(proof_json, str_list, data_mode=isa_data.FORMATS["SPK"]):
+    if data_mode.startswith(isa_data.FORMATS["SP"]):
+        str_list = add_str_deps(proof_json, str_list)
 
-        str_list.append(TYPES_SEP)
-        for type_var_dict in step['step'].get('type variables', []):
-            for _, type_var in type_var_dict.items():
-                str_list.append(' '.join([TERM_SEP, type_var]))
-
-    str_list.append(APPLY_KWS_SEP)
-    for apply_kw in proof_json['proof'].get('apply_kwrds', []):
-        str_list.append(' '.join([NAME_SEP, apply_kw['name']]))
-
-    str_list.append(ISAR_KWS_SEP)
-    for isar_kw in proof_json['proof'].get('isar_kwrds', []):
-        str_list.append(' '.join([NAME_SEP, isar_kw['name']]))
-
-    str_list.append(DEPS_SEP)
-    for dep in proof_json['proof'].get('deps', []):
-        str_list.append(' '.join([NAME_SEP, dep['thm']['name']]))
-        str_list.append(' '.join([TERM_SEP, dep['thm']['term']]))
-        
-    str_list.append(METHODS_SEP)
-    for method in proof_json['proof'].get('methods', []):
-        str_list.append(' '.join([NAME_SEP, method['name']]))
-
-    return sep_space.join(str_list) 
+    # TODO: add isar/apply keyword retrieval
+    if data_mode.startswith(isa_data.FORMATS["SPK"]):
+        str_list = add_str_keywords(proof_json, kwrds_type="methods", str_list=str_list)
+    return str_list
 
 def inputs_targets_from(proof_json, data_mode=isa_data.FORMATS["S"], readable=False):
     data = []
@@ -279,38 +301,12 @@ def inputs_targets_from(proof_json, data_mode=isa_data.FORMATS["S"], readable=Fa
             ' '.join([USER_STATE_SEP, step['step']['user_state']])
         ]
 
-        if data_mode.startswith(isa_data.FORMATS["SP"]):
-            xs.append(DEPS_SEP)
-            for thm in proof_json['proof']['deps']:
-                zs = ' '.join([NAME_SEP, thm['thm']['name']]) + ' ' + ' '.join([TERM_SEP, thm['thm']['term']])
-                xs.append(zs)
-
-        # TODO: add isar/apply-dependent keyword retrieval
-        if data_mode.startswith(isa_data.FORMATS["SPK"]):
-            xs.append(METHODS_SEP)
-            for method in proof_json['proof']['methods']:
-                zs = ' '.join([NAME_SEP, method['name']])
-                xs.append(zs)
-
+        xs = add_spk_data(proof_json, xs, data_mode=data_mode)
         if data_mode.startswith(isa_data.FORMATS["SPKT"]):
-            xs.append(VARS_SEP)
-            for var_dict in step['step'].get('variables', []):
-                for _, var in var_dict.items():
-                    zs = ' '.join([TERM_SEP, var])
-                    xs.append(zs)
-            
-            xs.append(CONSTS_SEP)
-            for const in step['step']['constants']:
-                for key in const.keys():
-                    zs = ' '.join([TERM_SEP, const[key]])
-                    xs.append(zs)
-            
-            xs.append(TYPES_SEP)
-            for type_var_dict in step['step'].get('type variables', []):
-                for _, type_var in type_var_dict.items():
-                    zs = ' '.join([TERM_SEP, type_var])
-                    xs.append(zs)
-        
+            xs = add_str_terms(step, terms_type="variables", str_list=xs)
+            xs = add_str_terms(step, terms_type="constants", str_list=xs)
+            xs = add_str_terms(step, terms_type="type variables", str_list=xs)
+
         x = sep_space.join(xs)
         data.append((x, y))
     return data

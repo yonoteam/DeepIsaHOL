@@ -126,9 +126,14 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
       
       override protected def newOps(implicit isabelle: Isabelle): Ops = new Ops
       protected class Ops(implicit isabelle: Isabelle) extends super.Ops {
-        lazy val init = compileFunction[Theory, Repl_State](s"$ml_repl_struct.init")
         lazy val size = compileFunction[Repl_State, Int](s"$ml_repl_struct.size")
         lazy val get_err = compileFunction[Repl_State, String](s"$ml_repl_struct.get_err")
+        lazy val is_at_proof = compileFunction[Repl_State, Boolean](s"$ml_repl_struct.is_at_proof")
+        lazy val no_subgoals = compileFunction[Repl_State, Boolean](s"$ml_repl_struct.no_subgoals")
+        lazy val proof_so_far = compileFunction[Repl_State, String](s"$ml_repl_struct.proof_so_far")
+        lazy val last_state = compileFunction[Repl_State, String](s"$ml_repl_struct.last_state")
+
+        lazy val init = compileFunction[Theory, Repl_State](s"$ml_repl_struct.init")
         lazy val read_eval = compileFunction[String, Repl_State, Repl_State](s"$ml_repl_struct.read_eval")
         lazy val print = compileFunction[Repl_State, String](s"$ml_repl_struct.print")
         lazy val undo = compileFunction[Repl_State, Repl_State](s"$ml_repl_struct.undo")
@@ -137,17 +142,38 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     }
   }
 
-  def repl_init (thy: Theory): ML_repl.Repl_State = ML_repl.Repl_State.Ops.init(thy).retrieveNow
+  // repl state info
+  def repl_size (state: ML_repl.Repl_State): Int = 
+    ML_repl.Repl_State.Ops.size(state).retrieveNow
+  
+  def repl_get_error (state: ML_repl.Repl_State): String = 
+    ML_repl.Repl_State.Ops.get_err(state).retrieveNow
+  
+  def repl_is_at_proof(state: ML_repl.Repl_State): Boolean =
+    ML_repl.Repl_State.Ops.is_at_proof(state).retrieveNow
+  
+  def repl_without_subgoals(state: ML_repl.Repl_State): Boolean =
+    ML_repl.Repl_State.Ops.no_subgoals(state).retrieveNow
+  
+  def repl_proof_so_far(state: ML_repl.Repl_State): String =
+    ML_repl.Repl_State.Ops.proof_so_far(state).retrieveNow
 
-  def repl_latest_error (state: ML_repl.Repl_State): String = ML_repl.Repl_State.Ops.get_err(state).retrieveNow
+  def repl_last_usr_st(state: ML_repl.Repl_State): String =
+    ML_repl.Repl_State.Ops.last_state(state).retrieveNow
 
-  def repl_size (state: ML_repl.Repl_State): Int = ML_repl.Repl_State.Ops.size(state).retrieveNow
+  // repl state ops
+  def repl_init (thy: Theory): ML_repl.Repl_State = 
+    ML_repl.Repl_State.Ops.init(thy).retrieveNow
 
-  def repl_apply (txt: String, state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.read_eval(txt, state).retrieveNow
+  def repl_apply (txt: String, state: ML_repl.Repl_State) = 
+    ML_repl.Repl_State.Ops.read_eval(txt, state).retrieveNow
 
-  def repl_print (state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.print(state).retrieveNow
+  def repl_print (state: ML_repl.Repl_State) = 
+    ML_repl.Repl_State.Ops.print(state).retrieveNow
 
-  def repl_undo (state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.undo(state).retrieveNow
+  def repl_undo (state: ML_repl.Repl_State) = 
+    ML_repl.Repl_State.Ops.undo(state).retrieveNow
 
-  def repl_reset (state: ML_repl.Repl_State) = ML_repl.Repl_State.Ops.reset(state).retrieveNow
+  def repl_reset (state: ML_repl.Repl_State) = 
+    ML_repl.Repl_State.Ops.reset(state).retrieveNow
 }

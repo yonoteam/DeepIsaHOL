@@ -8,11 +8,18 @@ signature REPL_STATE =
 sig
   type T
   exception E_Repl_State of T
+  val get_num: T -> int
   val get_st: T -> Toplevel.state
   val get_act: T -> Actions.T
   val get_err: T -> string
-  val init: theory -> T
+  val is_at_proof: T -> bool
+  val no_subgoals: T -> bool
+  val last_action: T -> string
+  val last_state: T -> string
+  val last_error: T -> string
   val size: T -> int
+
+  val init: theory -> T
   val read: string * T -> T
   val eval: T * T -> T
   val print: T -> string
@@ -20,17 +27,19 @@ sig
   val repl: string * T -> string
   val undo: T -> T
   val reset: T -> T
-  val str_of: T -> string
+  val to_string: T -> string
   val pretty: T -> Pretty.T
+  val proof_so_far: T -> string
 end;
 
 
 structure Repl_State: REPL_STATE =
 struct
 
-(* TODO: improve *)
-(* State working as a stack *)
 
+(* REPL STEP *)
+
+(* TODO: improve *)
 type step = {
     num: int,
     act: Actions.T, 
@@ -38,33 +47,52 @@ type step = {
     err: string
   }
 
-type T = step list
+fun is_at_proof' (step:step) = Toplevel.is_proof (#st step);
 
-(* Needed for scala-isabelle *)
-exception E_Repl_State of T
+fun no_subgoals' step = 
+  let
+    val thm = #goal (Proof.goal (Toplevel.proof_of (#st step)))
+    val prop = Thm.prop_of thm;
+    val (As, _) = Logic.strip_horn prop;
+  in is_at_proof' step andalso  null As end;
 
 fun make_one (
     n: int,
     a: Actions.T, 
     s: Toplevel.state, 
     e: string) 
-  = {num=n, act=a, st=s, err=e}
+  = ({num=n, act=a, st=s, err=e}:step)
 
 fun extract_err e =
   let
-    fun add_loc txts txt = if txt = "" then txts else txts @ ["\n", txt, "\n"]
+    fun add_loc txts txt = 
+      if txt = "" 
+      then txts 
+      else txts @ ["\n", txt, "\n"]
+    fun message_of err = 
+      Runtime.exn_messages err
+      |> map (fn ((_, txt), _) => YXML.content_of txt)
     val (mssgs, loc_mssg) = (case e of
-      SOME (err, str) => (map (fn ((_, txt), _) => YXML.content_of txt) (Runtime.exn_messages err), YXML.content_of str)
+      SOME (err, str) => (message_of err, YXML.content_of str)
       | NONE => ([], ""));
   in implode (add_loc mssgs loc_mssg) end;
 
+
+(* DEFINITION *)
+
+(* State working as a stack *)
+type T = step list
+
+exception E_Repl_State of T (* Needed for scala-isabelle *)
+
+(* T -> _ *)
 fun get_num state = #num (hd state)
 fun get_st state = #st (hd state)
 fun get_act state = #act (hd state)
 fun get_err state = #err (hd state)
 
-(* size: T -> int *)
-fun size state = List.length state
+
+(* BASIC OPERATIONS *)
 
 (* init: theory -> T *)
 fun init thy = [make_one(
@@ -91,8 +119,19 @@ fun read (txt, state) =
 (* eval: T * T -> T *)
 fun eval (new_sts, state) = new_sts @ state;
 
+(* str_of_one: step -> string *)
+fun str_of_one (step: step) =
+  let
+    val {num=n, st=s, act=a, err=e} = step
+    val str_n = Value.print_int n;
+    val str_a = "act=" ^ Actions.text_of a;
+    val str_s = "state=" ^ Get.user_state {break_lines=false} s
+    val str_e = "err=" ^ e;
+    val body = Library.commas [str_n, str_a, str_s, str_e]
+  in Library.enclose "<" ">" body end;
+
 (* print: T -> string *)
-fun print state = Get.user_state {break_lines=false} (get_st state);
+fun print state = str_of_one (hd state);
 
 (* read_eval: string * T -> T *)
 fun read_eval (txt, state) = read (txt, state) 
@@ -101,32 +140,60 @@ fun read_eval (txt, state) = read (txt, state)
 (* repl: string * T -> string *)
 val repl = read_eval #> print
 
+
+(* MORE OPERATIONS *)
+
 (* undo: T -> T *)
 fun undo state = 
   let
     val n = get_num state;
     fun removable step = #num step = n andalso not (n = 0)
-  in Library.drop_prefix removable state end;
+  in Pred.drop_while removable state end;
 
 (* reset: T -> T *)
-fun reset state = Ops.last state |> Library.single
+fun reset state = Ops.last state |> Library.single;
 
-fun str_of (state:T) = 
+
+(* INFORMATION RETRIEVAL *)
+
+(* T -> bool *)
+fun is_at_proof state = is_at_proof' (hd state)
+fun no_subgoals state = no_subgoals' (hd state)
+
+(* T -> string *)
+fun last_action state = Actions.text_of (get_act state)
+fun last_state state = Get.user_state {break_lines=false} (get_st state)
+fun last_error state = get_err state
+
+(* size: T -> int *)
+fun size state = List.length state
+
+(* to_string: T -> string *)
+fun to_string (state:T) = 
   let
-    fun str_of_one step =
-      let
-        val {num=n, st=_, act=a, err=e} = step
-        val str_n = Value.print_int n;
-        val str_a = "act=" ^ Actions.text_of a;
-        val str_e = "err=" ^ e;
-        val body = Library.commas [str_n, str_a, str_e]
-      in Library.enclose "\n<" ">" body end;
-    val pre_final = map str_of_one state
+    val new_line = "\n"
+    fun do_one step = new_line ^ str_of_one step
+    val pre_final = map do_one state
   in Library.commas pre_final end;
 
-fun pretty (state:T) = Pretty.str (str_of state)
+(* pretty: T -> Pretty.T *)
+fun pretty (state:T) = Pretty.str (to_string state);
 
 (* (* T needs to be a simple type (e.g. datatype) in order to do this *)
-val _ =  ML_system_pp (fn _ => fn _ => Pretty.to_polyml o pretty)
- *)
+val _ =  ML_system_pp (fn _ => fn _ => Pretty.to_polyml o pretty) *)
+
+(* proof_so_far: T -> string *)
+fun proof_so_far state =
+  let
+    val err_message = "Repl_State error: not in proof state."
+    val result = if not (is_at_proof' (hd state)) 
+      then err_message
+      else let
+        val acts = (Pred.take_while is_at_proof' state) 
+        |> rev |> map (Actions.text_of o #act)
+      in implode (Ops.intersp ["\n"] acts) end;
+  in result end;
+
+(* user_state *)
+
 end;

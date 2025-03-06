@@ -12,8 +12,11 @@ class REPL:
     _minion = None
     _repl = None
 
-    def __init__(self, logic="HOL"):
+    # INITIALIZATION 
+
+    def __init__(self, logic="HOL", thy_name="Scratch.thy"):
         self.logic = logic
+        self.thy_name = thy_name
         self._initialize_repl()
 
         log_file = 'repl_error.log'
@@ -24,7 +27,7 @@ class REPL:
         if self._gateway is None:
             self._gateway = JavaGateway(gateway_parameters=GatewayParameters(auto_convert=True))
         self._entrypoint = self._gateway.entry_point
-        self._repl = self._entrypoint.get_repl(self.logic)
+        self._repl = self._entrypoint.get_repl(self.logic, self.thy_name)
         self._minion = self._repl.get_minion()
         print("REPL and minion initialized.")
 
@@ -32,18 +35,11 @@ class REPL:
         if self._minion is None:
             self._initialize_repl()
         return self._minion
+    
+    def go_to_end_of(self, thy_name):
+        self._repl.go_to_end_of(thy_name)
 
-    def latest_error(self):
-        return self._repl.latest_error()
-
-    def state_size(self):
-        return self._repl.state_size()
-
-    def show_curr(self):
-        print(self._repl.print())
-
-    def print_state(self):
-        return self._repl.print()
+    # OPERATIONS 
 
     def apply(self, txt):
         result = self._repl.apply(txt)
@@ -55,7 +51,7 @@ class REPL:
     
     def undo(self):
         return self._repl.undo()
-
+    
     @classmethod
     def shutdown(self):
         if self._repl:
@@ -63,4 +59,29 @@ class REPL:
         if self._gateway:
             self._gateway.shutdown()
             print("REPL and gateway shut down.")
+    
+    # INFORMATION RETRIEVAL
+    
+    def state_string(self):
+        return self._repl.state_string()
+    
+    def state_size(self):
+        return self._repl.state_size()
+    
+    def latest_error(self):
+        return self._repl.latest_error()
 
+    def show_curr(self):
+        print(self._repl.state_string())
+
+    def is_at_proof(self):
+        return self._repl.is_at_proof()
+
+    def without_subgoals(self):
+        return self._repl.without_subgoals()
+    
+    def proof_so_far(self):
+        return self._repl.proof_so_far()
+    
+    def last_usr_state(self):
+        return self._repl.last_usr_state()
