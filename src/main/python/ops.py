@@ -394,7 +394,7 @@ def save_hf_data_in(hf_data, saving_dir):
 
 def wrap_w_accelerator(f):
     try:
-        accelerator = Accelerator(mixed_precision="fp16")
+        accelerator = Accelerator(mixed_precision="bf16")
         if accelerator.is_main_process:
             logging.info(f"Accelerator started on {accelerator.num_processes} processes.")
         accelerate_test.log_cuda_info(accelerator)
