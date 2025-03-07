@@ -293,6 +293,7 @@ def add_spk_data(proof_json, str_list, data_mode=isa_data.FORMATS["SPK"]):
 
 def inputs_targets_from(proof_json, data_mode=isa_data.FORMATS["S"], readable=False):
     data = []
+    data_format = data_mode[len("finetune_"):] if data_mode.startswith("finetune_") else data_mode
     sep_space = '\n' if readable else ' '
     for i, step in enumerate(proof_json['proof']['steps'][1:], 1):
         y = step['step']['action']
@@ -301,8 +302,8 @@ def inputs_targets_from(proof_json, data_mode=isa_data.FORMATS["S"], readable=Fa
             ' '.join([USER_STATE_SEP, step['step']['user_state']])
         ]
 
-        xs = add_spk_data(proof_json, xs, data_mode=data_mode)
-        if data_mode.startswith(isa_data.FORMATS["SPKT"]):
+        xs = add_spk_data(proof_json, xs, data_mode=data_format)
+        if data_format.startswith(isa_data.FORMATS["SPKT"]):
             xs = add_str_terms(step, terms_type="variables", str_list=xs)
             xs = add_str_terms(step, terms_type="constants", str_list=xs)
             xs = add_str_terms(step, terms_type="type variables", str_list=xs)

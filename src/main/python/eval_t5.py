@@ -319,41 +319,59 @@ def group_paths_by_logic(data_dir, split):
     return logics_dict
 
 
-def attempt_proof(repl, proof_json, generator, data_mode, max_length=20):
+def attempt_proof(repl, proof_json, generator, metrics, data_mode, gen_length=20, recurse_depth=5):
     xs = [repl.proof_so_far(), proofs.Separator["user_state"], repl.last_usr_state()]
     x = " ".join(proofs.add_spk_data(proof_json, xs, data_mode=data_mode))
     predicts = generator(
         x, 
-        max_length=max_length, 
+        max_length=gen_length, 
         num_return_sequences=5,
         num_beams=5
     )
     for predict in predicts:
+        close_proof = True if predict.startswith("by ") or predict.startswith("by(") else False
+        # replace the first by with apply
         _ = repl.apply(predict)
         err = repl.latest_error()
-        if not err:
-            success_counter += 1
-            break
-        _ = repl.undo()
+        if err:
+            metrics["bad_step_counter"] += 1
+            repl.undo()
+        else:
+            metrics["step_counter"] += 1
+            if recurse_depth == 0:
+                repl.reset()
+                continue
+            elif repl.without_subgoals():
+                metrics["proof_counter"] += 1
+                repl.apply("done") if close_proof else ""
+                
+                repl.save(f"proof{metrics["proof_counter"]}.txt")
+                continue
+            else:
+                attempt_proof(repl, proof_json, generator, metrics, data_mode, gen_length=20, recurse_depth=recurse_depth-1)
+
+
 
 def dunno(path, repl):
     proof = proofs.get_proof_json(path)
     acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
     repl.apply(acts(0))
-    user_state0 = repl.apply(acts[0])
+
 
 def step_repling(config_dict, model, tokenizer, max_length = 20):
     logics_dict = group_paths_by_logic(config_dict["data_dir"], config_dict["data_split"])
     generator = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
-    proof_counter = 0
-    success_counter = 0
+    metrics = {}
+    metrics["proof_counter"] = 0
+    metrics["step_counter"] = 0
+    metrics["bad_step_counter"] = 0
     for logic in logics_dict.keys():
         for thy_name in logics_dict[logic]:
             try:
                 repl = REPL(logic, thy_name)
                 for path in logics_dict[logic][thy_name]:
                     try:
-                        proof_counter += 1
+                        metrics["proof_counter"] += 1
                     except Exception as e:
                         logging.warning(f"Error processing proof at {path}: {e}")
                     finally:
@@ -362,7 +380,7 @@ def step_repling(config_dict, model, tokenizer, max_length = 20):
                 logging.warning(f"Error initializing REPL for {logic}: {e}")
             finally:
                 repl.shutdown()
-    return proof_counter, success_counter
+    return metrics
 
 
 # EVALUATION LOOP
