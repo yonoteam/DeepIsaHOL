@@ -81,6 +81,10 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     minion.repl_get_error(state)
   }
 
+  def last_usr_state(): String = {
+    minion.repl_last_usr_st(state)
+  }
+
   def show_curr(): Unit = {
     println(this.state_string())
   }
@@ -97,8 +101,8 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     minion.repl_proof_so_far(state)
   }
 
-  def last_usr_state(): String = {
-    minion.repl_last_usr_st(state)
+  def last_proof(): String = {
+    minion.repl_last_proof_of(state)
   }
 
   // def go_back(n: Int): Unit = {

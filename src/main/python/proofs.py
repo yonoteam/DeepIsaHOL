@@ -283,17 +283,16 @@ def string_from(proof_json, readable=False):
     return sep_space.join(str_list)
 
 def add_spk_data(proof_json, str_list, data_mode=isa_data.FORMATS["SPK"]):
-    if data_mode.startswith(isa_data.FORMATS["SP"]):
+    if isa_data.FORMATS["SP"] in data_mode:
         str_list = add_str_deps(proof_json, str_list)
 
     # TODO: add isar/apply keyword retrieval
-    if data_mode.startswith(isa_data.FORMATS["SPK"]):
+    if isa_data.FORMATS["SPK"] in data_mode:
         str_list = add_str_keywords(proof_json, kwrds_type="methods", str_list=str_list)
     return str_list
 
 def inputs_targets_from(proof_json, data_mode=isa_data.FORMATS["S"], readable=False):
     data = []
-    data_format = data_mode[len("finetune_"):] if data_mode.startswith("finetune_") else data_mode
     sep_space = '\n' if readable else ' '
     for i, step in enumerate(proof_json['proof']['steps'][1:], 1):
         y = step['step']['action']
@@ -302,13 +301,14 @@ def inputs_targets_from(proof_json, data_mode=isa_data.FORMATS["S"], readable=Fa
             ' '.join([USER_STATE_SEP, step['step']['user_state']])
         ]
 
-        xs = add_spk_data(proof_json, xs, data_mode=data_format)
-        if data_format.startswith(isa_data.FORMATS["SPKT"]):
+        xs = add_spk_data(proof_json, xs, data_mode=data_mode)
+        if isa_data.FORMATS["SPKT"] in data_mode:
             xs = add_str_terms(step, terms_type="variables", str_list=xs)
             xs = add_str_terms(step, terms_type="constants", str_list=xs)
             xs = add_str_terms(step, terms_type="type variables", str_list=xs)
 
         x = sep_space.join(xs)
+        x = "isabelle next step: " + x if "finetune" in data_mode else x
         data.append((x, y))
     return data
 

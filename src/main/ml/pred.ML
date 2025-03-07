@@ -25,6 +25,7 @@ sig
   val nhds: ('a -> bool) -> int -> 'a list -> ('a * 'a list) list
   val log_fold: ('b -> bool) -> ('a -> 'b -> 'b) -> 'a list -> 'b -> 'b list * 'a list
   val take_until: ('a -> bool) -> 'a list -> 'a list
+  val drop_until: ('a -> bool) -> 'a list -> 'a list
   val take_while: ('a -> bool) -> 'a list -> 'a list
   val drop_while: ('a -> bool) -> 'a list -> 'a list
   val bifurcate_ifL: ('a -> bool) -> 'a list -> 'a list * 'a list
@@ -127,7 +128,11 @@ fun log_fold _ _ [] _ = ([], [])
 
 (* take_until: ('a -> bool) -> 'a list -> 'a list *)
 fun take_until _ [] = []
-  | take_until P (x :: xs) = if P x then [x] else x :: (take_until P xs)
+  | take_until P (x :: xs) = if P x then [x] else x :: (take_until P xs);
+
+(* drop_until: ('a -> bool) -> 'a list -> 'a list *)
+fun drop_until _ [] = []
+  | drop_until P (x :: xs) = if P x then x :: xs else drop_until P xs;
 
 (* take_while: ('a -> bool) -> 'a list -> 'a list *)
 val take_while = Library.take_prefix

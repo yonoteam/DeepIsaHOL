@@ -286,11 +286,12 @@ def fix_missing_quotations(s):
         s += '"'
     return s
 
-def group_paths_by_logic(data_dir, split):
+def group_paths_by_logic(config_dict):
+    data_dir = config_dict["data_dir"]
     logics_dict = {}
     proof_pattern = re.compile(r'proof(\d+)\.json$')
 
-    for path in tokops.generate_proof_paths(data_dir, split=split):
+    for path in tokops.generate_proof_paths(data_dir, split=config_dict["data_split"]):
         logic_path = os.path.relpath(path, data_dir)
         path_parts = logic_path.split(os.sep)
 
@@ -314,64 +315,109 @@ def group_paths_by_logic(data_dir, split):
     for logic in logics_dict:
         for thy_name in logics_dict[logic]:
             logics_dict[logic][thy_name].sort()
-            logics_dict[logic][thy_name] = [p[1] for p in logics_dict[logic][thy_name]]
 
     return logics_dict
 
+def save_proof(repl, proof_info):
+    thy_name = proof_info["prf_thy_name"]
+    prf_num = proof_info["prf_num"]
+    logic = proof_info["logic"]
+    filename = f"{thy_name[:-4]}{prf_num}.thy"
+    header = f"theory {thy_name[:-4]}{prf_num}\n imports {logic}.{thy_name[:-4]}\n begin\n\n"
+    body = repl.last_proof()
+    end = "\n\nend"
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(header + body + end)
+        logging.info(f"Saved proof to {filename}")
 
-def attempt_proof(repl, proof_json, generator, metrics, data_mode, gen_length=20, recurse_depth=5):
+def inputs_from(repl, proof, data_mode):
     xs = [repl.proof_so_far(), proofs.Separator["user_state"], repl.last_usr_state()]
-    x = " ".join(proofs.add_spk_data(proof_json, xs, data_mode=data_mode))
-    predicts = generator(
+    x = " ".join(proofs.add_spk_data(proof, xs, data_mode=data_mode))
+    x = "isabelle next step: " + x if "finetune" in data_mode else x
+    return x        
+
+default_generation_config = {
+    "gen_length": 20,
+    "num_return_sequences": 5,
+    "num_beams": 5
+}
+
+def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, recurse_depth=5, saving=False):
+    x = inputs_from(repl, proof, data_mode)
+    predicts = gen_config["generator"](
         x, 
-        max_length=gen_length, 
-        num_return_sequences=5,
-        num_beams=5
+        max_length=gen_config["gen_length"], 
+        num_return_sequences=gen_config["num_return_sequences"],
+        num_beams=gen_config["num_beams"]
     )
-    for predict in predicts:
-        close_proof = True if predict.startswith("by ") or predict.startswith("by(") else False
-        # replace the first by with apply
-        _ = repl.apply(predict)
+    for i, predict in enumerate(predicts):
+        logging.info(f"Attempt number {i+1} for {proof_info['prf_path']}")
+        y = predict["generated_text"]
+        handling_by = y.startswith("by ") or y.startswith("by(")
+        y = "apply" + y[len("by"):] if handling_by else y
+        repl.apply(y)
         err = repl.latest_error()
         if err:
-            metrics["bad_step_counter"] += 1
+            metrics["no_progress_counter"] += 1
             repl.undo()
+            continue
         else:
-            metrics["step_counter"] += 1
-            if recurse_depth == 0:
+            metrics["progress_counter"] += 1
+            if repl.without_subgoals():
+                if handling_by:
+                    metrics["correct_by"] += 1
+                    repl.undo()
+                    y = "by" + y[len("apply")]
+                    repl.apply(y)
+                else:
+                    repl.complete_step()
+            if not repl.is_at_proof():
+                metrics["finished_proofs"] += 1
+                if saving:
+                    save_proof(repl, proof_info)
                 repl.reset()
                 continue
-            elif repl.without_subgoals():
-                metrics["proof_counter"] += 1
-                repl.apply("done") if close_proof else ""
-                
-                repl.save(f"proof{metrics["proof_counter"]}.txt")
+            elif recurse_depth == 0:
+                repl.reset()
                 continue
             else:
-                attempt_proof(repl, proof_json, generator, metrics, data_mode, gen_length=20, recurse_depth=recurse_depth-1)
+                if handling_by:
+                    metrics["incorrect_by"] += 1
+                metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, recurse_depth=recurse_depth-1, saving=saving)
+        return metrics
 
-
-
-def dunno(path, repl):
-    proof = proofs.get_proof_json(path)
-    acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
-    repl.apply(acts(0))
-
-
-def step_repling(config_dict, model, tokenizer, max_length = 20):
-    logics_dict = group_paths_by_logic(config_dict["data_dir"], config_dict["data_split"])
-    generator = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+def make_repl_metrics():
     metrics = {}
-    metrics["proof_counter"] = 0
-    metrics["step_counter"] = 0
-    metrics["bad_step_counter"] = 0
+    metrics["total_proofs"] = 0
+    metrics["progress_counter"] = 0
+    metrics["no_progress_counter"] = 0
+    metrics["correct_by"] = 0
+    metrics["incorrect_by"] = 0
+    metrics["finished_proofs"] = 0
+    return metrics
+
+def do_repling(config_dict, model, tokenizer, gen_config=default_generation_config, recurse_depth=5, saving=False):
+    logics_dict = group_paths_by_logic(config_dict)
+    gen_config["generator"] = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+    metrics = make_repl_metrics()
     for logic in logics_dict.keys():
         for thy_name in logics_dict[logic]:
             try:
                 repl = REPL(logic, thy_name)
-                for path in logics_dict[logic][thy_name]:
+                for prf_num, path in logics_dict[logic][thy_name]:
                     try:
-                        metrics["proof_counter"] += 1
+                        proof_info = {
+                            "prf_num": prf_num,
+                            "prf_path": path,
+                            "prf_thy_name": thy_name,
+                            "logic": logic
+                            }
+                        proof = proofs.get_proof_json(path)
+                        acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
+                        repl.apply(acts[0])
+                        metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], recurse_depth=recurse_depth, saving=saving)
+                        metrics["total_proofs"] += 1
+                        logging.info(f"Processed proof {path}")
                     except Exception as e:
                         logging.warning(f"Error processing proof at {path}: {e}")
                     finally:

@@ -30,6 +30,7 @@ sig
   val to_string: T -> string
   val pretty: T -> Pretty.T
   val proof_so_far: T -> string
+  val last_proof_of: T -> string
 end;
 
 
@@ -156,6 +157,9 @@ fun reset state = Ops.last state |> Library.single;
 
 (* INFORMATION RETRIEVAL *)
 
+(* size: T -> int *)
+fun size state = List.length state
+
 (* T -> bool *)
 fun is_at_proof state = is_at_proof' (hd state)
 fun no_subgoals state = no_subgoals' (hd state)
@@ -164,9 +168,6 @@ fun no_subgoals state = no_subgoals' (hd state)
 fun last_action state = Actions.text_of (get_act state)
 fun last_state state = Get.user_state {break_lines=false} (get_st state)
 fun last_error state = get_err state
-
-(* size: T -> int *)
-fun size state = List.length state
 
 (* to_string: T -> string *)
 fun to_string (state:T) = 
@@ -185,7 +186,7 @@ val _ =  ML_system_pp (fn _ => fn _ => Pretty.to_polyml o pretty) *)
 (* proof_so_far: T -> string *)
 fun proof_so_far state =
   let
-    val err_message = "Repl_State error: not in proof state."
+    val err_message = "Repl_State.proof_so_far error: not in proof state."
     val result = if not (is_at_proof' (hd state)) 
       then err_message
       else let
@@ -194,6 +195,23 @@ fun proof_so_far state =
       in implode (Ops.intersp ["\n"] acts) end;
   in result end;
 
-(* user_state *)
+(* last_proof_of: T -> string *)
+fun last_proof_of (state: T) =
+  let
+    fun find_proof (step :: step' :: steps) =
+      if is_at_proof' step then ([], step :: step' :: steps)
+      else if is_at_proof' step' then ([step], step' :: steps)
+      else find_proof (step' :: steps)
+      | find_proof _ = ([], [])
+    val (start_ls, state') = find_proof state;
+    val result = case state' of
+      [] => ""
+      | step :: steps => 
+        let
+          val pre_prf = proof_so_far (step :: steps)
+          val final = if null start_ls then "" 
+            else "\n" ^ (Actions.text_of (#act (hd start_ls)))
+        in pre_prf ^ final end;
+  in result end;
 
 end;

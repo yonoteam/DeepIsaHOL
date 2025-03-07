@@ -98,9 +98,8 @@ def accumulate_tokenized_lengths(lengths, proof, tokenizer, data_mode=isa_data.F
     lengths[1].extend(len(tokenizer(y)["input_ids"]) for _, y in x_y_pairs)
     return lengths
 
-def tokenize(tokenizer, x, y, finetuning=False):
+def tokenize(tokenizer, x, y):
     max_length = tokenizer.model_max_length
-    x = "isabelle next step: " + x if finetuning else x
     inputs = tokenizer(
         x, 
         max_length=max_length, 
@@ -143,13 +142,12 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=isa_data.FO
     :rtype: generator
     """
     tok_max_length = isa_data.get_context_length(data_mode)
-    finetuning = True if data_mode.startswith("finetune") else False
     tokenizer.model_max_length = tok_max_length
     logging.info(f"Tokenizer's model max length is {tokenizer.model_max_length}")
     for path in generate_proof_paths(json_data_dir, split):
         proof = proofs.get_proof_json(path)
         for input_text, target_text in proofs.inputs_targets_from(proof, data_mode):
-            model_inputs = tokenize(tokenizer, input_text, target_text, finetuning=finetuning)
+            model_inputs = tokenize(tokenizer, input_text, target_text)
             for model_input in model_inputs:
                 yield model_input
 

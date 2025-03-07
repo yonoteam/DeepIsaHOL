@@ -70,6 +70,9 @@ class REPL:
     
     def latest_error(self):
         return self._repl.latest_error()
+    
+    def last_usr_state(self):
+        return self._repl.last_usr_state()
 
     def show_curr(self):
         print(self._repl.state_string())
@@ -83,5 +86,13 @@ class REPL:
     def proof_so_far(self):
         return self._repl.proof_so_far()
     
-    def last_usr_state(self):
-        return self._repl.last_usr_state()
+    def last_proof(self):
+        return self._repl.last_proof_of()
+    
+    def complete_step(self):
+        self.apply("done")
+        if self.latest_error():
+            self.undo()
+            self.apply("qed")
+            if self.latest_error():
+                self.apply("sorry")
