@@ -47,6 +47,7 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     state = minion.repl_init(thy0)
   }
 
+
   // OPERATIONS
 
   def apply(txt: String): String = {
@@ -67,6 +68,7 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     sys.exit()
   }
 
+  
   // INFORMATION RETRIEVAL
 
   def state_string(): String = {

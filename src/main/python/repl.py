@@ -12,6 +12,7 @@ class REPL:
     _minion = None
     _repl = None
 
+
     # INITIALIZATION 
 
     def __init__(self, logic="HOL", thy_name="Scratch.thy"):
@@ -39,6 +40,7 @@ class REPL:
     def go_to_end_of(self, thy_name):
         self._repl.go_to_end_of(thy_name)
 
+
     # OPERATIONS 
 
     def apply(self, txt):
@@ -59,7 +61,8 @@ class REPL:
         if self._gateway:
             self._gateway.shutdown()
             print("REPL and gateway shut down.")
-    
+
+
     # INFORMATION RETRIEVAL
     
     def state_string(self):
@@ -95,4 +98,4 @@ class REPL:
             self.undo()
             self.apply("qed")
             if self.latest_error():
-                self.apply("sorry")
+                self.apply("sorry (* repl-applied sorry *)")

@@ -3,22 +3,15 @@
 # 
 # Utility for evaluating a Hugging Face T5 Model
 
-import os
-import re
 import logging
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import (
-    DataCollatorForSeq2Seq,
-    pipeline
-)
+from transformers import DataCollatorForSeq2Seq
 from accelerate.utils import broadcast_object_list
 
 import ops
-import proofs
 import train_t5
-from repl import REPL
 import tokenizer_ops as tokops
 
 
@@ -277,157 +270,6 @@ def report_matching(metrics, records, accelerator=None):
         Coincidence accuracy is {records['coincide_accuracy'][-1]}."""
     logging.info(log_message)
     return records
-
-# REPLING
-
-def fix_missing_quotations(s):
-    double_quotes = s.count('"') % 2
-    if double_quotes:
-        s += '"'
-    return s
-
-def group_paths_by_logic(config_dict):
-    data_dir = config_dict["data_dir"]
-    logics_dict = {}
-    proof_pattern = re.compile(r'proof(\d+)\.json$')
-
-    for path in tokops.generate_proof_paths(data_dir, split=config_dict["data_split"]):
-        logic_path = os.path.relpath(path, data_dir)
-        path_parts = logic_path.split(os.sep)
-
-        logic = path_parts[0]
-        if not proof_pattern.search(path_parts[-1]):  
-            continue
-        
-        thy_name = f"{path_parts[-2]}.thy"  
-
-        proof_num = int(proof_pattern.search(path_parts[-1]).group(1))  
-
-        if logic not in logics_dict:
-            logics_dict[logic] = {}
-
-        if thy_name not in logics_dict[logic]:
-            logics_dict[logic][thy_name] = []
-
-        logics_dict[logic][thy_name].append((proof_num, path))
-
-    # sort numerically
-    for logic in logics_dict:
-        for thy_name in logics_dict[logic]:
-            logics_dict[logic][thy_name].sort()
-
-    return logics_dict
-
-def save_proof(repl, proof_info):
-    thy_name = proof_info["prf_thy_name"]
-    prf_num = proof_info["prf_num"]
-    logic = proof_info["logic"]
-    filename = f"{thy_name[:-4]}{prf_num}.thy"
-    header = f"theory {thy_name[:-4]}{prf_num}\n imports {logic}.{thy_name[:-4]}\n begin\n\n"
-    body = repl.last_proof()
-    end = "\n\nend"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(header + body + end)
-        logging.info(f"Saved proof to {filename}")
-
-def inputs_from(repl, proof, data_mode):
-    xs = [repl.proof_so_far(), proofs.Separator["user_state"], repl.last_usr_state()]
-    x = " ".join(proofs.add_spk_data(proof, xs, data_mode=data_mode))
-    x = "isabelle next step: " + x if "finetune" in data_mode else x
-    return x        
-
-default_generation_config = {
-    "gen_length": 20,
-    "num_return_sequences": 5,
-    "num_beams": 5
-}
-
-def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, recurse_depth=5, saving=False):
-    x = inputs_from(repl, proof, data_mode)
-    predicts = gen_config["generator"](
-        x, 
-        max_length=gen_config["gen_length"], 
-        num_return_sequences=gen_config["num_return_sequences"],
-        num_beams=gen_config["num_beams"]
-    )
-    for i, predict in enumerate(predicts):
-        logging.info(f"Attempt number {i+1} for {proof_info['prf_path']}")
-        y = predict["generated_text"]
-        handling_by = y.startswith("by ") or y.startswith("by(")
-        y = "apply" + y[len("by"):] if handling_by else y
-        repl.apply(y)
-        err = repl.latest_error()
-        if err:
-            metrics["no_progress_counter"] += 1
-            repl.undo()
-            continue
-        else:
-            metrics["progress_counter"] += 1
-            if repl.without_subgoals():
-                if handling_by:
-                    metrics["correct_by"] += 1
-                    repl.undo()
-                    y = "by" + y[len("apply")]
-                    repl.apply(y)
-                else:
-                    repl.complete_step()
-            if not repl.is_at_proof():
-                metrics["finished_proofs"] += 1
-                if saving:
-                    save_proof(repl, proof_info)
-                repl.reset()
-                continue
-            elif recurse_depth == 0:
-                repl.reset()
-                continue
-            else:
-                if handling_by:
-                    metrics["incorrect_by"] += 1
-                metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, recurse_depth=recurse_depth-1, saving=saving)
-        return metrics
-
-def make_repl_metrics():
-    metrics = {}
-    metrics["total_proofs"] = 0
-    metrics["progress_counter"] = 0
-    metrics["no_progress_counter"] = 0
-    metrics["correct_by"] = 0
-    metrics["incorrect_by"] = 0
-    metrics["finished_proofs"] = 0
-    return metrics
-
-def do_repling(config_dict, model, tokenizer, gen_config=default_generation_config, recurse_depth=5, saving=False):
-    logics_dict = group_paths_by_logic(config_dict)
-    gen_config["generator"] = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
-    metrics = make_repl_metrics()
-    for logic in logics_dict.keys():
-        for thy_name in logics_dict[logic]:
-            try:
-                repl = REPL(logic, thy_name)
-                for prf_num, path in logics_dict[logic][thy_name]:
-                    try:
-                        proof_info = {
-                            "prf_num": prf_num,
-                            "prf_path": path,
-                            "prf_thy_name": thy_name,
-                            "logic": logic
-                            }
-                        proof = proofs.get_proof_json(path)
-                        acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
-                        repl.apply(acts[0])
-                        logging.info("Loaded proof successfully")
-                        metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], recurse_depth=recurse_depth, saving=saving)
-                        metrics["total_proofs"] += 1
-                        logging.info(f"Processed proof {path}")
-                    except Exception as e:
-                        logging.warning(f"Error processing proof at {path}: {e}")
-                    finally:
-                        repl.reset()
-            except Exception as e:
-                logging.warning(f"Error initializing REPL for {logic}: {e}")
-            finally:
-                repl.shutdown()
-    return metrics
 
 
 # EVALUATION LOOP
