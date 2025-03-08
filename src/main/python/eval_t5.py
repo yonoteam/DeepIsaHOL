@@ -415,6 +415,7 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
                         proof = proofs.get_proof_json(path)
                         acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
                         repl.apply(acts[0])
+                        logging.info("Loaded proof successfully")
                         metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], recurse_depth=recurse_depth, saving=saving)
                         metrics["total_proofs"] += 1
                         logging.info(f"Processed proof {path}")
