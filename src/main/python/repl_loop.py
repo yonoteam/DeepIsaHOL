@@ -232,7 +232,7 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
                     repl = REPL(logic, thy_name)
                 else:
                     repl.go_to_end_of(thy_name)
-                for prf_num, path in logics_dict[logic][thy_name]:
+                for i, (prf_num, path) in enumerate(logics_dict[logic][thy_name]):
                     try:
                         proof_info = {
                             "prf_num": prf_num,
@@ -247,7 +247,7 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
                         metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], curr_depth=1, recurse_depth=recurse_depth, saving=saving)
                         metrics["total_proofs"] += 1
                         ops.save_dict_as_json(metrics, "repling_records.json")
-                        print(f"Processed proof {prf_num + 1} of {len_proofs}: {path}\n\n")
+                        print(f"Processed proof {i + 1} of {len_proofs}: {path}\n\n")
                     except Exception as e:
                         logging.warning(f"Error processing proof at {path}: {e}")
                     finally:
