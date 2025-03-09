@@ -127,7 +127,7 @@ def save_proof(repl, proof_info):
     end = "\n\nend"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(header + body + end)
-        logging.info(f"Saved proof to {filename}")
+        print(f"Saved proof to {filename}")
 
 def inputs_from(repl, proof, data_mode):
     xs = [repl.proof_so_far(), proofs.Separator["user_state"], repl.last_usr_state()]
@@ -143,7 +143,7 @@ default_generation_config = {
 
 def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_depth, recurse_depth=5, saving=False):
     x = inputs_from(repl, proof, data_mode)
-    logging.info(f"Model input from Isabelle at depth {curr_depth}: {x}")
+    print(f"Model input from Isabelle at depth {curr_depth}: {x}")
     predicts = gen_config["generator"](
         x, 
         max_length=gen_config["gen_length"], 
@@ -151,7 +151,7 @@ def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_
         num_beams=gen_config["num_beams"]
     )
     for i, predict in enumerate(predicts):
-        logging.info(f"Attempt {i+1} at depth={curr_depth}")
+        print(f"Attempt {i+1} at depth={curr_depth}")
         if predict is None:
             message = f"""
             None prediction found at:
@@ -163,49 +163,48 @@ def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_
             continue
 
         y = predict["generated_text"]
-        logging.info(f"Model output at depth={curr_depth} is: {y}")
+        print(f"Model output at depth={curr_depth} is: {y}")
         handling_by = y.strip().startswith("by")
         if handling_by:
             updated_y = convert_by_to_apply(y)
-            logging.info(f"Changing to {updated_y}")
+            print(f"Changing to {updated_y}")
         else:
             updated_y = y
         
-
         repl.apply(updated_y)
         err = repl.latest_error()
         if err:
-            logging.info(f"Attempt did not work. Backtracking.")
+            print(f"Attempt did not work. Backtracking.")
             metrics["no_progress_counter"] += 1
             repl.undo()
             continue
         else:
             metrics["progress_counter"] += 1
             if repl.without_subgoals():
-                logging.info("Without subgoals reached!")
+                print("Without subgoals reached!")
                 if handling_by:
                     metrics["correct_by"] += 1
                     repl.undo()
                     repl.apply(y)
                 else:
                     repl.complete_step()
-            if not repl.is_at_proof() or "Duplicate" in repl.last_error():
+            if not repl.is_at_proof() or "Duplicate" in repl.latest_error():
                 metrics["finished_proofs"] += 1
                 if saving:
-                    logging.info("trying to save proof")
+                    print("trying to save proof")
                     save_proof(repl, proof_info)
                 repl.reset()
-                continue
+                return metrics
             elif recurse_depth == 0:
-                logging.info("reached max depth. Last proof was:")
-                logging.info(f"{repl.last_proof}\n")
+                print("reached max depth. Last proof was:")
+                print(f"{repl.last_proof()}\n")
                 repl.reset()
                 continue
             else:
                 if handling_by:
                     metrics["incorrect_by"] += 1
                 metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_depth=curr_depth+1, recurse_depth=recurse_depth-1, saving=saving)
-        logging.info(f"Prediction {i} processed\n")
+        print(f"Prediction {i} processed\n")
     return metrics
 
 def make_repl_metrics():
@@ -224,8 +223,11 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
     metrics = make_repl_metrics()
     for logic in logics_dict.keys():
         repl = None
+        print(f"Processing logic {logic}")
         for thy_name in logics_dict[logic]:
             try:
+                len_proofs = len(logics_dict[logic][thy_name])
+                print(f"Processing theory {thy_name}")
                 if repl is None:
                     repl = REPL(logic, thy_name)
                 else:
@@ -241,11 +243,11 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
                         proof = proofs.get_proof_json(path)
                         acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
                         repl.apply(acts[0])
-                        logging.info(f"Attempting (successfully loaded) proof {path}")
+                        print(f"Attempting (successfully loaded) proof {path}")
                         metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], curr_depth=1, recurse_depth=recurse_depth, saving=saving)
                         metrics["total_proofs"] += 1
                         ops.save_dict_as_json(metrics, "repling_records.json")
-                        logging.info(f"Processed proof {path}\n\n")
+                        print(f"Processed proof {prf_num + 1} of {len_proofs}: {path}\n\n")
                     except Exception as e:
                         logging.warning(f"Error processing proof at {path}: {e}")
                     finally:
@@ -257,7 +259,7 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
     return metrics
 
 if __name__ == "__main__":
-    ops.configure_logging("t5_repl_loop.log")
+    # ops.configure_logging("t5_repl_loop.log")
     try:
         config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation="Evaluate the transformer as specified in the input JSON configuration."))
         ops.check_params(config_dict)
@@ -267,4 +269,4 @@ if __name__ == "__main__":
         raise Exception("Error " + message)
 
     model, tokenizer, dataset = eval_t5.load_model_tok_data(config_dict)
-    eval_t5.do_repling(config_dict, model, tokenizer, saving=True)
+    do_repling(config_dict, model, tokenizer, saving=True)

@@ -109,7 +109,7 @@ fun read (txt, state) =
     val st = get_st state;
     val thy = Toplevel.theory_of st;
     val acts = Actions.make thy txt
-    val new_act_sts = Actions.apply_all acts st
+    val new_act_sts = Actions.timed_apply_all {timeout_in_secs=10} acts st
     fun convert (act, st, e) =
       let
         val err = extract_err e

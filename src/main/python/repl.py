@@ -90,7 +90,7 @@ class REPL:
         return self._repl.proof_so_far()
     
     def last_proof(self):
-        return self._repl.last_proof_of()
+        return self._repl.last_proof()
     
     def complete_step(self):
         self.apply("done")
