@@ -25,12 +25,16 @@ class REPL:
                             format='%(asctime)s - %(levelname)s - %(message)s')
         
     def _initialize_repl(self):
-        if self._gateway is None:
-            self._gateway = JavaGateway(gateway_parameters=GatewayParameters(auto_convert=True))
-        self._entrypoint = self._gateway.entry_point
-        self._repl = self._entrypoint.get_repl(self.logic, self.thy_name)
-        self._minion = self._repl.get_minion()
-        print("REPL and minion initialized.")
+        try:
+            if self._gateway is None:
+                self._gateway = JavaGateway(gateway_parameters=GatewayParameters(auto_convert=True))
+            self._entrypoint = self._gateway.entry_point
+            self._repl = self._entrypoint.get_repl(self.logic, self.thy_name)
+            self._minion = self._repl.get_minion()
+            print("REPL and minion initialized.")
+        except Exception as e:
+            logging.error(f"Error initializing REPL: {e}")
+            raise
 
     def get_minion(self):
         if self._minion is None:
@@ -54,16 +58,31 @@ class REPL:
     def undo(self):
         return self._repl.undo()
     
-    @classmethod
-    def shutdown(self):
+    def shutdown_isabelle(self):
         if self._repl:
-            self._repl.shutdown()
-        if self._gateway:
-            self._gateway.shutdown()
-            print("REPL and gateway shut down.")
+            self._repl.shutdown_isabelle()
+            print("Isabelle shut down.")
 
+    def shutdown_gateway(self):
+        try:
+            if self._repl:
+                self._repl.shutdown_isabelle()
+            
+            if self._entrypoint:
+                self._entrypoint.stop()
+                self._entrypoint = None
+
+            # if self._gateway:
+            #     self._gateway.shutdown()
+            #     self._gateway = None
+            
+            print("REPL and gateway shut down.")
+        except Exception as e:
+            logging.error(f"Error during gateway shutdown: {e}")
 
     # INFORMATION RETRIEVAL
+    def isabelle_exists(self):
+        return self._repl.isabelle_exists()
     
     def state_string(self):
         return self._repl.state_string()
@@ -98,4 +117,5 @@ class REPL:
             self.undo()
             self.apply("qed")
             if self.latest_error():
+                self.undo()
                 self.apply("sorry (* repl-applied sorry *)")

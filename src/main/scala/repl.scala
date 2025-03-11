@@ -63,13 +63,16 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     state = minion.repl_undo(state)
   }
 
-  def shutdown(): Unit = {
+  def shutdown_isabelle(): Unit = {
     isabelle.destroy()
-    sys.exit()
+    print("Isabelle process destroyed.")
   }
 
   
   // INFORMATION RETRIEVAL
+  def isabelle_exists(): Boolean = {
+    !(minion.isabelle.isDestroyed)
+  }
 
   def state_string(): String = {
     minion.repl_print(state)

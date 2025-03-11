@@ -219,43 +219,52 @@ def make_repl_metrics():
 
 def do_repling(config_dict, model, tokenizer, gen_config=default_generation_config, recurse_depth=5, saving=False):
     logics_dict = group_paths_by_logic(config_dict)
+    print(f"Model context length = {model.config.n_positions}")
+    print(f"Tokenizer context length = {tokenizer.model_max_length}")
     gen_config["generator"] = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
     metrics = make_repl_metrics()
-    for logic in logics_dict.keys():
-        repl = None
-        print(f"Processing logic {logic}")
-        for thy_name in logics_dict[logic]:
-            try:
-                len_proofs = len(logics_dict[logic][thy_name])
-                print(f"Processing theory {thy_name}")
-                if repl is None:
-                    repl = REPL(logic, thy_name)
-                else:
-                    repl.go_to_end_of(thy_name)
-                for i, (prf_num, path) in enumerate(logics_dict[logic][thy_name]):
-                    try:
-                        proof_info = {
-                            "prf_num": prf_num,
-                            "prf_path": path,
-                            "prf_thy_name": thy_name,
-                            "logic": logic
-                            }
-                        proof = proofs.get_proof_json(path)
-                        acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
-                        repl.apply(acts[0])
-                        print(f"Attempting (successfully loaded) proof {path}")
-                        metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], curr_depth=1, recurse_depth=recurse_depth, saving=saving)
-                        metrics["total_proofs"] += 1
-                        ops.save_dict_as_json(metrics, "repling_records.json")
-                        print(f"Processed proof {i + 1} of {len_proofs}: {path}\n\n")
-                    except Exception as e:
-                        logging.warning(f"Error processing proof at {path}: {e}")
-                    finally:
-                        repl.reset()
-            except Exception as e:
-                logging.warning(f"Error initializing REPL for {logic}: {e}")
-            finally:
-                repl.shutdown()
+    try:
+        for logic in logics_dict.keys():
+            repl = None
+            print(f"Processing logic {logic}")
+            for thy_name in logics_dict[logic]:
+                try:
+                    len_proofs = len(logics_dict[logic][thy_name])
+                    print(f"Processing theory {thy_name}")
+                    if repl is None:
+                        repl = REPL(logic, thy_name)
+                    else:
+                        repl.go_to_end_of(thy_name)
+                    for i, (prf_num, path) in enumerate(logics_dict[logic][thy_name]):
+                        try:
+                            proof_info = {
+                                "prf_num": prf_num,
+                                "prf_path": path,
+                                "prf_thy_name": thy_name,
+                                "logic": logic
+                                }
+                            proof = proofs.get_proof_json(path)
+                            acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
+                            repl.apply(acts[0])
+                            print(f"Attempting (successfully loaded) proof {path}")
+                            metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], curr_depth=1, recurse_depth=recurse_depth, saving=saving)
+                            metrics["total_proofs"] += 1
+                            ops.save_dict_as_json(metrics, "repling_records.json")
+                            print(f"Processed proof {i + 1} of {len_proofs}: {path}\n\n")
+                        except Exception as e:
+                            logging.warning(f"Error processing proof at {path}: {e}")
+                        finally:
+                            repl.reset()
+                except Exception as e:
+                    logging.warning(f"Error initializing REPL for {logic}.{thy_name}: {e}")
+                finally:
+                    if repl:
+                        repl.shutdown_isabelle()
+        if repl:
+            repl.shutdown_isabelle()   
+    finally:
+        if repl:
+            repl.shutdown_gateway()
     return metrics
 
 if __name__ == "__main__":
