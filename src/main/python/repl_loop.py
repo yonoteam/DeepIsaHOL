@@ -9,6 +9,7 @@ import logging
 
 from transformers import pipeline
 
+import isa_data
 import ops
 import proofs
 import eval_t5
@@ -143,7 +144,7 @@ default_generation_config = {
 
 def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_depth, recurse_depth=5, saving=False):
     x = inputs_from(repl, proof, data_mode)
-    print(f"Model input from Isabelle at depth {curr_depth}: {x}")
+    print(f"Trimmed model input from Isabelle at depth {curr_depth}: {x[:500]}")
     predicts = gen_config["generator"](
         x, 
         max_length=gen_config["gen_length"], 
@@ -219,49 +220,55 @@ def make_repl_metrics():
 
 def do_repling(config_dict, model, tokenizer, gen_config=default_generation_config, recurse_depth=5, saving=False):
     logics_dict = group_paths_by_logic(config_dict)
+    tok_max_length = isa_data.get_context_length(config_dict["data_mode"])
+    tokenizer.model_max_length = tok_max_length
     print(f"Model context length = {model.config.n_positions}")
     print(f"Tokenizer context length = {tokenizer.model_max_length}")
     gen_config["generator"] = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
     metrics = make_repl_metrics()
     try:
         for logic in logics_dict.keys():
-            repl = None
-            print(f"Processing logic {logic}")
-            for thy_name in logics_dict[logic]:
-                try:
-                    len_proofs = len(logics_dict[logic][thy_name])
-                    print(f"Processing theory {thy_name}")
-                    if repl is None:
-                        repl = REPL(logic, thy_name)
-                    else:
-                        repl.go_to_end_of(thy_name)
-                    for i, (prf_num, path) in enumerate(logics_dict[logic][thy_name]):
-                        try:
-                            proof_info = {
-                                "prf_num": prf_num,
-                                "prf_path": path,
-                                "prf_thy_name": thy_name,
-                                "logic": logic
-                                }
-                            proof = proofs.get_proof_json(path)
-                            acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
-                            repl.apply(acts[0])
-                            print(f"Attempting (successfully loaded) proof {path}")
-                            metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], curr_depth=1, recurse_depth=recurse_depth, saving=saving)
-                            metrics["total_proofs"] += 1
-                            ops.save_dict_as_json(metrics, "repling_records.json")
-                            print(f"Processed proof {i + 1} of {len_proofs}: {path}\n\n")
-                        except Exception as e:
-                            logging.warning(f"Error processing proof at {path}: {e}")
-                        finally:
+            try:
+                repl = None
+                print(f"Processing logic {logic}")
+                for thy_name in logics_dict[logic]:
+                    try:
+                        len_proofs = len(logics_dict[logic][thy_name])
+                        print(f"Processing theory {thy_name}")
+                        if repl is None:
+                            repl = REPL(logic, thy_name)
+                        else:
+                            repl.go_to_end_of(thy_name)
+                        for i, (prf_num, path) in enumerate(logics_dict[logic][thy_name]):
+                            try:
+                                proof_info = {
+                                    "prf_num": prf_num,
+                                    "prf_path": path,
+                                    "prf_thy_name": thy_name,
+                                    "logic": logic
+                                    }
+                                proof = proofs.get_proof_json(path)
+                                acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
+                                repl.apply(acts[0])
+                                print(f"Attempting (successfully loaded) proof {path}")
+                                metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, config_dict["data_mode"], curr_depth=1, recurse_depth=recurse_depth, saving=saving)
+                                metrics["total_proofs"] += 1
+                                ops.save_dict_as_json(metrics, "repling_records.json")
+                                print(f"Processed proof {i + 1} of {len_proofs}: {path}\n\n")
+                            except Exception as e:
+                                logging.warning(f"Error processing proof at {path}: {e}")
+                            finally:
+                                repl.reset()
+                    except Exception as e:
+                        logging.warning(f"Error initializing REPL for {logic}.{thy_name}: {e}")
+                    finally:
+                        if repl:
                             repl.reset()
-                except Exception as e:
-                    logging.warning(f"Error initializing REPL for {logic}.{thy_name}: {e}")
-                finally:
-                    if repl:
-                        repl.shutdown_isabelle()
-        if repl:
-            repl.shutdown_isabelle()   
+            except Exception as e:
+                logging.warning(f"Error processing {logic}: {e}")
+            finally:
+                if repl:
+                    repl.shutdown_isabelle()
     finally:
         if repl:
             repl.shutdown_gateway()
