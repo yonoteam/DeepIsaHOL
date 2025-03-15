@@ -63,9 +63,15 @@ def prepare_model_and_dataloaderN(model, tokenizer, dataset, accelerator, batch_
 
 def prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=8, accelerator=None):
     if accelerator is None or accelerator.num_processes <= 1:
-        return prepare_model_and_dataloader1(model, tokenizer, dataset, batch_size=batch_size)
+        model, dataloader = prepare_model_and_dataloader1(model, tokenizer, dataset, batch_size=batch_size)
     else:
-        return prepare_model_and_dataloaderN(model, tokenizer, dataset, accelerator, batch_size=batch_size)
+        model, dataloader = prepare_model_and_dataloaderN(model, tokenizer, dataset, accelerator, batch_size=batch_size)
+    for batch in dataloader:
+        vals_shape = {k: v.shape for k, v in batch.items()}
+        logging.info(f"The first batch info is:")
+        logging.info(f"{vals_shape}")
+        break
+    return model, dataloader
 
 # VALIDATION
 
