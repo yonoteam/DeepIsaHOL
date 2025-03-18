@@ -44,6 +44,9 @@ class REPL:
     def go_to_end_of(self, thy_name):
         self._repl.go_to_end_of(thy_name)
 
+    def go_to(self, thy_name, action_text):
+        self._repl.go_to(thy_name, action_text)
+
 
     # OPERATIONS 
 
@@ -90,11 +93,14 @@ class REPL:
     def state_size(self):
         return self._repl.state_size()
     
-    def latest_error(self):
-        return self._repl.latest_error()
-    
     def last_usr_state(self):
         return self._repl.last_usr_state()
+    
+    def last_action(self):
+        return self._repl.last_action()
+    
+    def last_error(self):
+        return self._repl.last_error()
 
     def show_curr(self):
         print(self._repl.state_string())

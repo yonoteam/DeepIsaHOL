@@ -47,6 +47,18 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     state = minion.repl_init(thy0)
   }
 
+  def go_to(thy_name: String, action_text: String): Unit = {
+    current_thy_path = minion.get_theory_file_path(thy_name)
+    val thy0 = current_thy_path match {
+      case Some(path) => 
+        val thy = minion.imports.get_start_theory(path)
+        state = minion.repl_go_to(thy, path.toString(), action_text)
+      case None => 
+        println(s"Warning: the minion did not find $thy_name. Defaulting to theory 'Main'.")
+        state = minion.repl_init(Theory("Main"))
+    }
+  }
+
 
   // OPERATIONS
 
@@ -82,12 +94,16 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     minion.repl_size(state)
   }
 
-  def latest_error(): String = {
-    minion.repl_get_error(state)
-  }
-
   def last_usr_state(): String = {
     minion.repl_last_usr_st(state)
+  }
+
+  def last_action(): String = {
+    minion.repl_last_action(state)
+  }
+
+  def last_error(): String = {
+    minion.repl_last_error(state)
   }
 
   def show_curr(): Unit = {

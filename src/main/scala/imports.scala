@@ -251,6 +251,7 @@ object Imports extends OperationCollection {
     
     val init_toplevel: MLFunction0[ToplevelState] = compileFunction0[ToplevelState]("fn () => Toplevel.make_state NONE")
 
+    // parses the theory file inside Isabelle
     val get_final_thy_alt: MLFunction2[Theory, String, Option[Theory]] =
       compileFunction[Theory, String, Option[Theory]](
       """fn (thy0, thy_file) => let
@@ -263,6 +264,7 @@ object Imports extends OperationCollection {
         |    |> fold (Toplevel.command_exception true) transitions;
         |  in Toplevel.previous_theory_of final_state end""".stripMargin)
     
+    // supplies the parsed theory file to Isabelle
     val get_final_thy: MLFunction2[Theory, String, Option[Theory]] =
       compileFunction[Theory, String, Option[Theory]](
       """fn (thy0, thy_text) => let

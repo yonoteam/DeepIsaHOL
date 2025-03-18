@@ -27,6 +27,7 @@ sig
   val repl: string * T -> string
   val undo: T -> T
   val reset: T -> T
+  val go_to: (theory * string * string) -> T
   val to_string: T -> string
   val pretty: T -> Pretty.T
   val proof_so_far: T -> string
@@ -153,6 +154,19 @@ fun undo state =
 
 (* reset: T -> T *)
 fun reset state = Ops.last state |> Library.single;
+
+(* go_to: (theory * string * string) -> T *)
+fun go_to (thy, thy_path, act_txt) =
+  let
+    val empty_err_mssg = "repl.go_to: empty actions for input " ^ act_txt ^ " on location " ^ thy_path
+    val thy_text = File.read (Path.explode thy_path);
+    val acts = Actions.make' thy thy_text;
+    val pre_acts = Pred.take_until (Actions.on_text (Pred.contains act_txt)) acts;
+    val act_st_errs = Actions.apply_all pre_acts (Toplevel.make_state (SOME thy));
+    val (act, st, e) = if null act_st_errs then raise Fail empty_err_mssg
+      else Ops.last act_st_errs;
+    val err = extract_err e;
+  in [make_one(0, act, st, err)] end;
 
 
 (* INFORMATION RETRIEVAL *)

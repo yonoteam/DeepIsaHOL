@@ -10,12 +10,13 @@ sys.path.insert(0, MAIN_DIR)
 from repl import REPL
 
 if __name__ == "__main__":
+    repl = None
     try:
         repl = REPL()
         repl.apply("lemma \"\\<forall>x. P x \\<Longrightarrow> P c\"")
         repl.show_curr()
         repl.apply("apply chunche")
-        print(repl.latest_error())
+        print(repl.last_error())
         repl.undo()
         repl.apply("apply blast")
         repl.show_curr()
