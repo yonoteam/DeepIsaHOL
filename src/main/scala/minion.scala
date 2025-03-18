@@ -129,7 +129,7 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
         lazy val size = compileFunction[Repl_State, Int](s"$ml_repl_struct.size")
         lazy val last_state = compileFunction[Repl_State, String](s"$ml_repl_struct.last_state")
         lazy val last_action = compileFunction[Repl_State, String](s"$ml_repl_struct.last_action")
-        lazy val last_err = compileFunction[Repl_State, String](s"$ml_repl_struct.last_err")
+        lazy val last_error = compileFunction[Repl_State, String](s"$ml_repl_struct.last_error")
         lazy val is_at_proof = compileFunction[Repl_State, Boolean](s"$ml_repl_struct.is_at_proof")
         lazy val no_subgoals = compileFunction[Repl_State, Boolean](s"$ml_repl_struct.no_subgoals")
         lazy val proof_so_far = compileFunction[Repl_State, String](s"$ml_repl_struct.proof_so_far")
@@ -156,7 +156,7 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
     ML_repl.Repl_State.Ops.last_action(state).retrieveNow
   
   def repl_last_error (state: ML_repl.Repl_State): String = 
-    ML_repl.Repl_State.Ops.last_err(state).retrieveNow
+    ML_repl.Repl_State.Ops.last_error(state).retrieveNow
   
   def repl_is_at_proof(state: ML_repl.Repl_State): Boolean =
     ML_repl.Repl_State.Ops.is_at_proof(state).retrieveNow
