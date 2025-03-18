@@ -140,7 +140,7 @@ def save_proof(repl, proof_info):
     thy_name = proof_info["prf_thy_name"]
     prf_num = proof_info["prf_num"]
     logic = proof_info["logic"]
-    filename = f"{thy_name[:-4]}{prf_num}.thy"
+    filename = f"{logic}/{thy_name[:-4]}{prf_num}.thy"
     header = f"theory {thy_name[:-4]}{prf_num}\n imports {logic}.{thy_name[:-4]}\n begin\n\n"
     body = repl.last_proof()
     end = "\n\nend"
