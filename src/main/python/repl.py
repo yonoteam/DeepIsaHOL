@@ -89,6 +89,7 @@ class REPL:
     
     def switch_to(self, logic, thy_name="Scratch.thy"):
         self.shutdown_isabelle()
+        print(f"Switching to logic {logic} and theory {thy_name}.")
         self._repl = self._entrypoint.get_repl(logic, thy_name)
         self.logic = logic
         self.thy_name = thy_name

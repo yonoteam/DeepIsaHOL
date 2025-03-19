@@ -4,12 +4,15 @@
 # Draft for a loop evaluating the T5 model interation with the repl
 
 import os
+import gc
 import re
 import json
 import fcntl
+import psutil
 import logging
 from itertools import takewhile
 
+import torch
 from transformers import pipeline
 
 import isa_data
@@ -38,6 +41,11 @@ def setup_logging(logic_name):
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s"
     )
+
+def log_memory_usage(message):
+    process = psutil.Process(os.getpid())
+    memory = process.memory_info().rss / 1024 / 1024  # MB
+    logging.info(f"Memory usage ({message}): {memory:.2f} MB")
 
 def update_repling_records(new_metrics, filename="repling_records.json"):
     if not os.path.exists(filename):
@@ -355,7 +363,9 @@ def do_repling(
                             "proof": proof
                         }
                         # acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
-                        repl.go_to(thy_name, proof_info["lemma_name"])   
+                        repl.go_to(thy_name, proof_info["lemma_name"])
+
+                        log_memory_usage("Before processing proof")
                         metrics = attempt_proof(
                             repl, 
                             proof_info, 
@@ -366,10 +376,14 @@ def do_repling(
                             max_depth=allowed_depth, 
                             saving=saving
                         )
+                        log_memory_usage("After processing proof")
+
                         metrics["total_proofs"] += 1
                         update_repling_records(metrics, "repling_records.json")
                         prf_count += 1
                         logging.info(f"Processed proof {prf_count} of {len_proofs}: {path}\n\n")
+                        gc.collect()
+                        torch.cuda.empty_cache()
                     except Exception as e:
                         logging.warning(f"Error processing proof at {path} with REPL at {logic}.{thy_name}: {e}")
                     finally:
