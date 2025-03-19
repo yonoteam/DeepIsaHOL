@@ -342,8 +342,6 @@ def do_repling(
 
             for thy_name in logics_dict[logic]:
                 logging.info(f"Processing theory {thy_name}")
-                repl.go_to(logic, thy_name)
-                
                 for prf_num, path in logics_dict[logic][thy_name]:
                     try:
                         proof = proofs.get_proof_json(path)
