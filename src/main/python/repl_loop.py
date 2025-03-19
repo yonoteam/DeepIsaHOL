@@ -5,6 +5,8 @@
 
 import os
 import re
+import json
+import fcntl
 import logging
 
 from transformers import pipeline
@@ -35,6 +37,34 @@ def setup_logging(logic_name):
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s"
     )
+
+def update_repling_records(new_metrics, filename="repling_records.json"):
+    if not os.path.exists(filename):
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+    
+    with open(filename, "r+") as f:
+        # exclusive lock on file.
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            try:
+                current_data = json.load(f)
+            except json.JSONDecodeError:
+                current_data = {}
+            
+            for key, value in new_metrics.items():
+                if isinstance(value, (int, float)):
+                    current_data[key] = current_data.get(key, 0) + value
+                else:
+                    # TODO: decide non-numerics handling if added
+                    current_data[key] = value 
+            
+            # move file pointer to beginning and truncate file.
+            f.seek(0)
+            json.dump(current_data, f, indent=4)
+            f.truncate()
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 def fix_missing_quotations(s):
     double_quotes = s.count('"') % 2
@@ -224,7 +254,7 @@ def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_
             elif recurse_depth == 0:
                 logging.info("reached max depth. Last proof was:")
                 logging.info(f"{repl.last_proof()}\n")
-                repl.reset()
+                repl.undo()
                 continue
             else:
                 if handling_by:
@@ -235,14 +265,14 @@ def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_
     return metrics
 
 def make_repl_metrics():
-    metrics = {}
-    metrics["total_proofs"] = 0
-    metrics["progress_counter"] = 0
-    metrics["no_progress_counter"] = 0
-    metrics["correct_by"] = 0
-    metrics["incorrect_by"] = 0
-    metrics["finished_proofs"] = 0
-    return metrics
+    return {
+        "total_proofs": 0,
+        "progress_counter": 0,
+        "no_progress_counter": 0,
+        "correct_by": 0,
+        "incorrect_by": 0,
+        "finished_proofs": 0
+    }
 
 def do_repling(config_dict, model, tokenizer, gen_config=default_generation_config, recurse_depth=5, saving=False):
     logics_dict = group_paths_by_logic(config_dict)
@@ -251,13 +281,14 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
     print(f"Model context length = {model.config.n_positions}")
     print(f"Tokenizer context length = {tokenizer.model_max_length}")
     gen_config["generator"] = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
-    metrics = make_repl_metrics()
 
     progress_file = "progress.txt"
     if not os.path.exists(progress_file):
         with open(progress_file, "w", encoding="utf-8"):
             pass
     
+    repl = None
+    metrics = make_repl_metrics()
     try:
         for logic in logics_dict.keys():
             with open(progress_file, "r", encoding="utf-8") as f:
@@ -270,13 +301,14 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
             
             setup_logging(logic)
             logging.info(f"Processing logic {logic}")
-            repl = None
             for thy_name in logics_dict[logic]:
                 logging.info(f"Processing theory {thy_name}")
                 len_proofs = len(logics_dict[logic][thy_name])
 
                 if repl is None:
                     repl = REPL(logic, thy_name)
+                else:
+                    repl.switch_to(logic, thy_name)
                 
                 for i, (prf_num, path) in enumerate(logics_dict[logic][thy_name]):
                     try:
@@ -296,14 +328,14 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
                             proof, 
                             proof_info, 
                             gen_config, 
-                            metrics, 
+                            make_repl_metrics(), 
                             config_dict["data_mode"], 
                             curr_depth=1, 
                             recurse_depth=recurse_depth, 
                             saving=saving
                         )
                         metrics["total_proofs"] += 1
-                        ops.save_dict_as_json(metrics, "repling_records.json")
+                        update_repling_records(metrics, "repling_records.json")
                         logging.info(f"Processed proof {i + 1} of {len_proofs}: {path}\n\n")
                     except Exception as e:
                         logging.warning(f"Error processing proof at {path} with REPL at {logic}.{thy_name}: {e}")
@@ -314,11 +346,10 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
         logging.warning(f"Error processing {logic}: {e}")
     finally:
         if repl:
-            repl.shutdown_isabelle()
+            repl.shutdown_gateway()
     return metrics
 
 if __name__ == "__main__":
-    # ops.configure_logging("t5_repl_loop.log")
     try:
         config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation="Evaluate the transformer as specified in the input JSON configuration."))
         ops.check_params(config_dict)

@@ -122,9 +122,11 @@ import isabelle_rl._
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
-val logic = "Ordinary_Differential_Equations"
+val logic = "LTL"
 
-val writer = Py4j_Gateway.get_writer(Directories.test_read_dir, Directories.test_write_dir, logic)
+val gateway = new Py4j_Gateway()
+
+val writer = gateway.get_writer(Directories.test_read_dir, Directories.test_write_dir, logic)
   
 val minion = writer.get_minion()
 
@@ -144,6 +146,7 @@ import sys
 sys.path.append('/path/to/this/projects/src/main/python')
 from writer import Writer
 
+# do not forget to open a scala gateway first
 writer = Writer('/your/read/directory/with/an/isabelle/project/', '/your/write/directory/', 'the_logic_of_the_isabelle_projects_root_file')
 
 writer.write_all()

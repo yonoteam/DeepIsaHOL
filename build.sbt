@@ -12,7 +12,13 @@ lazy val root = project
     libraryDependencies += "de.unruh" %% "scala-isabelle" % "master-SNAPSHOT" from "file:~/Programs/deepIsaHOL/lib/scala-isabelle/target/scala-2.13/scala-isabelle_2.13-master-SNAPSHOT.jar", // development snapshot
     resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
 
+    // https://mvnrepository.com/artifact/io.circe
     scalacOptions += "-deprecation",
+    libraryDependencies ++= Seq(
+      "io.circe" %% "circe-core"    % "0.14.1",
+      "io.circe" %% "circe-generic" % "0.14.1",
+      "io.circe" %% "circe-parser"  % "0.14.1"
+      ),
     
     /* From scala-isabelle and PISA */
     // https://mvnrepository.com/artifact/org.log4s/log4s
