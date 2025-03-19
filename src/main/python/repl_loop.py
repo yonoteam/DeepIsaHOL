@@ -245,14 +245,15 @@ def attempt_proof(repl,
         else:
             metrics["progress_counter"] += 1
             # reached the end of the proof
-            if repl.without_subgoals():
-                logging.info("Without subgoals reached!")
-                if handling_by:
-                    metrics["correct_by"] += 1
-                    repl.undo()
-                    repl.apply(y)
-                else:
-                    repl.complete_step()
+            if repl.is_at_proof():
+                if repl.without_subgoals():
+                    logging.info("Without subgoals reached!")
+                    if handling_by:
+                        metrics["correct_by"] += 1
+                        repl.undo()
+                        repl.apply(y)
+                    else:
+                        repl.complete_step()
             
             # proof is finished
             if not repl.is_at_proof() or "Duplicate" in repl.last_error():
@@ -310,7 +311,7 @@ def do_repling(
     tokenizer.model_max_length = tok_max_length
     print(f"Model context length = {model.config.n_positions}")
     print(f"Tokenizer context length = {tokenizer.model_max_length}")
-    gen_config["generator"] = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+    gen_config["generator"] = pipeline("text2text-generation", model=model, tokenizer=tokenizer, device=-1)
     gen_config["allowed_depth"] = allowed_depth
 
     progress_file = "progress.txt"
@@ -390,6 +391,7 @@ if __name__ == "__main__":
         message = f"Loading configuration information: {e}"
         logging.error(message)
         raise Exception(f"Error {e}")
-
+    
     model, tokenizer, dataset = eval_t5.load_model_tok_data(config_dict)
+    model.to("cpu")
     do_repling(config_dict, model, tokenizer, saving=True)
