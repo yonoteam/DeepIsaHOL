@@ -145,7 +145,7 @@ fun apply_while P acts st =
   fun timed_apply_all {timeout_in_secs=t} acts st =
   let
     val t' = Time.fromSeconds t
-    val danger_methods = ["smt", "metis", "simp", "blast", "auto", ")+", ") +"]
+    val danger_methods = ["smt", "metis", "simp", "blast", "auto", "fastforce", ")+", ") +"]
     val is_danger_method = Pred.disjunct (map Pred.contains danger_methods)
     val might_timeout = on_kind (Pred.is "apply") andf on_text is_danger_method;
     fun timeout_apply act st = case Ops.apply_with_timeout t' (apply_safe act) st of
