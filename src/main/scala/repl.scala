@@ -75,9 +75,15 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     state = minion.repl_undo(state)
   }
 
+  def undoN(n:Int): Unit = {
+    for (i <- 1 to n) {
+      undo()
+    }
+  }
+
   def shutdown_isabelle(): Unit = {
     isabelle.destroy()
-    print("Isabelle process destroyed.")
+    println("Isabelle process destroyed.")
   }
 
   

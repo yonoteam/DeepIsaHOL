@@ -4,6 +4,7 @@
 # A collection of reused methods/operations
 
 import os
+import re
 import time
 import json
 import queue
@@ -12,6 +13,7 @@ import argparse
 import threading
 
 from typing import Union
+from datetime import datetime
 
 import torch
 import matplotlib.pyplot as plt
@@ -91,6 +93,43 @@ def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
 
     logging.info("Timeout reached. Function did not complete.")
     return None
+
+def avg_repeat_time(log_file_path: Union[str, os.PathLike], event_description: str):
+    """
+    Calculates an event's average repetition time in seconds from a log file.
+    Returns None if the event is not found or occurs only once.
+
+    :param log_file_path: Path to the log file.
+    :param event_description: The string to search for.
+    :rtype: float
+    """
+    timestamps = []
+    try:
+        with open(log_file_path, 'r') as log_file:
+            for line in log_file:
+                if event_description in line:
+                    match = re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})', line)
+                    if match:
+                        timestamp_str = match.group(1)
+                        timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S,%f')
+                        timestamps.append(timestamp)
+    except FileNotFoundError:
+        print(f"Error: Log file '{log_file_path}' not found.")
+        return None
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+    if len(timestamps) < 2:
+        return None
+    
+    time_diffs = []
+    for i in range(1, len(timestamps)):
+        time_diff = (timestamps[i] - timestamps[i - 1]).total_seconds()
+        time_diffs.append(time_diff)
+
+    average_time = sum(time_diffs) / len(time_diffs)
+    return average_time
 
 
 # SAVING DATA

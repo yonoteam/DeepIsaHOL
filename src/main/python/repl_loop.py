@@ -8,6 +8,7 @@ import re
 import json
 import fcntl
 import logging
+from itertools import takewhile
 
 from transformers import pipeline
 
@@ -25,7 +26,7 @@ def setup_logging(logic_name):
     log_dir = os.path.join(os.getcwd(), logic_name)
     os.makedirs(log_dir, exist_ok=True)  # Ensure directory exists
     
-    log_file = os.path.join(log_dir, "repl.log")
+    log_file = os.path.join(log_dir, f"{logic_name}_repl.log")
     
     # Remove existing handlers to avoid duplicate logs
     for handler in logging.root.handlers[:]:
@@ -190,34 +191,39 @@ default_generation_config = {
     "num_beams": 5
 }
 
-def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_depth, recurse_depth=5, saving=False):
-    x = inputs_from(repl, proof, data_mode)
-    logging.info(f"Trimmed model input from Isabelle at depth {curr_depth}: {x[:500]}")
+def attempt_proof(repl, 
+                  proof_info, 
+                  gen_config, 
+                  metrics, 
+                  data_mode, 
+                  pos,
+                  max_depth=5, 
+                  saving=False):
+    x = inputs_from(repl, proof_info["proof"], data_mode)
+    logging.info(f"Trimmed model input from Isabelle at pos {pos}: {x[:500]}")
     predicts = gen_config["generator"](
         x, 
         max_length=gen_config["gen_length"], 
         num_return_sequences=gen_config["num_return_sequences"],
         num_beams=gen_config["num_beams"]
     )
-    for i, predict in enumerate(predicts):
-        logging.info(f"Attempt {i+1} at depth={curr_depth}")
+    curr_pos = pos.copy()
+    curr_depth = next((i for i, x in enumerate(pos) if x == 0), None)
+    for i, predict in enumerate(predicts, start=1):
+        pos = curr_pos.copy()
+        pos[curr_depth] = i
+        logging.info(f"Attempt at pos={pos}")
         if predict is None:
             message = f"""
             None prediction found at:
-            attempt {i+1}
-            depth {curr_depth}
-            model input {x} 
-            proof {proof_info['prf_path']}\n"""
+            pos = {pos}
+            model input = {x} 
+            proof = {proof_info['prf_path']}\n"""
             logging.warning(message)
             continue
 
         y = predict["generated_text"]
-        logging.info(f"Model output at depth={curr_depth} is: {y}")
-
-        if y.strip() == repl.last_action().strip():
-            logging.info("Model repeated last action. Skipping.")
-            metrics["no_progress_counter"] += 1
-            continue
+        logging.info(f"Model output at pos={pos} is: {y}")
 
         handling_by = y.strip().startswith("by")
         if handling_by:
@@ -228,13 +234,17 @@ def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_
         
         repl.apply(updated_y)
         err = repl.last_error()
+
+        # repl replied with an error
         if err:
             logging.info(f"Attempt did not work. Backtracking.")
             metrics["no_progress_counter"] += 1
             repl.undo()
             continue
+        # action was successful
         else:
             metrics["progress_counter"] += 1
+            # reached the end of the proof
             if repl.without_subgoals():
                 logging.info("Without subgoals reached!")
                 if handling_by:
@@ -244,6 +254,7 @@ def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_
                 else:
                     repl.complete_step()
             
+            # proof is finished
             if not repl.is_at_proof() or "Duplicate" in repl.last_error():
                 metrics["finished_proofs"] += 1
                 if saving:
@@ -251,17 +262,30 @@ def attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_
                     save_proof(repl, proof_info)
                 repl.reset()
                 return metrics
-            elif recurse_depth == 0:
+            # reached max depth
+            elif max_depth == 1:
                 logging.info("reached max depth. Last proof was:")
                 logging.info(f"{repl.last_proof()}\n")
-                repl.undo()
+                allowed_breadth = len(predicts)
+                if i >= allowed_breadth:
+                    nsteps_back = len(list(takewhile(lambda x: x == allowed_breadth, reversed(pos))))
+                    repl.undoN(nsteps_back)
+                else:
+                    repl.undo()
                 continue
             else:
                 if handling_by:
                     metrics["incorrect_by"] += 1
-                metrics = attempt_proof(repl, proof, proof_info, gen_config, metrics, data_mode, curr_depth=curr_depth+1, recurse_depth=recurse_depth-1, saving=saving)
+                metrics = attempt_proof(repl, 
+                                        proof_info, 
+                                        gen_config, 
+                                        metrics,
+                                        data_mode, 
+                                        pos = pos,
+                                        max_depth=max_depth-1, 
+                                        saving=saving)
         
-        logging.info(f"Prediction {i} processed\n")
+        logging.info(f"Processed prediction at pos={pos}\n")
     return metrics
 
 def make_repl_metrics():
@@ -274,13 +298,20 @@ def make_repl_metrics():
         "finished_proofs": 0
     }
 
-def do_repling(config_dict, model, tokenizer, gen_config=default_generation_config, recurse_depth=5, saving=False):
+def do_repling(
+        config_dict, 
+        model, 
+        tokenizer, 
+        gen_config=default_generation_config, 
+        allowed_depth=5, 
+        saving=False):
     logics_dict = group_paths_by_logic(config_dict)
     tok_max_length = isa_data.get_context_length(config_dict["data_mode"])
     tokenizer.model_max_length = tok_max_length
     print(f"Model context length = {model.config.n_positions}")
     print(f"Tokenizer context length = {tokenizer.model_max_length}")
     gen_config["generator"] = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+    gen_config["allowed_depth"] = allowed_depth
 
     progress_file = "progress.txt"
     if not os.path.exists(progress_file):
@@ -299,18 +330,20 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
             with open(progress_file, "a", encoding="utf-8") as f:
                 f.write(logic + "\n")
             
+            len_proofs = sum(len(thy_list) for thy_list in logics_dict[logic].values())
+            prf_count = 0
+            if repl:
+                repl.switch_to(logic)
+            else:
+                repl = REPL(logic)
             setup_logging(logic)
             logging.info(f"Processing logic {logic}")
+
             for thy_name in logics_dict[logic]:
                 logging.info(f"Processing theory {thy_name}")
-                len_proofs = len(logics_dict[logic][thy_name])
-
-                if repl is None:
-                    repl = REPL(logic, thy_name)
-                else:
-                    repl.switch_to(logic, thy_name)
+                repl.go_to(logic, thy_name)
                 
-                for i, (prf_num, path) in enumerate(logics_dict[logic][thy_name]):
+                for prf_num, path in logics_dict[logic][thy_name]:
                     try:
                         proof = proofs.get_proof_json(path)
                         logging.info(f"Attempting (successfully loaded) proof {path}")
@@ -319,29 +352,29 @@ def do_repling(config_dict, model, tokenizer, gen_config=default_generation_conf
                             "prf_path": path,
                             "prf_thy_name": thy_name,
                             "logic": logic,
-                            "lemma_name": fix_missing_quotations(proofs.orig_objective_of(proof))
+                            "lemma_name": fix_missing_quotations(proofs.orig_objective_of(proof)),
+                            "proof": proof
                         }
                         # acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
                         repl.go_to(thy_name, proof_info["lemma_name"])   
                         metrics = attempt_proof(
                             repl, 
-                            proof, 
                             proof_info, 
                             gen_config, 
                             make_repl_metrics(), 
                             config_dict["data_mode"], 
-                            curr_depth=1, 
-                            recurse_depth=recurse_depth, 
+                            pos = list(0 for _ in range(allowed_depth)),
+                            max_depth=allowed_depth, 
                             saving=saving
                         )
                         metrics["total_proofs"] += 1
                         update_repling_records(metrics, "repling_records.json")
-                        logging.info(f"Processed proof {i + 1} of {len_proofs}: {path}\n\n")
+                        prf_count += 1
+                        logging.info(f"Processed proof {prf_count} of {len_proofs}: {path}\n\n")
                     except Exception as e:
                         logging.warning(f"Error processing proof at {path} with REPL at {logic}.{thy_name}: {e}")
                     finally:
-                        repl.reset()
-                
+                        repl.reset()          
     except Exception as e:
         logging.warning(f"Error processing {logic}: {e}")
     finally:

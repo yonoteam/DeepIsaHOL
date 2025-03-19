@@ -35,7 +35,6 @@ class REPL:
         
     def _find_available_port(self):
         """Read gateway_registry.json and return an available Py4j port."""
-        print(self.PORTS_FILE)
         if not os.path.exists(self.PORTS_FILE):
             return None
         
@@ -89,6 +88,7 @@ class REPL:
             raise
     
     def switch_to(self, logic, thy_name="Scratch.thy"):
+        self.shutdown_isabelle()
         self._repl = self._entrypoint.get_repl(logic, thy_name)
         self.logic = logic
         self.thy_name = thy_name
@@ -118,10 +118,12 @@ class REPL:
     def undo(self):
         return self._repl.undo()
     
+    def undoN(self, n):
+        return self._repl.undoN(n)
+    
     def shutdown_isabelle(self):
-        if self._repl:
-            self._repl.shutdown_isabelle()
-            print("Isabelle shut down.")
+        self._repl.shutdown_isabelle()
+        print("Isabelle shut down.")
 
     def shutdown_gateway(self):
         try:
