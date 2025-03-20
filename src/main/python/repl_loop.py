@@ -369,7 +369,7 @@ def do_repling(
                         # acts = [fix_missing_quotations(a) for a in proofs.full_actions_of(proof)]
                         repl.go_to(thy_name, proof_info["lemma_name"])
 
-                        log_memory_usage("Before processing proof")
+                        # log_memory_usage("Before processing proof")
                         metrics = attempt_proof(
                             repl, 
                             proof_info, 
@@ -380,7 +380,7 @@ def do_repling(
                             max_depth=allowed_depth, 
                             saving=saving
                         )
-                        log_memory_usage("After processing proof")
+                        # log_memory_usage("After processing proof")
 
                         metrics["total_proofs"] += 1
                         update_repling_records(metrics, "repling_records.json")
