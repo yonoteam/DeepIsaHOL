@@ -199,6 +199,15 @@ default_generation_config = {
     "num_beams": 5
 }
 
+def carefully_go_back(repl, pos, allowed_breadth, current_breath):
+    if current_breath >= allowed_breadth:
+        nonzeros_rl = reversed(list(takewhile(lambda x: x != 0, pos)))
+        nsteps_back = len(list(takewhile(lambda x: x == allowed_breadth, nonzeros_rl))) + 1
+        logging.info(f"Returning {nsteps_back} steps back.\n")
+        repl.undoN(nsteps_back)
+    else:
+        repl.undo()
+
 def attempt_proof(repl, 
                   proof_info, 
                   gen_config, 
@@ -241,13 +250,14 @@ def attempt_proof(repl,
             updated_y = y
         
         repl.apply(updated_y)
-        err = repl.last_error()
+        allowed_breadth = len(predicts)
 
         # repl replied with an error
+        err = repl.last_error()
         if err:
             logging.info(f"Attempt did not work. Backtracking.")
             metrics["no_progress_counter"] += 1
-            repl.undo()
+            carefully_go_back(repl, pos, allowed_breadth, i)
             continue
         # action was successful
         else:
@@ -275,14 +285,7 @@ def attempt_proof(repl,
             elif max_depth == 1:
                 logging.info("reached max depth. Last proof was:")
                 logging.info(f"{repl.last_proof()}")
-                allowed_breadth = len(predicts)
-                if i >= allowed_breadth:
-                    nonzeros_rl = reversed(list(takewhile(lambda x: x != 0, pos)))
-                    nsteps_back = len(list(takewhile(lambda x: x == allowed_breadth, nonzeros_rl))) + 1
-                    logging.info(f"Returning {nsteps_back} steps back.\n")
-                    repl.undoN(nsteps_back)
-                else:
-                    repl.undo()
+                carefully_go_back(repl, pos, allowed_breadth, i)
                 continue
             else:
                 if handling_by:

@@ -82,9 +82,9 @@ class REPL:
             self._entrypoint = self._gateway.entry_point
             self._repl = self._entrypoint.get_repl(self.logic, self.thy_name)
             self._minion = self._repl.get_minion()
-            print(f"REPL and minion initialized on port {self.port}.")
+            print(f"REPL and minion initialized on port {self.port} and logic {self.logic}.")
         except Exception as e:
-            logging.error(f"Error initializing REPL on port {self.port}: {e}")
+            logging.error(f"Error initializing REPL on port {self.port} and logic {self.logic}: {e}")
             raise
     
     def switch_to(self, logic, thy_name="Scratch.thy"):
