@@ -286,6 +286,7 @@ def attempt_proof(repl,
             else:
                 if handling_by:
                     metrics["incorrect_by"] += 1
+                curr_finished_proofs = metrics["finished_proofs"]
                 metrics = attempt_proof(repl, 
                                         proof_info, 
                                         gen_config, 
@@ -294,6 +295,8 @@ def attempt_proof(repl,
                                         pos = pos,
                                         max_depth=max_depth-1, 
                                         saving=saving)
+                if metrics["finished_proofs"] > curr_finished_proofs:
+                    return metrics
         
         logging.info(f"Processed prediction at pos={pos}\n")
     return metrics
