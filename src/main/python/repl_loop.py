@@ -274,10 +274,11 @@ def attempt_proof(repl,
             # reached max depth
             elif max_depth == 1:
                 logging.info("reached max depth. Last proof was:")
-                logging.info(f"{repl.last_proof()}\n")
+                logging.info(f"{repl.last_proof()}")
                 allowed_breadth = len(predicts)
                 if i >= allowed_breadth:
-                    nsteps_back = len(list(takewhile(lambda x: x == allowed_breadth, reversed(pos))))
+                    nsteps_back = len(list(takewhile(lambda x: x == allowed_breadth, reversed(pos)))) + 1
+                    logging.info(f"Returning {nsteps_back} steps back.\n")
                     repl.undoN(nsteps_back)
                 else:
                     repl.undo()
