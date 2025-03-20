@@ -277,7 +277,8 @@ def attempt_proof(repl,
                 logging.info(f"{repl.last_proof()}")
                 allowed_breadth = len(predicts)
                 if i >= allowed_breadth:
-                    nsteps_back = len(list(takewhile(lambda x: x == allowed_breadth, reversed(pos)))) + 1
+                    nonzeros_rl = reversed(list(takewhile(lambda x: x != 0, pos)))
+                    nsteps_back = len(list(takewhile(lambda x: x == allowed_breadth, nonzeros_rl))) + 1
                     logging.info(f"Returning {nsteps_back} steps back.\n")
                     repl.undoN(nsteps_back)
                 else:
