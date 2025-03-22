@@ -180,9 +180,9 @@ class REPL:
     
     def complete_step(self):
         self.apply("done")
-        if self.latest_error():
+        if self.last_error():
             self.undo()
             self.apply("qed")
-            if self.latest_error():
+            if self.last_error():
                 self.undo()
                 self.apply("sorry (* repl-applied sorry *)")
