@@ -2,7 +2,7 @@
 This is the repository of the DeepIsaHOL project. It is supported by the DeepIsaHOL MSCA Fellowship (number: 101102608) titled Reinforcement learning to improve proof-automation in theorem proving. The project's long-term objective is to use the [Isabelle proof assistant](https://isabelle.in.tum.de/) as a reinforcement learning (RL) environment for training RL algorithms that ultimately serve as tools for Isabelle users.
 
 The project currently offers:
-  1. proof data retrieving capabilities fron Isabelle libraries
+  1. proof data retrieving capabilities from Isabelle libraries
   2. a read-eval-print-loop interface for Isabelle in Scala and Python
   3. a Python training loop for Hugging Face T5 models for conditional generation
 
