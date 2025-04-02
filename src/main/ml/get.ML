@@ -13,6 +13,7 @@ sig
       transition: Toplevel.transition} list
 
   (* THEORY INFORMATION *)
+  val string_of_yxml: string -> string
   val transitions: theory -> Position.T -> string -> Toplevel.transition list
   val user_state: {break_lines: bool} -> Toplevel.state -> string
   val minor_keywords: theory -> string list
@@ -124,6 +125,9 @@ fun stateful_transitions thy0 thy_file_dir =
 
 (** THEORY INFORMATION **)
 
+(* string_of_yxml: string -> string *)
+val string_of_yxml = YXML.parse_body #> XML.content_of
+
 (* transitions: theory -> Position.T -> string -> Toplevel.transition list *)
 fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
 
@@ -137,7 +141,7 @@ fun user_state {break_lines=breaking} state =
       |> Pretty.block 
       |> Pretty.unbreakable
       |> Pretty.string_of
-  in YXML.content_of base_string end;
+  in string_of_yxml base_string end;
 
 (* minor_keywords: theory -> string list *)
 fun minor_keywords thy = Scan.dest_lexicon (Keyword.minor_keywords (Thy_Header.get_keywords thy));
@@ -192,7 +196,7 @@ fun named_thms nthms =
   in maps (fn (name, thms) => distrib name 1 thms) nthms end;
 
 (* name_of_thm: thm -> Thm_Name.T (c.f. Thm.derivation_name) *)
-fun name_of_thm t = (Thm.derivation_name t, 0)
+fun name_of_thm t = Thm.derivation_name t
 
 (* get_all_facts: Proof.context -> {global_f: Facts.T, local_f: Facts.T} *)
 fun get_all_facts ctxt =
@@ -245,8 +249,8 @@ fun thms ctxt name =
 fun deps thy thms =
   let
     val lookup = Global_Theory.lookup_thm_id thy;
-    fun thm_of_name thm_name = Global_Theory.get_thm_name thy (thm_name, Position.none);
-    fun make_name_thm id_name = (snd id_name, thm_of_name (snd id_name));
+    fun thm_of_name name_pos = Global_Theory.get_thm_name thy name_pos;
+    fun make_name_thm id_name_pos = (fst (snd id_name_pos), thm_of_name (snd id_name_pos));
     fun deps (i, thm_node) res =
       if Inttab.defined res i then res
       else

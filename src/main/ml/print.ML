@@ -32,7 +32,7 @@ exception FORMAT of string
 val yx_string_of = Pretty.string_of
 
 (* Pretty.T -> string *)
-val string_of_pretty = YXML.content_of o yx_string_of
+val string_of_pretty = Get.string_of_yxml o yx_string_of
 
 (* term -> string *)
 val term_yx_string = Syntax.string_of_term
@@ -42,7 +42,7 @@ fun term_string ctxt format t =
   let 
     val result = (case format of
         XML depth => Pretty.string_of (XML.pretty depth (YXML.parse (term_yx_string ctxt t)))
-      | YX => (YXML.content_of (term_yx_string ctxt t))
+      | YX => (Get.string_of_yxml (term_yx_string ctxt t))
       | AST => (ML_Syntax.print_term t)
     )
   in result

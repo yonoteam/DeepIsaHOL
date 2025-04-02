@@ -9,7 +9,7 @@ lazy val root = project
     name := "isabelle-rl",
     version := "0.1.0-SNAPSHOT",
 
-    libraryDependencies += "de.unruh" %% "scala-isabelle" % "master-SNAPSHOT" from "file:~/Programs/deepIsaHOL/lib/scala-isabelle/target/scala-2.13/scala-isabelle_2.13-master-SNAPSHOT.jar", // development snapshot
+    libraryDependencies += "de.unruh" %% "scala-isabelle" % "master-SNAPSHOT", // do `sbt publishLocal` in scala-isabelle first
     resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
 
     // https://mvnrepository.com/artifact/io.circe

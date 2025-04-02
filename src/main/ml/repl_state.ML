@@ -73,9 +73,9 @@ fun extract_err e =
       else txts @ ["\n", txt, "\n"]
     fun message_of err = 
       Runtime.exn_messages err
-      |> map (fn ((_, txt), _) => YXML.content_of txt)
+      |> map (fn ((_, txt), _) => Get.string_of_yxml txt)
     val (mssgs, loc_mssg) = (case e of
-      SOME (err, str) => (message_of err, YXML.content_of str)
+      SOME (err, str) => (message_of err, Get.string_of_yxml str)
       | NONE => ([], ""));
   in implode (add_loc mssgs loc_mssg) end;
 
