@@ -312,7 +312,7 @@ def inputs_targets_from(proof_json, data_mode=isa_data.FORMATS["S"], readable=Fa
         data.append((x, y))
     return data
 
-# TOKENIZER REQUIREMENTS
+# DIRECTORY COMPUTATIONS
 
 def get_approx_tokens(token_counter, proof_json):
     """To be used with proofs.apply. Accumulates the token
@@ -352,6 +352,7 @@ def estimate_vocab_size(json_data_dir, coverage_threshold=0.95):
     logging.info(f"Estimated vocab size is {optimal_vocab_size}")
     return optimal_vocab_size
 
+# TODO: move to tokenizer_ops.py
 def get_tokenizer_corpus(json_data_dir, readable=False):
     """Tokenizer's training corpus generator.
     

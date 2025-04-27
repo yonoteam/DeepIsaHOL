@@ -62,12 +62,13 @@ fun query_thms ctxt n t =
   let
     val find = Find_Theorems.find_theorems_cmd ctxt NONE (SOME n) true;
     val queries = generate_queries ctxt t;
-    fun add_thms q nthms = 
+    fun add_thms q named_thms = 
       let
-        val results = map (Library.apfst Facts.ref_name) (snd (find q));
-        val names = map fst nthms;
-        fun in_names (name_cnt, _) = member (op =) names name_cnt
-      in fold (Ops.insert_if (Pred.neg in_names)) results nthms end;
+        fun to_name_thm ((name, _), thm) = (name, thm)
+        val results = map to_name_thm (snd (find q));
+        val names = map fst named_thms;
+        fun in_names (name, _) = member (op =) names name
+      in fold (Ops.insert_if (Pred.neg in_names)) results named_thms end;
   in fold add_thms queries [] end;
 
 
