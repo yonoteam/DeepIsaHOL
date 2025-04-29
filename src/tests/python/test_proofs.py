@@ -3,18 +3,21 @@
 # 
 # Test file for proofs.py
 
-import sys
 import os
+import sys
+import pytest
 import logging
+import tempfile
 from io import StringIO
+from pathlib import Path
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.dirname(os.path.dirname(TEST_DIR))
 MAIN_DIR = os.path.join(SRC_DIR, 'main/python')
 sys.path.insert(0, MAIN_DIR)
 
-import isa_data
-import proofs
+import dicts
+from proofs import data_dir
 
 SKELETON = {
     'proof': {
@@ -41,160 +44,72 @@ SKELETON = {
     }
 }
 
-BAD_PROOF_PATH = os.path.join(TEST_DIR, "proof_bad.json")
+@pytest.fixture
+def temp_valid_dir(tmp_path):
+    proof_file = tmp_path / "proof0.json"
+    dicts.save_as_json(SKELETON, proof_file)
+    return tmp_path
 
-def get_bad_proof():
-    try:
-        with open(BAD_PROOF_PATH, 'r') as f:
-            original_content = f.read()
-    except FileNotFoundError:
-        print("Tests failed: proof_bad.json does not exist.")
-    return original_content
+@pytest.fixture
+def temp_invalid_dir(tmp_path):
+    (tmp_path / "notaproof.txt").write_text("some content")
+    return tmp_path
 
-BAD_PROOF = get_bad_proof()
+def test_is_valid_true(temp_valid_dir):
+    assert data_dir.is_valid(temp_valid_dir)
 
-def restore_bad_proof():
-    with open(BAD_PROOF_PATH, 'w') as f:
-        f.write(BAD_PROOF)
+def test_is_valid_false(temp_invalid_dir):
+    assert not data_dir.is_valid(temp_invalid_dir)
 
-def get_proof_json():
-    skeleton_dir = os.path.join(TEST_DIR, "proof_skeleton.json")
-    skeleton = proofs.get_proof_json(skeleton_dir)
-    if skeleton == SKELETON:
-        print(f"get_proof_json() passed")
-    else:
-        print(f"get_proof_json() failed")
+def test_generate_paths(temp_valid_dir):
+    paths = list(data_dir.generate_paths(temp_valid_dir))
+    assert len(paths) == 1
+    assert paths[0].endswith("proof0.json")
 
-def valid_data_dir():
-    if proofs.valid_data_dir(TEST_DIR):
-        print(f"valid_data_dir() passed")
-    else:
-        print(f"valid_data_dir() failed")
+def test_get_paths(temp_valid_dir):
+    paths = data_dir.get_paths(temp_valid_dir)
+    assert paths == sorted(paths)
 
-def generate_paths_from():
-    paths = list(proofs.generate_paths_from(TEST_DIR))
-    if os.path.join(TEST_DIR, "proof_skeleton.json") in paths:
-        print(f"generate_paths_from() passed")
-    else:
-        print(f"generate_paths_from() failed")
+def test_find_erroneous(temp_valid_dir):
+    # No error expected
+    errors = data_dir.find_erroneous(temp_valid_dir)
+    assert errors == []
 
-def generate_from():
-    # capture logs
-    log_stream = StringIO()
-    handler = logging.StreamHandler(log_stream)
-    logger = logging.getLogger()
-    logger.addHandler(handler)
+def test_find_erroneous_with_error(tmp_path):
+    bad_json = tmp_path / "proof1.json"
+    bad_json.write_text('{"bad": ')  # malformed JSON
+    errors = data_dir.find_erroneous(tmp_path)
+    assert bad_json.as_posix() in errors
 
-    # actual test
-    proof_dicts = list(proofs.generate_from(TEST_DIR))
+def test_delete_erroneous(tmp_path):
+    bad_file = tmp_path / "proof2.json"
+    bad_file.write_text("{bad json:}")  # invalid
+    deleted, failed = data_dir.delete_erroneous(tmp_path)
+    assert bad_file.as_posix() in deleted
+    assert not failed
 
-    # check error logs
-    handler.flush()
-    log_contents = log_stream.getvalue()
-    error_logged = "Failed to process" in log_contents
+def test_generate_from(temp_valid_dir):
+    results = list(data_dir.generate_from(temp_valid_dir))
+    assert isinstance(results[0], dict)
+    assert results[0]["proof"]["methods"][0]["name"] == ""
 
-    # clean up handler
-    logger.removeHandler(handler)
-    log_stream.close()
+def test_apply(temp_valid_dir):
+    def count_keys(acc, d): return acc + len(d)
+    result = data_dir.apply(count_keys, 0, temp_valid_dir)
+    assert result == 1
 
-    if SKELETON in proof_dicts and error_logged:
-        print(f"generate_from() passed")
-    else:
-        print(f"generate_from() failed")
+def test_generate_dataset_paths(temp_valid_dir):
+    paths = list(data_dir.generate_dataset_paths(temp_valid_dir, split="none"))
+    assert len(paths) == 1
 
-def get_proofs_paths():
-    suffixes = ['proof.json', 'proof_bad.json', 'proof_skeleton.json']
-    real_paths = [os.path.join(TEST_DIR, suffix) for suffix in suffixes]
-    test_paths = proofs.get_proofs_paths(TEST_DIR)
-    if set(real_paths) == set(test_paths):
-        print(f"get_proofs_paths() passed")
-    else:
-        print(f"get_proofs_paths() failed")
+def test_group_paths_by_logic(tmp_path):
+    logic_dir = tmp_path / "HOL"
+    theory_dir = logic_dir / "Main"
+    theory_dir.mkdir(parents=True)
+    file_path = theory_dir / "proof3.json"
+    file_path.write_text('{"foo": "bar"}')
 
-def find_erroneous():
-    erroneous_paths = proofs.find_erroneous(TEST_DIR)
-    try:
-        if erroneous_paths[0] == BAD_PROOF_PATH:
-            print(f"find_erroneous() passed")
-        else:
-            print(f"find_erroneous() failed")
-    except IndexError:
-        print(f"find_erroneous() failed: index out of range")
-
-def delete_erroneous():  
-    deleted_files, _ = proofs.delete_erroneous(TEST_DIR)
-    if BAD_PROOF_PATH in deleted_files and not os.path.exists(BAD_PROOF_PATH):
-        print("delete_erroneous() passed")
-    else:
-        print("delete_erroneous() failed")
-    restore_bad_proof()
-
-def count_steps():
-    proof = proofs.get_proof_json(os.path.join(TEST_DIR, "proof.json"))
-    count = proofs.count_steps(proof)
-    if count > 1:
-        print("count_steps() passed")
-    else:
-        print("count_steps() failed")
-
-def apply():
-    _ = proofs.delete_erroneous(TEST_DIR)
-    try:
-        counts = proofs.apply(lambda n, proof: n + proofs.count_steps(proof), 0, TEST_DIR)
-        if counts > 0:
-            print("apply() passed")
-        else:
-            print("apply() failed")
-    except Exception as e:
-        print(f"apply() failed: {e}")
-    finally:
-        restore_bad_proof()
-
-def get_keys():
-    skeleton = proofs.get_proof_json(os.path.join(TEST_DIR, "proof_skeleton.json"))
-    keys = proofs.get_keys(skeleton)
-    skeleton_keys = proofs.get_keys(SKELETON)
-    if set(keys) == set(skeleton_keys):
-        print("get_keys() passed")
-    else:
-        print("get_keys() failed")
-
-def make_skeleton():
-    _ = proofs.delete_erroneous(TEST_DIR)
-    try:
-        skeleton = proofs.make_skeleton(TEST_DIR)
-        if skeleton == SKELETON:
-            print("make_skeleton() passed")
-        else:
-            print("make_skeleton() failed")
-    except Exception as e:
-        print(f"make_skeleton() failed: {e}")
-    finally:
-        restore_bad_proof()
-
-def print_proof():
-    proof = proofs.get_proof_json(os.path.join(TEST_DIR, "proof.json"))
-    proofs.print_proof(proof)
-
-def inputs_targets_from(test_dir=TEST_DIR):
-    try:
-        iter_f = lambda data_list, proof: proofs.inputs_targets_from(proof, data_mode=isa_data.FORMATS["SPKT"], readable=False)
-        proofs.apply(iter_f, [], test_dir)
-        print("input_targets_from() passed")
-    except Exception as e:
-        print(f"input_targets_from() failed: {e}")
-
-if __name__ == "__main__":
-    get_proof_json()
-    valid_data_dir()
-    generate_paths_from()
-    generate_from()
-    get_proofs_paths()
-    find_erroneous()
-    delete_erroneous()
-    count_steps()
-    apply()
-    get_keys()
-    make_skeleton()
-    print("An Isabelle proof is:")
-    print_proof()
+    result = data_dir.group_paths_by_logic(tmp_path)
+    assert "HOL" in result
+    assert "Main.thy" in result["HOL"]
+    assert result["HOL"]["Main.thy"][0][1].endswith("proof3.json")

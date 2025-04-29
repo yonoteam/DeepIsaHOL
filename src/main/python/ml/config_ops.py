@@ -3,8 +3,9 @@ import os
 import logging
 import argparse
 
-import proofs
-from . import FORMATS, SPLITS
+import proofs.data_dir
+from proofs.str_ops import FORMATS
+from proofs.data_dir import SPLITS
 
 def ancester_dir_exists(path):
     """

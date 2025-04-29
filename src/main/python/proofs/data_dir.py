@@ -12,7 +12,7 @@ import json
 
 from tqdm import tqdm
 from pathlib import Path
-from typing import Union, List, Generator, Callable
+from typing import Union, List, Iterator, Callable
 
 import dicts
 
@@ -35,7 +35,7 @@ def is_valid(json_data_dir: PathLike) -> bool:
             return True
     return False
 
-def generate_paths(json_data_dir: PathLike) -> Generator[str]:
+def generate_paths(json_data_dir: PathLike) -> Iterator[str]:
     """
     Generates all file-paths in the input directory that end in "proof*.json"
 
@@ -100,7 +100,7 @@ def delete_erroneous(
             failed_files.append(path_reason)
     return deleted_files, failed_files
 
-def generate_from(json_data_dir: PathLike) -> Generator[dict]:
+def generate_from(json_data_dir: PathLike) -> Iterator[dict]:
     """
     Yields a dictionary for each "proof*.json" file in the input directory.
     It assumes that each erroneous file has been deleted.
@@ -141,7 +141,7 @@ SPLITS = {
 def generate_dataset_paths(
         json_data_dir: PathLike, 
         split:str = SPLITS["NONE"]
-    ) -> Generator[str]:
+    ) -> Iterator[str]:
     """
     Yields file paths to 'proof*.json' files in the input directory 
     according to a specified dataset split (train/valid/test/none).

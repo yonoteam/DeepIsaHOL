@@ -1,5 +1,9 @@
+"""
+Maintainers:
+    - Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
 
-
+Utilities retrieving proofs' data.
+"""
 
 def full_actions_of(proof_json):
     return [step['step']['action'] for step in proof_json['proof']['steps']]
@@ -35,7 +39,7 @@ __all__ = [
     "actions_of",
     "user_states_of",
     "constants_of",
-    "print_proof",
     "user_proof_up_to",
-    "count_steps"
+    "count_steps",
+    "print_proof"
 ]
