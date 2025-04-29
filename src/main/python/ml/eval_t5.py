@@ -10,22 +10,25 @@ from torch.utils.data import DataLoader
 from transformers import DataCollatorForSeq2Seq
 from accelerate.utils import broadcast_object_list
 
-import ops
+import dicts
+import distrib
+import save_ops
 import train_t5
+import config_ops
 import tokenizer_ops as tokops
 
 
 # LOADING
 
 def load_model_tok_data1(config_dict):
-    toks_dir, _, models_dir = ops.get_directory_paths(config_dict)
+    toks_dir, _, models_dir = save_ops.get_dirs(config_dict)
     tokenizer = tokops.load_latest_tokenizer(toks_dir)
     dataset = tokops.get_dataset(tokenizer, config_dict, split = config_dict["data_split"])
     model = train_t5.load_latest_model(models_dir)
     return model, tokenizer, dataset
 
 def load_model_tok_dataN(config_dict, accelerator):
-    toks_dir, _, models_dir = ops.get_directory_paths(config_dict)
+    toks_dir, _, models_dir = save_ops.get_dirs(config_dict)
     if accelerator.is_main_process:
         tokenizer = tokops.load_latest_tokenizer(toks_dir)
         dataset = tokops.get_dataset(tokenizer, config_dict, split = config_dict["data_split"])
@@ -107,7 +110,7 @@ def report_validation1(metrics, records):
     records["avg_loss"].append(metrics["loss_sum"] / metrics["step"])
     records["non_pad_accuracy"].append(metrics["non_pad_corrects_sum"] / metrics["total_non_pad_toks"])
     records["first_token_accuracy"].append(metrics["first_correct_sum"] / metrics["total_first_toks"])
-    ops.save_dict_as_json(records, "validation_records.json")
+    dicts.save_as_json(records, "validation_records.json")
     return records
 
 def report_validationN(metrics, records, accelerator):
@@ -128,7 +131,7 @@ def report_validationN(metrics, records, accelerator):
         records["avg_loss"].append(global_loss_sum.item() / global_step.item())
         records["non_pad_accuracy"].append(global_non_pad_corrects.item() / global_non_pad_toks.item())
         records["first_token_accuracy"].append(global_first_corrects.item() / global_first_toks.item())
-        ops.save_dict_as_json(records, "validation_records.json")
+        dicts.save_as_json(records, "validation_records.json")
     else:
         records = None
     accelerator.wait_for_everyone()
@@ -234,7 +237,7 @@ def report_matching1(metrics, records):
     records["exact_matches"] = metrics["exact_matches"]
     records["mismatches"] = metrics["mismatches"]
     records["coincidences"] = metrics["coincidences"]
-    ops.save_dict_as_json(records, "matching_records.json")
+    dicts.save_as_json(records, "matching_records.json")
     return records
 
 def report_matchingN(metrics, records, accelerator):
@@ -256,7 +259,7 @@ def report_matchingN(metrics, records, accelerator):
         records["exact_matches"] = metrics["exact_matches"]
         records["mismatches"] = metrics["mismatches"]
         records["coincidences"] = metrics["coincidences"]
-        ops.save_dict_as_json(records, "matching_records.json")
+        dicts.save_as_json(records, "matching_records.json")
     else:
         records = None
     accelerator.wait_for_everyone()
@@ -364,14 +367,16 @@ def with_metric(eval_str, config_dict):
         )
         logging.info(f"Finished evaluation.")
     
-    ops.wrap_w_accelerator(lambda acc: general_body(acc))
+    distrib.wrap_w_accelerator(lambda acc: general_body(acc))
 
 
 if __name__ == "__main__":
-    ops.configure_logging("t5_eval.log")
+    config_ops.setup_logging("t5_eval.log")
     try:
-        config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation="Evaluate the transformer as specified in the input JSON configuration."))
-        ops.check_params(config_dict)
+        explanation = "Evaluate the transformer as specified in the input JSON configuration."
+        path = config_ops.parse_config_path(tool_explanation=explanation)
+        config_dict = dicts.load_json(path)
+        config_ops.check_params(config_dict)
     except Exception as e:
         message = f"Loading configuration information: {e}"
         logging.error(message)

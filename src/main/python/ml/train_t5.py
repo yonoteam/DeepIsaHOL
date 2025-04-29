@@ -4,15 +4,12 @@
 # Utility for training a Hugging Face T5 Model
 
 
-import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 import logging
 import numpy as np
 import torch
 import random
 
-import isa_data
-import ops
 import tokenizer_ops as tokops
 
 from torch.utils.data import DataLoader
@@ -25,6 +22,12 @@ from transformers import (
 )
 from accelerate.utils import broadcast_object_list
 
+import dicts
+import distrib
+import save_ops
+import config_ops
+from proofs.data_dir import SPLITS
+from . import get_context_length
 
 # CONFIGURATION
 
@@ -87,7 +90,6 @@ def log_empty_labels(batch_idx, batch, accelerator):
 def log_nan_loss(loss, batch_idx, batch, accelerator):
     if torch.isnan(loss).any():
         logging.error(f"{accelerator.process_index}: NaN loss detected at batch {batch_idx}")
-        ops.save_batch(batch, f"nan_loss_batch{batch_idx}.pt")
 
 # RETRIEVE MODEL
 
@@ -111,19 +113,19 @@ def initialize_model(model_name, finetuning, vocab_size, ctxt_length):
     return model
 
 def load_latest_model(models_dir):
-    latest_dir = ops.get_latest_dir_from(models_dir, adding_one=False)
+    latest_dir = save_ops.get_latest_dir(models_dir, adding_one=False)
     model = T5ForConditionalGeneration.from_pretrained(latest_dir)
     logging.info(f"Loaded Hugging Face model from {latest_dir} of type {type(model)}.")
     return model
 
 def get_model(config_dict, vocab_size):
-    _, _, models_dir = ops.get_directory_paths(config_dict, making_dirs=True)
-    previous_model = ops.exists_previous("model", models_dir)
+    _, _, models_dir = save_ops.get_dirs(config_dict, making_dirs=True)
+    previous_model = save_ops.exists_previous("model", models_dir)
 
     if previous_model:
         model = load_latest_model(models_dir)
     else:
-        ctxt_length = isa_data.get_context_length(config_dict["data_mode"])
+        ctxt_length = get_context_length(config_dict["data_mode"])
         finetuning = True if config_dict["data_mode"].startswith("finetune") else False
         model = initialize_model(config_dict["model_name"], finetuning, vocab_size, ctxt_length)
     return model
@@ -141,7 +143,7 @@ def record(metrics, locals, accelerator, save_file="metrics.json"):
         metrics["accuracy"].append(global_corrects_sum.item() / global_valid_toks.item())
         metrics["steps"].append(global_train_step.item())
         logging.info(f"Current step's ({locals["train_step"]}) average loss is {avg_loss:.4f}")
-        ops.save_dict_as_json(metrics, save_file)
+        dicts.save_as_json(metrics, save_file)
     accelerator.wait_for_everyone()
     return metrics
 
@@ -210,8 +212,8 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, config_dict, accele
             metrics = record(metrics, locals, accelerator, save_file=f"train_metrics{epoch}.json")
         if batch_idx % 10000 == 0 and batch_idx > 0:
                 if accelerator.is_main_process:
-                    _, _, models_dir = ops.get_directory_paths(config_dict)
-                    ops.save_hf_data_in(accelerator.unwrap_model(model), models_dir)
+                    _, _, models_dir = save_ops.get_dirs(config_dict)
+                    save_ops.save_in(accelerator.unwrap_model(model), models_dir)
         accelerator.wait_for_everyone()
 
     logging.info(f"{process_idx}: Total number of batches was {batch_idx + 1}")
@@ -224,8 +226,8 @@ def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
         logging.info(f"Epoch {epoch + 1} of {num_epochs}")
         train(model, train_dataloader, optimizer, lr_scheduler, epoch, config_dict, accelerator)
         if accelerator.is_main_process:
-            _, _, models_dir = ops.get_directory_paths(config_dict)
-            ops.save_hf_data_in(accelerator.unwrap_model(model), models_dir)
+            _, _, models_dir = save_ops.get_dirs(config_dict)
+            save_ops.save_in(accelerator.unwrap_model(model), models_dir)
             logging.info(f"Finished training loop. Checkpoint saved for epoch {epoch}.")
         accelerator.wait_for_everyone()
         validate(model, valid_dataloader, epoch, accelerator)
@@ -243,8 +245,8 @@ def load_model_tok_data(accelerator, config_dict):
         vocab_size = len(tokenizer)
 
         # Data
-        train_data = tokops.get_dataset(tokenizer, config_dict, split = isa_data.SPLITS["TRAIN"])
-        valid_data = tokops.get_dataset(tokenizer, config_dict, split = isa_data.SPLITS["VALID"])
+        train_data = tokops.get_dataset(tokenizer, config_dict, split = SPLITS["TRAIN"])
+        valid_data = tokops.get_dataset(tokenizer, config_dict, split = SPLITS["VALID"])
 
         # Model
         model = get_model(config_dict, vocab_size)
@@ -271,13 +273,15 @@ def main(accelerator, config_dict):
 
 if __name__ == "__main__":
     set_all_seeds(42)
-    ops.configure_logging("t5_train.log")
+    config_ops.setup_logging("t5_train.log")
     try:
-        config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation="Train the transformer as specified in the input JSON configuration."))
-        ops.check_params(config_dict)
+        explanation = "Train the transformer as specified in the input JSON configuration."
+        path = config_ops.parse_config_path(tool_explanation=explanation)
+        config_dict = dicts.load_json(path)
+        config_ops.check_params(config_dict)
     except Exception as e:
         message = f"Loading configuration information: {e}"
         logging.error(message)
         raise Exception("Error " + message)
 
-    ops.wrap_w_accelerator(lambda acc: main(acc, config_dict))
+    distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))

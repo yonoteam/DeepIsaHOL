@@ -15,11 +15,12 @@ from itertools import takewhile
 import torch
 from transformers import pipeline
 
-import isa_data
-import ops
-import proofs
-import eval_t5
-import tokenizer_ops as tokops
+import dicts
+import ml.eval_t5
+import ml.config_ops
+import proofs.data_dir
+import proofs.str_ops
+import ml.tokenizer_ops as tokops
 from repl import REPL
 
 # REPLING
@@ -188,8 +189,8 @@ def save_proof(repl, proof_info):
         logging.info(f"Saved proof to {filename}")
 
 def inputs_from(repl, proof, data_mode):
-    xs = [repl.proof_so_far(), proofs.Separator["user_state"], repl.last_usr_state()]
-    x = " ".join(proofs.add_spk_data(proof, xs, data_mode=data_mode))
+    xs = [repl.proof_so_far(), proofs.str_ops.Separator["user_state"], repl.last_usr_state()]
+    x = " ".join(proofs.str_ops.add_spk_data(proof, xs, data_mode=data_mode))
     x = "isabelle next step: " + x if "finetune" in data_mode else x
     return x        
 
@@ -323,7 +324,7 @@ def do_repling(
         allowed_depth=5, 
         saving=False):
     logics_dict = group_paths_by_logic(config_dict)
-    tok_max_length = isa_data.get_context_length(config_dict["data_mode"])
+    tok_max_length = ml.get_context_length(config_dict["data_mode"])
     tokenizer.model_max_length = tok_max_length
     print(f"Model context length = {model.config.n_positions}")
     print(f"Tokenizer context length = {tokenizer.model_max_length}")
@@ -360,7 +361,7 @@ def do_repling(
                 logging.info(f"Processing theory {thy_name}")
                 for prf_num, path in logics_dict[logic][thy_name]:
                     try:
-                        proof = proofs.get_proof_json(path)
+                        proof = dicts.load_json(path)
                         logging.info(f"Attempting (successfully loaded) proof {path}")
                         proof_info = {
                             "prf_num": prf_num,
@@ -405,13 +406,15 @@ def do_repling(
 
 if __name__ == "__main__":
     try:
-        config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation="Evaluate the transformer as specified in the input JSON configuration."))
-        ops.check_params(config_dict)
+        info="Evaluates a T5 model via depth-first search proof exploration as specified in the input JSON configuration."
+        path = ml.config_ops.parse_config_path(tool_explanation=info)
+        config_dict = dicts.load_json(path)
+        ml.config_ops.check_params(config_dict)
     except Exception as e:
         message = f"Loading configuration information: {e}"
         logging.error(message)
         raise Exception(f"Error {e}")
     
-    model, tokenizer, dataset = eval_t5.load_model_tok_data(config_dict)
+    model, tokenizer, dataset = ml.eval_t5.load_model_tok_data(config_dict)
     model.to("cpu")
     do_repling(config_dict, model, tokenizer, saving=True)
