@@ -7,6 +7,20 @@ import proofs.data_dir
 from proofs.str_ops import FORMATS
 from proofs.data_dir import SPLITS
 
+CTX_LENGTHS = {
+    FORMATS["S"]: 512,
+    FORMATS["SP"]: 1024,
+    FORMATS["SPK"]: 1024,
+    FORMATS["SPKT"]: 1024,
+    FORMATS["FS"]: 512,
+    FORMATS["FSP"]: 1024,
+    FORMATS["FSPK"]: 1024,
+    FORMATS["FSPKT"]: 1024
+}
+
+def get_context_length(mode):
+    return CTX_LENGTHS.get(mode)
+
 def ancester_dir_exists(path):
     """
     Checks if an ancester directory for the input FULL path is an existing directory.

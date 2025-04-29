@@ -16,7 +16,6 @@ import save_ops
 
 import proofs.data_dir
 import proofs.str_ops
-from . import get_context_length
 from proofs.str_ops import FORMATS
 from proofs.data_dir import SPLITS
 
@@ -42,7 +41,7 @@ def train_tokenizer(model_name, data_dir):
 # LOAD TOKENIZER
 
 def load_latest_tokenizer(tokenizers_dir):
-    latest_dir = save_ops.get_dirs(tokenizers_dir, adding_one=False)
+    latest_dir = save_ops.get_latest_dir(tokenizers_dir, adding_one=False)
     tokenizer = AutoTokenizer.from_pretrained(latest_dir)
     logging.info(f"Loaded Hugging Face tokenizer from {latest_dir} of type {type(tokenizer)}.")
     return tokenizer
@@ -77,7 +76,7 @@ def accumulate_tokenized_lengths(lengths, proof, tokenizer, data_mode=FORMATS["S
     :param data_mode: the data format
     :rtype: tuple(list)
     """
-    x_y_pairs = proofs.str_ops.inputs_targets_from(proof, data_mode=data_mode)
+    x_y_pairs = proofs.str_ops.str_ops.inputs_targets_from(proof, data_mode=data_mode)
     lengths[0].extend(len(tokenizer(x)["input_ids"]) for x, _ in x_y_pairs)
     lengths[1].extend(len(tokenizer(y)["input_ids"]) for _, y in x_y_pairs)
     return lengths
@@ -125,12 +124,12 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=FORMATS["S"
     :returns: generator for tokenized inputs with labels for conditional generation
     :rtype: generator
     """
-    tok_max_length = get_context_length(data_mode)
+    tok_max_length = config_ops.get_context_length(data_mode)
     tokenizer.model_max_length = tok_max_length
     logging.info(f"Tokenizer's model max length is {tokenizer.model_max_length}")
     for path in proofs.data_dir.generate_dataset_paths(json_data_dir, split):
         proof = dicts.load_json(path)
-        for input_text, target_text in proofs.inputs_targets_from(proof, data_mode):
+        for input_text, target_text in proofs.str_ops.inputs_targets_from(proof, data_mode):
             model_inputs = tokenize(tokenizer, input_text, target_text)
             for model_input in model_inputs:
                 yield model_input

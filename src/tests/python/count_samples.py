@@ -15,13 +15,13 @@ MAIN_DIR = os.path.join(SRC_DIR, 'main/python')
 sys.path.insert(0, MAIN_DIR)
 
 import dicts
-import ml.config_ops
-import ml.eval_t5
+import config_ops
+import eval_t5
 
 def main(config_dict):
     logging.info(f"Counting samples from the split: {config_dict['data_split']}")
-    model, tokenizer, dataset = ml.eval_t5.load_model_tok_data(config_dict)
-    model, dataloader = ml.eval_t5.prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["batch_size"])
+    model, tokenizer, dataset = eval_t5.load_model_tok_data(config_dict)
+    model, dataloader = eval_t5.prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["batch_size"])
     total_samples = 0
     for batch_idx, batch in enumerate(dataloader):
         if batch_idx == 0:
@@ -38,13 +38,13 @@ def main(config_dict):
 if __name__ == "__main__":
     try:
         info = "Tool to count (in a single process) the total number of samples in a dataset split."
-        path = ml.config_ops.parse_config_path(tool_explanation=info)
+        path = config_ops.parse_config_path(tool_explanation=info)
         config_dict = dicts.load_json(path)
-        ml.config_ops.check_params(config_dict)
+        config_ops.check_params(config_dict)
     except Exception as e:
         message = f"Loading configuration information: {e}"
         logging.error(message)
         raise Exception("Error " + message)
     
-    ml.config_ops.setup_logging(f"count_samples_{config_dict['data_split']}.log")
+    config_ops.setup_logging(f"count_samples_{config_dict['data_split']}.log")
     main(config_dict)

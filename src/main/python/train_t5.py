@@ -27,7 +27,6 @@ import distrib
 import save_ops
 import config_ops
 from proofs.data_dir import SPLITS
-from . import get_context_length
 
 # CONFIGURATION
 
@@ -125,7 +124,7 @@ def get_model(config_dict, vocab_size):
     if previous_model:
         model = load_latest_model(models_dir)
     else:
-        ctxt_length = get_context_length(config_dict["data_mode"])
+        ctxt_length = config_ops.get_context_length(config_dict["data_mode"])
         finetuning = True if config_dict["data_mode"].startswith("finetune") else False
         model = initialize_model(config_dict["model_name"], finetuning, vocab_size, ctxt_length)
     return model
