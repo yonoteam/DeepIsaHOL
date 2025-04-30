@@ -21,7 +21,6 @@ import distrib
 import eval_t5
 import train_t5
 import config_ops
-from proofs.str_ops import FORMATS
 
 def test_load_model_tok_data(config_dict, accelerator):
     try:
