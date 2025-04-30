@@ -30,6 +30,7 @@ sig
 
   (* System operations *)
   val apply_with_timeout: Time.time -> ('a -> 'b) -> 'a -> 'b Exn.result
+  val path_prefix_up_to: string -> Path.T -> Path.T option
   val file_exists: string -> bool
   val is_directory: string -> bool
   val create_directory: {force: bool} -> string -> unit
@@ -213,6 +214,22 @@ fun apply_with_timeout timeout f x  =
           else (OS.Process.sleep (Time.fromMilliseconds 100); wait_for_future start_time)
       end;
   in wait_for_future (Time.now ()) end;
+
+(* path_prefix_up_to: string -> Path.T -> Path.T option *)
+fun path_prefix_up_to parent_name path =
+  let
+    val full_path = File.absolute_path path;
+    fun check_else_parent_path opt_p = (case opt_p of 
+      SOME p => 
+        if File.platform_path (Path.base p) = parent_name 
+        then SOME p 
+        else (case try Path.dir p of 
+          SOME q => if can Path.dir q 
+            then check_else_parent_path (SOME q) 
+            else NONE
+          | NONE => NONE)
+      | NONE => NONE)
+  in check_else_parent_path (SOME full_path) end;
 
 (* file_exists: string -> bool *)
 fun file_exists file_dir 
