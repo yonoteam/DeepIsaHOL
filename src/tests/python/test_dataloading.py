@@ -70,9 +70,10 @@ def log_dataset_info(dataloader, accelerator):
             logging.info(f"Train step number {batch_idx}")
     accelerator.wait_for_everyone()
     logging.info(f"{accelerator.process_index}: Total number of batches was {batch_idx + 1}")
+    torch.cuda.empty_cache()
     if accelerator.is_main_process:
-        batches = accelerator.gather(torch.tensor([batch_idx + 1], device=accelerator.device)).sum().item()
-        samples = accelerator.gather(torch.tensor([total_samples], device=accelerator.device)).sum().item()
+        batches = accelerator.reduce(batch_idx + 1, reduction="sum")
+        samples = accelerator.reduce(total_samples, reduction="sum")
         logging.info(f"Total number of batches was {batches}")
         logging.info(f"Total number of samples was {samples}")
 

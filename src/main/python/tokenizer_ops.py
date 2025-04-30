@@ -14,8 +14,9 @@ import dicts
 import config_ops
 import save_ops
 
-import proofs.data_dir
 import proofs.str_ops
+import proofs.data_dir
+import proofs.data_stats
 from proofs.str_ops import FORMATS
 from proofs.data_dir import SPLITS
 
@@ -30,7 +31,7 @@ def train_tokenizer(model_name, data_dir):
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         training_corpus = get_tokenizer_corpus(data_dir)
-        estimated_vocab_size = proofs.estimate_vocab_size(data_dir, 0.98)
+        estimated_vocab_size = proofs.data_stats.estimate_vocab_size(data_dir, 0.98)
         vocab_size = int(1.5 * estimated_vocab_size)
         tokenizer = tokenizer.train_new_from_iterator(training_corpus, vocab_size)
         return tokenizer
