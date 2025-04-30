@@ -24,7 +24,7 @@ from proofs.data_dir import SPLITS
 # TRAINING FROM SCRATCH
 
 def get_tokenizer_corpus(json_data_dir, readable=False):
-    for proof in proofs.str_ops.generate_from(json_data_dir):
+    for proof in proofs.data_dir.generate_from(json_data_dir):
         yield proofs.str_ops.string_from(proof, readable)
 
 def train_tokenizer(model_name, data_dir):
