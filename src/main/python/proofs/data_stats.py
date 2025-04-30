@@ -8,8 +8,8 @@ import statistics
 
 from collections import Counter
 
-import str_ops
-import data_dir
+from proofs import str_ops
+from proofs import data_dir
 
 # DIRECTORY COMPUTATIONS
 

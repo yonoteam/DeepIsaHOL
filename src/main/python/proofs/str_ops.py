@@ -7,7 +7,7 @@ Utilities for turning and manipulating the proof data as strings.
 
 from typing import List, Tuple, Optional
 
-from . import orig_objective_of, user_proof_up_to
+from proofs import orig_objective_of, user_proof_up_to
 
 def fix_missing_quotations(s: str) -> str:
     """

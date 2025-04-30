@@ -9,7 +9,7 @@ generated data-directory of "proof*.json" files.
 from copy import deepcopy
 
 import dicts
-import data_dir
+from proofs import data_dir
 
 # SKELETON
 # assumption: make_branch will be applied to the elements 
