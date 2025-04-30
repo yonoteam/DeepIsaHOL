@@ -77,7 +77,7 @@ def accumulate_tokenized_lengths(lengths, proof, tokenizer, data_mode=FORMATS["S
     :param data_mode: the data format
     :rtype: tuple(list)
     """
-    x_y_pairs = proofs.str_ops.str_ops.inputs_targets_from(proof, data_mode=data_mode)
+    x_y_pairs = proofs.str_ops.inputs_targets_from(proof, data_mode=data_mode)
     lengths[0].extend(len(tokenizer(x)["input_ids"]) for x, _ in x_y_pairs)
     lengths[1].extend(len(tokenizer(y)["input_ids"]) for _, y in x_y_pairs)
     return lengths
