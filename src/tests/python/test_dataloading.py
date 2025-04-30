@@ -23,9 +23,9 @@ import train_t5
 import config_ops
 from proofs.str_ops import FORMATS
 
-def test_load_model_tok_data(accelerator, config_dict, split=FORMATS["NONE"]):
+def test_load_model_tok_data(config_dict, accelerator):
     try:
-        model, tokenizer, train_data = eval_t5.load_model_tok_data(accelerator, config_dict, split=split)
+        model, tokenizer, train_data = eval_t5.load_model_tok_data(config_dict, accelerator=accelerator)
         logging.info("eval_t5.test_load_model_tok_data passed")
         return model, tokenizer, train_data
     except Exception as e:
@@ -77,7 +77,7 @@ def log_dataset_info(dataloader, accelerator):
         logging.info(f"Total number of samples was {samples}")
 
 def main(accelerator, config_dict):
-    model, tokenizer, dataset = test_load_model_tok_data(accelerator, config_dict, split=FORMATS["TRAIN"])
+    model, tokenizer, dataset = test_load_model_tok_data(config_dict, accelerator)
     model, dataloader = test_prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=config_dict["batch_size"])
     log_model_forward(model, dataloader, accelerator)
     log_dataset_info(dataloader, accelerator)
