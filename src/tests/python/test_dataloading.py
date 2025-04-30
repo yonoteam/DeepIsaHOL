@@ -16,12 +16,14 @@ SRC_DIR = os.path.dirname(os.path.dirname(TEST_DIR))
 MAIN_DIR = os.path.join(SRC_DIR, 'main/python')
 sys.path.insert(0, MAIN_DIR)
 
-import isa_data
-import ops
-import train_t5
+import dicts
+import distrib
 import eval_t5
+import train_t5
+import config_ops
+from proofs.str_ops import FORMATS
 
-def test_load_model_tok_data(accelerator, config_dict, split=isa_data.FORMATS["NONE"]):
+def test_load_model_tok_data(accelerator, config_dict, split=FORMATS["NONE"]):
     try:
         model, tokenizer, train_data = eval_t5.load_model_tok_data(accelerator, config_dict, split=split)
         logging.info("eval_t5.test_load_model_tok_data passed")
@@ -75,20 +77,22 @@ def log_dataset_info(dataloader, accelerator):
         logging.info(f"Total number of samples was {samples}")
 
 def main(accelerator, config_dict):
-    model, tokenizer, dataset = test_load_model_tok_data(accelerator, config_dict, split=isa_data.FORMATS["TRAIN"])
+    model, tokenizer, dataset = test_load_model_tok_data(accelerator, config_dict, split=FORMATS["TRAIN"])
     model, dataloader = test_prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=config_dict["batch_size"])
     log_model_forward(model, dataloader, accelerator)
     log_dataset_info(dataloader, accelerator)
     
 
 if __name__ == "__main__":
-    ops.configure_logging("test_dataloading.log")
+    config_ops.setup_logging("test_dataloading.log")
     try:
-        config_dict = ops.get_json_dict(ops.parse_config_path(tool_explanation="Train the transformer as specified in the input JSON configuration."))
-        ops.check_params(config_dict)
+        explanation = "tests that the model, tokenizer, and datasets are loaded correctly."
+        path = config_ops.parse_config_path(tool_explanation=explanation)
+        config_dict = dicts.load_json(path)
+        config_ops.check_params(config_dict)
     except Exception as e:
         message = f"Loading configuration information: {e}"
         logging.error(message)
         raise Exception("Error " + message)
 
-    ops.wrap_w_accelerator(lambda acc: main(acc, config_dict))
+    distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))
