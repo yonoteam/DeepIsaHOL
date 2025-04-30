@@ -31,7 +31,7 @@ def wrap_w_accelerator(f):
             except Exception as e:
                 logging.error(f"Error destroying process group: {str(e)}")
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()    
+            torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     try:

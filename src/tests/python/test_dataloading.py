@@ -35,7 +35,7 @@ def test_load_model_tok_data(config_dict, accelerator):
 
 def test_prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=8):
     try:
-        model, dataloader = eval_t5.prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=batch_size)
+        model, dataloader = eval_t5.prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=batch_size, accelerator=accelerator)
         logging.info("eval_t5.test_prepare_model_and_dataloader passed")
         return model, dataloader
     except Exception as e:
