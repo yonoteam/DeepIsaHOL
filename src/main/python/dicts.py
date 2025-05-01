@@ -7,7 +7,19 @@ import os
 import json
 import logging
 
-from typing import Union, Optional, List
+from typing import Union, Optional, List, IO, Any
+
+def safe_load_json(file_obj: IO[str]) -> dict:
+    """
+    Loads a JSON from an open file object.
+    Returns an empty dictionary on failure.
+
+    :param file_obj: open file object
+    """
+    try:
+        return json.load(file_obj)
+    except json.JSONDecodeError:
+        return {}
 
 def load_json(json_path: Union[str, os.PathLike]) -> dict:
     """
@@ -37,6 +49,19 @@ def load_json(json_path: Union[str, os.PathLike]) -> dict:
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
     return result
+
+def replace_in_opened(data: dict, file: IO[str], indent: int = 4) -> None:
+    """
+    Replaces a file's contents with the input dictionary.
+    The file must be opened in read/write mode.
+
+    :param data: the dictionary to write
+    :param file: open file object
+    :param indent: indentation level for pretty-printing (default: 4)
+    """
+    file.seek(0)
+    json.dump(data, file, indent=indent)
+    file.truncate()
 
 def save_as_json(data: dict, save_path: Union[str, os.PathLike], indent=4) -> None:
     """

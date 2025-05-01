@@ -7,6 +7,7 @@ import os
 import re
 import time
 import queue
+import psutil
 import logging
 import threading
 
@@ -16,6 +17,11 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 
 import dicts
+
+def log_memory_usage(message):
+    process = psutil.Process(os.getpid())
+    memory = process.memory_info().rss / 1024 / 1024  # MB
+    logging.info(f"Memory usage ({message}): {memory:.2f} MB")
 
 def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     """
