@@ -2,7 +2,9 @@ import logging
 import torch
 from accelerate import Accelerator
 
-def reduce_sum_int(value, accelerator):
+def reduce_sum_int(value: int, accelerator, device=None):
+    if not device:
+        device=accelerator.device
     return accelerator.reduce(torch.tensor(value, device=accelerator.device), reduction="sum")
 
 def log_cuda_info(accelerator):

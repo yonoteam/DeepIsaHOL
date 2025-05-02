@@ -69,10 +69,11 @@ def log_dataset_info(dataloader, accelerator):
             logging.info(f"Train step number {batch_idx}")
     accelerator.wait_for_everyone()
     logging.info(f"{accelerator.process_index}: Total number of batches was {batch_idx + 1}")
-    torch.cuda.empty_cache()
     if accelerator.is_main_process:
-        batches = distrib.reduce_sum_int(batch_idx + 1, accelerator)
-        samples = distrib.reduce_sum_int(total_samples, accelerator)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        batches = distrib.reduce_sum_int(batch_idx + 1, accelerator, device="cpu")
+        samples = distrib.reduce_sum_int(total_samples, accelerator, device="cpu")
         logging.info(f"Total number of batches was {batches}")
         logging.info(f"Total number of samples was {samples}")
 
