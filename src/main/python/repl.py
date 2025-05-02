@@ -78,7 +78,9 @@ class REPL:
     def _initialize_repl(self):
         try:
             if self._gateway is None:
-                self._gateway = JavaGateway(gateway_parameters=GatewayParameters(port=self.port, auto_convert=True))
+                self._gateway = JavaGateway(
+                    gateway_parameters=GatewayParameters(port=self.port, auto_convert=True)
+                )
             self._entrypoint = self._gateway.entry_point
             self._repl = self._entrypoint.get_repl(self.logic, self.thy_name)
             self._minion = self._repl.get_minion()

@@ -134,19 +134,30 @@ object Main {
   }
 
   def write_all(read_dir: String, write_dir: String, logic: String): Unit = {
-    Try {
-      println(s"\nInitialising writer with read_dir = ${read_dir} \nand write_dir ${write_dir}")
-      val writer = new Writer(read_dir, write_dir, logic)
-      writer.set_format(main_write_format)
-      val minion = writer.get_minion()
-      implicit val isabelle:de.unruh.isabelle.control.Isabelle = minion.isabelle
-      writer.write_all()
-      isabelle.destroy()
-    } match {
-      case Failure(exception) =>
-        println(s"Error writing data from $read_dir to $write_dir:\n ${exception.getMessage}")
-      case Success(_) => ()
-    }     
+    val writer_Try = Try {
+      println(s"\nInitialising writer with read_dir = $read_dir \nand write_dir = $write_dir")
+      new Writer(read_dir, write_dir, logic)
+    }
+
+    val result = writer_Try.flatMap { writer =>
+      Try {
+        writer.set_format(main_write_format)
+        writer.write_all()
+      }.transform(
+        res => {
+          writer.shutdown_isabelle()
+          Success(res)
+        },
+        exception => {
+          writer.shutdown_isabelle()
+          Failure(exception)
+        }
+      )
+    }
+
+    result.failed.foreach { exception =>
+      println(s"Error writing data from $read_dir to $write_dir:\n ${exception.getMessage}")
+    }
   }
 
   def do_roots_task (top_read_dir: File, top_write_dir: File): Unit = {

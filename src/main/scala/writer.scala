@@ -115,6 +115,15 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
     }
     println("Done")
   }
+
+  def shutdown_isabelle(): Unit = {
+    minion.isabelle.destroy()
+    println("Isabelle process destroyed.")
+  }
+
+  def isabelle_exists(): Boolean = {
+    !(minion.isabelle.isDestroyed)
+  }
 }
 
 object Writer {

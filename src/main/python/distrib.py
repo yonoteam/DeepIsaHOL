@@ -1,3 +1,10 @@
+"""
+Maintainers:
+    - Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
+
+Operations for distributed model training and evaluation.
+"""
+
 import logging
 import torch
 from accelerate import Accelerator

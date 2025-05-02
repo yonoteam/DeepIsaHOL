@@ -1,3 +1,10 @@
+"""
+Maintainers:
+    - Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
+
+Utilities for processing the configuration dictionary describing
+the tokenizing, training, and evaluation parameters for the models.
+"""
 
 import os
 import logging
