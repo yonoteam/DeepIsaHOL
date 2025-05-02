@@ -14,9 +14,7 @@ import dicts
 import config_ops
 import save_ops
 
-import proofs.str_ops
-import proofs.data_dir
-import proofs.data_stats
+import proofs
 from proofs.str_ops import FORMATS
 from proofs.data_dir import SPLITS
 

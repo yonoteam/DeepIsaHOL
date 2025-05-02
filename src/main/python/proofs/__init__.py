@@ -34,6 +34,7 @@ def print_proof(proof_json):
         print(act)
 
 __all__ = [
+    # local functions
     "full_actions_of",
     "orig_objective_of",
     "actions_of",
@@ -41,5 +42,9 @@ __all__ = [
     "constants_of",
     "user_proof_up_to",
     "count_steps",
-    "print_proof"
+    "print_proof",
+    # submodules
+    "str_ops",
+    "data_dir",
+    "data_stats"
 ]

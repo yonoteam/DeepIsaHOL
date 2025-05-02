@@ -14,10 +14,9 @@ import torch
 from transformers import pipeline
 
 import dicts
+import proofs
 import eval_t5
 import config_ops
-import proofs.data_dir
-import proofs.str_ops
 from repl import REPL
 
 # DFS OPERATIONS
