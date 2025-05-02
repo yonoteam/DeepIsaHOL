@@ -71,8 +71,8 @@ def log_dataset_info(dataloader, accelerator):
     logging.info(f"{accelerator.process_index}: Total number of batches was {batch_idx + 1}")
     torch.cuda.empty_cache()
     if accelerator.is_main_process:
-        batches = accelerator.reduce(batch_idx + 1, reduction="sum")
-        samples = accelerator.reduce(total_samples, reduction="sum")
+        batches = distrib.reduce_sum_int(batch_idx + 1, accelerator)
+        samples = distrib.reduce_sum_int(total_samples, accelerator)
         logging.info(f"Total number of batches was {batches}")
         logging.info(f"Total number of samples was {samples}")
 
