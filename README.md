@@ -35,7 +35,7 @@ Additionally, generated data examples, weights of the T5 models trained with thi
 5. [Compile](https://www.scala-sbt.org/1.x/docs/Running.html) this project's Scala sources. 
 6. If you wish to extract data from a specific AFP entry, ensure that:
     - You can [make Isabelle aware of your AFP location](https://www.isa-afp.org/help/) 
-    - Your AFP entry (or Isabelle library) has a ROOT file (or ROOTS file), with a header resembling the snippet below (see [Isabelle's sessions and built management](https://isabelle.in.tum.de/dist/Isabelle2024/doc/system.pdf in Isabelle's [documentation](https://isabelle.in.tum.de/documentation.html)).
+    - Your AFP entry (or Isabelle library) has a ROOT file (or ROOTS file), with a header resembling the snippet below (see [Isabelle's sessions and built management](https://isabelle.in.tum.de/dist/Isabelle2024/doc/system.pdf) in Isabelle's [documentation](https://isabelle.in.tum.de/documentation.html)).
     ```sml
     session logic_name (AFP) = "parent_logic" +
       options [timeout = 1800]
@@ -121,7 +121,7 @@ Enable a Scala port in a command-line window via `sbt "runMain isabelle_rl.Py4j_
 >>> data_extractor.shutdown_gateway() # close the Isabelle and Scala processes
 ```
 
-In case of connections issues, you can manage your ports in the creates `ports.json` in this repository's top directory.
+In case of connections issues, you can manage your ports in the (automatically created) `ports.json` at the top directory of this repository.
 
 
 ## Data interaction
