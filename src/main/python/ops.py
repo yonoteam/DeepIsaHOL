@@ -8,11 +8,13 @@ import re
 import time
 import queue
 import psutil
+import random
 import logging
 import threading
 
-from typing import Union
 from datetime import datetime
+from typing import Union, Iterator, TypeVar, Optional
+T = TypeVar("T")
 
 import matplotlib.pyplot as plt
 
@@ -22,6 +24,37 @@ def log_memory_usage(message):
     process = psutil.Process(os.getpid())
     memory = process.memory_info().rss / 1024 / 1024  # MB
     logging.info(f"Memory usage ({message}): {memory:.2f} MB")
+
+def random_element(iterator: Iterator[T], max: Optional[int] = None) -> T:
+    """
+    Returns a random element from the iterator.
+
+    - If max is provided, it picks a random index from [0, max-1] and returns the element at that index, or the last element if the iterator ends earlier.
+    - If max is None, it selects an element uniformly at random from the entire iterator.
+
+    :param iterator: any iterator (e.g., generator or iterable converted with iter())
+    :param max: max iteration-size
+    :return: pseudo-randomly selected element
+    :raises ValueError: if the iterator is empty
+    """
+    if max is not None:
+        rand_index = random.randint(0, max - 1)
+        last = None
+        for i, element in enumerate(iterator):
+            last = element
+            if i == rand_index:
+                return element
+        if last is not None:
+            return last
+        raise ValueError("Iterator is empty.")
+    else:
+        chosen = None
+        for i, element in enumerate(iterator):
+            if i == 0 or random.random() < 1.0 / (i + 1):
+                chosen = element
+        if chosen is not None:
+            return chosen
+        raise ValueError("Iterator is empty.")
 
 def apply_with_timeout(timeout_in_secs, f, *args, **kwargs):
     """
