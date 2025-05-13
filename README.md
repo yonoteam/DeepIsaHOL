@@ -24,7 +24,7 @@ Additionally, generated data examples, weights of the T5 models trained with thi
 1. Prerequisites:
   * The [Isabelle2025](https://isabelle.in.tum.de/) proof assistant
     - Optionally (see 6. below): Its [Archive of Formal Proofs](https://www.isa-afp.org/) (AFP)
-  * This [fork](https://github.com/yonoteam/scala-isabelle/tree/Isabelle2025) of Dominique Unruh's [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) library that has been adapted for Isabelle2025 (see "Scala level" below).
+  * Dominique Unruh's [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) updated library for Isabelle2025 (see "Scala level" below).
   * The [sbt](https://www.scala-sbt.org/) build tool for Java and Scala.
   * A [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) with the packages listed in this project's `./src/main/python/requirments.txt`. In particular:
     - For connecting Python to Isabelle, this repository uses the [Py4J](https://www.py4j.org/install.html) library (see "Python level" below). 
