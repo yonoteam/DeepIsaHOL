@@ -122,7 +122,7 @@ class Imports (val work_dir: Path)(implicit isabelle: Isabelle) {
         Some(Theory(import_name_attempt))
       } else None
       file_dep_graph = file_dep_graph.new_node(thy_file_path, opt_thy_to_add)
-    }    
+    }
 
     local_thy_files.foreach { thy_file_path =>
       if (debug) println(s"Imports: Locating parents of ${thy_file_path.toString}")

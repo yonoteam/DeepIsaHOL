@@ -8,6 +8,8 @@ structure Path_Graph = Graph(type key = Path.T val ord = string_ord o apply2 Pat
 
 signature IMPORTS =
 sig
+  val init_imports: Path.T list -> theory option Path_Graph.T
+  val load_upto: (theory option) Path_Graph.T -> Path_Graph.key -> (theory option) Path_Graph.T
   val locate: 'a Path_Graph.T -> Path.T -> string -> Path.T
   val init_dep_graph: {debug: bool} -> Path.T -> string list Path_Graph.T -> string list Path_Graph.T
   val complete_dep_graph: {debug: bool, ignore_errors:bool} -> string list Path_Graph.T -> string list Path_Graph.T
@@ -19,16 +21,118 @@ struct
 
 local
 
+(* locate_in: Path.T list -> string -> Path.T option *)
+fun locate_in paths import_str =
+  let
+    val get_name = Path.base #> Path.implode
+    val name_of_import =
+      if Pred.contains "." import_str
+        andalso not (Pred.contains "/" import_str)
+      then (Long_Name.base_name import_str) ^ ".thy"
+      else if Pred.contains "/" import_str
+      then import_str |> Path.explode |> get_name
+      else import_str ^ ".thy"
+    fun has_import_name path = Pred.is name_of_import (get_name path)
+    val opt_result = Pred.find_first has_import_name paths;
+  in opt_result end;
+
+(* locate: Path.T list -> string -> Path.T *)
+fun locate paths import_str = 
+  case Resources.find_theory_file import_str of
+    SOME path => path
+    | NONE => (case locate_in paths import_str of
+      SOME path => path
+      | NONE => raise Fail ("Could not find path for: " ^ import_str))
+
+in
+
+(* init_imports: Path.T list -> theory option Path_Graph.T *)
+fun init_imports paths =
+  let
+    fun add_ancesters path graph =
+      let
+        fun init_entry import_str =
+          case Basics.try Thy_Info.get_theory import_str of
+            SOME thy => (Path.explode ("ISA_FOUND=" ^ import_str), SOME thy)
+            | NONE => (locate paths import_str, NONE);
+        val imports = path
+          |> File.read
+          |> Thy_Header.read Position.none
+          |> #imports
+          |> map (init_entry o fst);
+        (* val _ = tracing "Found imports" *)
+        fun cond_add key graph =
+          if is_some (Path_Graph.get_node graph key) then graph
+          else add_ancesters key graph;
+        fun add_next parent graph = 
+          let 
+            val parent_key = fst parent; 
+            (* val _ = tracing ("Attempting " ^ Path.implode parent_key) *)
+          in
+            if Path_Graph.defined graph parent_key
+            then if Path_Graph.is_edge graph (path, parent_key) then graph
+              else Path_Graph.add_edge (path, parent_key) graph
+            else Path_Graph.new_node parent graph
+              |> Path_Graph.add_edge (path, parent_key)
+              |> cond_add parent_key
+          end;
+      in fold add_next imports graph end;
+    fun do_next path graph =
+      let
+        val graph' = 
+          if Path_Graph.defined graph path
+          then graph else Path_Graph.new_node (path, NONE) graph;
+        (* val _ = tracing ("Added " ^ Path.implode path) *)
+      in add_ancesters path graph' end;
+  in fold do_next paths Path_Graph.empty end;
+
+end
+
+local
+
+(* load_one: (theory option) Path_Graph.T -> Path.T -> (theory option) Path_Graph.T *)
+(* TODO: add error message for the assumption that all parents should be defined *)
+fun load_one graph thy_path =
+  let
+    val thy_text = File.read thy_path;
+    val header = Thy_Header.read Position.none thy_text;
+    val parents = 
+      Path_Graph.immediate_succs graph thy_path
+      |> map (the o Path_Graph.get_node graph)
+    val thy0 = Resources.begin_theory (Path.dir thy_path) header parents;
+    val thyN = Get.final_thy thy0 thy_text;
+  in Path_Graph.map_node thy_path (fn _ => thyN) graph end;
+
+in
+
+fun load_upto graph thy_path =
+  let
+    val ancesters = List.rev (Path_Graph.all_succs graph [thy_path]);
+    fun load_next ancester graph =
+      if is_some (Path_Graph.get_node graph ancester) then graph
+      else load_one graph ancester;
+  in fold load_next ancesters graph end;
+
+end
+
+
+
+(*********************)
+(* VERSION 2: LEGACY *)
+(*********************)
+local
+
 infix 1 if_none_then
 
 (* if_none_then: ('a -> 'b option) * ('a -> 'b option) -> 'a -> 'b option *)
-fun (f if_none_then g) x = (case f x of 
-  SOME y => SOME y
-  | NONE => g x);
+fun (f if_none_then g) x = 
+  case f x of 
+    SOME y => SOME y
+    | NONE => g x;
 
 (* locate_via_thy: string -> Path.T option *)
-fun locate_via_thy import_name =
-  (case Basics.try Thy_Info.get_theory import_name of
+fun locate_via_thy import_str =
+  (case Basics.try Thy_Info.get_theory import_str of
     SOME _ => SOME (Path.basic "ISABELLE")
     | NONE => NONE);
 

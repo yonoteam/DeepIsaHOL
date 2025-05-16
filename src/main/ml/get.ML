@@ -5,6 +5,7 @@ sig
   val header: string -> Thy_Header.header
   val parents: string -> theory list
   val start_thy_from_file: theory list -> string -> theory
+  val final_thy: theory -> string -> theory option
   val final_thy_from_file: theory list -> string -> theory option
   val stateful_transitions: theory -> string 
     -> {error: (exn * string) option, 
@@ -86,18 +87,24 @@ fun parents thy_file =
 fun start_thy_from_file thy_parents thy_file =
   Resources.begin_theory (Path.dir (Path.explode thy_file)) (header thy_file) thy_parents;
 
-(* final_thy_from_file: theory list -> string -> theory option *)
-fun final_thy_from_file thy_parents thy_file =
+(* final_thy: theory -> string -> theory option *)
+fun final_thy thy0 thy_text =
   let
-    val thy0 = start_thy_from_file thy_parents thy_file;
-    val transitions = 
-      File.read (Path.explode thy_file)
-      |> Outer_Syntax.parse_text thy0 (K thy0) Position.start 
-      |> filter_out (fn tr => Toplevel.name_of tr = "<ignored>")
+    val transitions =  
+      thy_text
+      |> Outer_Syntax.parse_text thy0 (K thy0) Position.start
+      |> filter_out (fn tr => Toplevel.name_of tr = "<ignored>");
     val final_state = 
       Toplevel.make_state NONE
       |> fold (Toplevel.command_exception true) transitions;
   in Toplevel.previous_theory_of final_state end;
+
+(* final_thy_from_file: theory list -> string -> theory option *)
+fun final_thy_from_file thy_parents thy_file =
+  let
+    val thy0 = start_thy_from_file thy_parents thy_file;
+    val thy_text = File.read (Path.explode thy_file);
+  in final_thy thy0 thy_text end;
 
 (* stateful_transitions: theory -> string -> Toplevel.transition list *)
 fun stateful_transitions thy0 thy_file_dir =

@@ -30,6 +30,7 @@ sig
   val drop_while: ('a -> bool) -> 'a list -> 'a list
   val bifurcate_ifL: ('a -> bool) -> 'a list -> 'a list * 'a list
   val split_whenL: ('a -> bool) -> 'a list -> 'a list list
+  val find_files: (Path.T -> bool) -> Path.T -> Path.T list
 end;
 
 
@@ -153,5 +154,20 @@ fun split_whenL _ [] = []
   | split_whenL P (c :: cs) = 
       bifurcate_ifL P (c :: cs) 
       |> (fn (sub1, sub2) => sub1 :: (split_whenL P sub2));
+
+(* find_files: (Path.T -> bool) -> Path.T -> Path.T list *)
+fun find_files P path =
+  let 
+    fun sub_elems dir_path = File.read_dir dir_path
+      |> map (Path.append dir_path o Path.explode);
+    fun conditionally_add elem so_fars =
+      if File.is_dir elem then 
+        let
+          val subs = sub_elems elem
+        in fold conditionally_add subs so_fars end
+      else if File.is_file elem andalso P elem then elem :: so_fars
+      else if File.exists elem then so_fars
+      else error ("Path does not exists " ^ (Path.implode elem));
+  in conditionally_add path [] end;
 
 end;
