@@ -8,8 +8,9 @@ structure Path_Graph = Graph(type key = Path.T val ord = string_ord o apply2 Pat
 
 signature IMPORTS =
 sig
-  val init_imports: Path.T list -> theory option Path_Graph.T
-  val load_upto: (theory option) Path_Graph.T -> Path_Graph.key -> (theory option) Path_Graph.T
+  val init: Path.T list -> theory option Path_Graph.T
+  val load_upto: Path_Graph.key -> (theory option) Path_Graph.T -> (theory option) Path_Graph.T
+  val load_all: theory option Path_Graph.T -> theory option Path_Graph.T
   val locate: 'a Path_Graph.T -> Path.T -> string -> Path.T
   val init_dep_graph: {debug: bool} -> Path.T -> string list Path_Graph.T -> string list Path_Graph.T
   val complete_dep_graph: {debug: bool, ignore_errors:bool} -> string list Path_Graph.T -> string list Path_Graph.T
@@ -36,8 +37,8 @@ fun locate_in paths import_str =
     val opt_result = Pred.find_first has_import_name paths;
   in opt_result end;
 
-(* locate: Path.T list -> string -> Path.T *)
-fun locate paths import_str = 
+(* find_import: Path.T list -> string -> Path.T *)
+fun find_import paths import_str = 
   case Resources.find_theory_file import_str of
     SOME path => path
     | NONE => (case locate_in paths import_str of
@@ -46,42 +47,38 @@ fun locate paths import_str =
 
 in
 
-(* init_imports: Path.T list -> theory option Path_Graph.T *)
-fun init_imports paths =
+(* init: Path.T list -> theory option Path_Graph.T *)
+fun init paths =
   let
     fun add_ancesters path graph =
-      let
+      if is_some (Path_Graph.get_node graph path) then graph
+      else let
         fun init_entry import_str =
           case Basics.try Thy_Info.get_theory import_str of
             SOME thy => (Path.explode ("ISA_FOUND=" ^ import_str), SOME thy)
-            | NONE => (locate paths import_str, NONE);
+            | NONE => (find_import paths import_str, NONE);
         val imports = path
           |> File.read
           |> Thy_Header.read Position.none
           |> #imports
           |> map (init_entry o fst);
         (* val _ = tracing "Found imports" *)
-        fun cond_add key graph =
-          if is_some (Path_Graph.get_node graph key) then graph
-          else add_ancesters key graph;
         fun add_next parent graph = 
           let 
             val parent_key = fst parent; 
             (* val _ = tracing ("Attempting " ^ Path.implode parent_key) *)
           in
             if Path_Graph.defined graph parent_key
-            then if Path_Graph.is_edge graph (path, parent_key) then graph
-              else Path_Graph.add_edge (path, parent_key) graph
+            then Path_Graph.add_edge (path, parent_key) graph
             else Path_Graph.new_node parent graph
               |> Path_Graph.add_edge (path, parent_key)
-              |> cond_add parent_key
+              |> add_ancesters parent_key
           end;
       in fold add_next imports graph end;
     fun do_next path graph =
-      let
-        val graph' = 
-          if Path_Graph.defined graph path
-          then graph else Path_Graph.new_node (path, NONE) graph;
+      if Path_Graph.defined graph path then graph
+      else let
+        val graph' = Path_Graph.new_node (path, NONE) graph;
         (* val _ = tracing ("Added " ^ Path.implode path) *)
       in add_ancesters path graph' end;
   in fold do_next paths Path_Graph.empty end;
@@ -100,13 +97,17 @@ fun load_one graph thy_path =
       Path_Graph.immediate_succs graph thy_path
       |> map (the o Path_Graph.get_node graph)
     val thy0 = Resources.begin_theory (Path.dir thy_path) header parents;
-    val thyN = Get.final_thy thy0 thy_text;
-  in Path_Graph.map_node thy_path (fn _ => thyN) graph end;
+    val opt_thyN = Get.final_thy thy0 thy_text;
+  in Path_Graph.map_node thy_path (fn _ => opt_thyN) graph end;
 
 in
 
-fun load_upto graph thy_path =
-  let
+(* load_upto: Path_Graph.key -> (theory option) Path_Graph.T -> (theory option) Path_Graph.T *)
+fun load_upto thy_path graph =
+  if not (Path_Graph.defined graph thy_path)
+  then raise Fail ("Imports.load_upto: not a valid import: " ^ Path.implode thy_path)
+  else if is_some (Path_Graph.get_node graph thy_path) then graph 
+  else let
     val ancesters = List.rev (Path_Graph.all_succs graph [thy_path]);
     fun load_next ancester graph =
       if is_some (Path_Graph.get_node graph ancester) then graph
@@ -115,6 +116,12 @@ fun load_upto graph thy_path =
 
 end
 
+(* load_all: theory option Path_Graph.T -> theory option Path_Graph.T *)
+fun load_all graph =
+  let 
+    val eldests = Path_Graph.maximals graph;
+    val ordered_keys = Path_Graph.all_preds graph eldests;
+  in fold load_upto ordered_keys graph end;
 
 
 (*********************)
