@@ -1,7 +1,7 @@
 (* Mantainers: 
     Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
 
-Part of project DeepIsaHOL. Unfinished graph representation of a theory's imports and its locations.
+Part of project DeepIsaHOL. Graph representation of a theory's imports and its locations.
 *)
 
 structure Path_Graph = Graph(type key = Path.T val ord = string_ord o apply2 Path.implode);
@@ -11,6 +11,10 @@ sig
   val init: Path.T list -> theory option Path_Graph.T
   val load_upto: Path_Graph.key -> (theory option) Path_Graph.T -> (theory option) Path_Graph.T
   val load_all: theory option Path_Graph.T -> theory option Path_Graph.T
+  val to_local_list: Path.T list -> 'a Path_Graph.T -> Path.T list
+  val get_init_thy: theory option Path_Graph.T -> Path.T -> theory
+  val get_end_thy: theory option Path_Graph.T -> Path.T -> theory
+
   val locate: 'a Path_Graph.T -> Path.T -> string -> Path.T
   val init_dep_graph: {debug: bool} -> Path.T -> string list Path_Graph.T -> string list Path_Graph.T
   val complete_dep_graph: {debug: bool, ignore_errors:bool} -> string list Path_Graph.T -> string list Path_Graph.T
@@ -122,6 +126,50 @@ fun load_all graph =
     val eldests = Path_Graph.maximals graph;
     val ordered_keys = Path_Graph.all_preds graph eldests;
   in fold load_upto ordered_keys graph end;
+
+(* to_local_list: Path.T list -> 'a Path_Graph.T -> Path.T list *)
+fun to_local_list paths graph =
+  let
+    fun eq_keys (p1, p2) = Pred.is (Path.implode p1) (Path.implode p2)
+    val eldests = Path_Graph.maximals graph;
+    val ordered_keys = Path_Graph.all_preds graph eldests;
+  in Library.inter eq_keys paths ordered_keys end;
+
+
+local
+
+fun checking_inputs_do graph path f = 
+  let val file_name = Path.implode path in
+  if not (File.exists path) 
+  then raise Fail ("Imports.check: file does not exist: " ^ file_name)
+  else if not (Path_Graph.defined graph path)
+  then raise Fail ("Imports.check: invalid import: " ^ file_name)
+  else f end;
+
+in
+
+(* get_init_thy: theory option Path_Graph.T -> Path.T -> theory *)
+fun get_init_thy graph thy_path =
+  checking_inputs_do graph thy_path
+  (let
+    val thy_text = File.read thy_path;
+    val header = Thy_Header.read Position.none thy_text;
+    val graph' = load_upto thy_path graph;
+    val thy0 = 
+      Path_Graph.immediate_succs graph' thy_path
+      |> map (the o Path_Graph.get_node graph')
+      |> Resources.begin_theory (Path.dir thy_path) header;
+  in thy0 end);
+
+(* get_end_thy: theory option Path_Graph.T -> Path.T -> theory *)
+fun get_end_thy graph thy_path =
+  checking_inputs_do graph thy_path 
+  (let
+    val graph' = load_upto thy_path graph;
+  in the (Path_Graph.get_node graph' thy_path) end);
+
+end
+
 
 
 (*********************)
