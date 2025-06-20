@@ -15,6 +15,7 @@ sig
 
   (* THEORY INFORMATION *)
   val string_of_yxml: string -> string
+  val string_of_state: Toplevel.state -> string
   val transitions: theory -> Position.T -> string -> Toplevel.transition list
   val user_state: {break_lines: bool} -> Toplevel.state -> string
   val minor_keywords: theory -> string list
@@ -133,7 +134,9 @@ fun stateful_transitions thy0 thy_file_dir =
 (** THEORY INFORMATION **)
 
 (* string_of_yxml: string -> string *)
-val string_of_yxml = YXML.parse_body #> XML.content_of
+val string_of_yxml = YXML.parse_body #> XML.content_of;
+
+val string_of_state = Toplevel.pretty_state #> Pretty.chunks #> Pretty.string_of;
 
 (* transitions: theory -> Position.T -> string -> Toplevel.transition list *)
 fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
@@ -142,7 +145,7 @@ fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 
 fun user_state {break_lines=breaking} state =
   let
     val base_string = if breaking 
-    then Toplevel.string_of_state state
+    then string_of_state state
     else Toplevel.pretty_state state
       |> Pretty.separate " " 
       |> Pretty.block 
