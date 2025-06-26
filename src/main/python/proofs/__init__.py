@@ -33,6 +33,10 @@ def print_proof(proof_json):
     for act in full_actions_of(proof_json):
         print(act)
 
+from . import str_ops
+from . import data_dir
+from . import data_stats
+
 __all__ = [
     # local functions
     "full_actions_of",
