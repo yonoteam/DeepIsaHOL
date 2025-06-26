@@ -119,7 +119,7 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_mode=FORMATS["S"
     :param tokenizer: the model's tokenizer
     :param json_data_dir: path to the search directory with proofN.json files
     :param split: 'train', 'valid', 'test', or 'none' to specify which split to load
-    :param data_mode: proof data format (see isa_data.FORMATS)
+    :param data_mode: proof data format (see proofs.str_ops.FORMATS)
     :returns: generator for tokenized inputs with labels for conditional generation
     :rtype: generator
     """

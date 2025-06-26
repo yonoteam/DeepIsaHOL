@@ -71,11 +71,11 @@ def inputs_from(repl, prf_info, dfs_config):
     x = "isabelle next step: " + x if "finetune" in data_mode else x
     return x
 
-# the pos variable indicates a position in the dfs tree, i.e. [i, j, k, l] 
-# corresponds to the i, j, k, and l branches at resp. depths 1, 2, 3, and 4.
-# if exhausted the options at a given depth, e.g. [i, max_width, max_width, 0],
-# repl needs to backtrack the number of instances of max_width plus one to keep
-# exploring at an unfinished depth, e.g. explore i+1 at 1st depth.
+# the pos variable indicates a position in the dfs tree, i.e. [i, j, k, l] corresponds 
+# to the i, j, k, and l branches at resp. depths 1, 2, 3, and 4. If the options at a 
+# given depth are exhausted, e.g. [i, max_width, max_width, 0], the repl needs to 
+# backtrack (the number of occurances of max_width plus one) to keep exploring at an 
+# unfinished depth, e.g. explore i+1 at 1st depth.
 def carefully_go_back(repl, pos, max_width, curr_width):
     if curr_width >= max_width:
         nonzeros_rl = reversed(list(takewhile(lambda x: x != 0, pos)))
