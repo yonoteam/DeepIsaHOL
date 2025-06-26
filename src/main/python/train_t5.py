@@ -14,6 +14,8 @@ import tokenizer_ops as tokops
 
 from torch.utils.data import DataLoader
 from transformers import (
+    TrainingArguments,
+    Trainer,
     set_seed,
     AutoConfig, 
     T5ForConditionalGeneration, 
@@ -269,6 +271,50 @@ def main(accelerator, config_dict):
     train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=config_dict["batch_size"])
 
     do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict)
+
+def main_alt(accelerator, config_dict):
+    model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict)
+
+    trainer = accelerator.prepare(
+        Trainer(
+            model=model,
+            args=TrainingArguments(
+                output_dir=config_dict["output_dir"],
+                num_train_epochs=config_dict["num_epochs"],
+                per_device_train_batch_size=config_dict["batch_size"],
+                per_device_eval_batch_size=config_dict["batch_size"],
+                # logging parameters
+                logging_dir=config_dict["logging_dir"],
+                logging_steps=1000,
+                # evaluation parameters
+                evaluation_strategy="steps",
+                eval_steps=1000,
+                load_best_model_at_end=True,
+                metric_for_best_model="eval_loss",
+                # optimization parameters
+                lr_scheduler_type="constant",
+                learning_rate=1e-5,
+                weight_decay=0.01,
+                # saving parameters
+                save_strategy="steps",
+                save_total_limit=5,
+                save_steps=10000,
+            ),
+            train_dataset=train_data,
+            eval_dataset=valid_data,
+            tokenizer=tokenizer,
+            data_collator=DataCollatorForSeq2Seq(
+                tokenizer, 
+                model, 
+                padding="max_length", 
+                max_length=model.config.n_positions
+            ),
+        )
+    )
+    
+    trainer.train()
+    trainer.save_model()
+
 
 if __name__ == "__main__":
     set_all_seeds(42)

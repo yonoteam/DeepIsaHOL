@@ -246,3 +246,14 @@ def inputs_targets_from(
         data.append((x, y))
     return data
 
+gemma_prompt = """Recommend the next proof step given the context below:
+{context}
+"""
+
+def to_gemma_format(input_text, target_text):
+    return {
+        "messages": [
+            {"role": "user", "content": gemma_prompt.format(context=input_text)},
+            {"role": "assistant", "content": f"<SUGGESTION>{target_text}</SUGGESTION>"}
+        ]
+    }
