@@ -280,14 +280,15 @@ def main_alt(accelerator, config_dict):
             model=model,
             args=TrainingArguments(
                 output_dir=config_dict["output_dir"],
-                num_train_epochs=config_dict["num_epochs"],
+                # num_train_epochs=config_dict["num_epochs"], # can only do this when dataset is not iterable
+                max_steps=config_dict["max_steps"], # need to fix steps when dataset is iterable
                 per_device_train_batch_size=config_dict["batch_size"],
                 per_device_eval_batch_size=config_dict["batch_size"],
                 # logging parameters
                 logging_dir=config_dict["logging_dir"],
                 logging_steps=1000,
                 # evaluation parameters
-                evaluation_strategy="steps",
+                eval_strategy="steps",
                 eval_steps=1000,
                 load_best_model_at_end=True,
                 metric_for_best_model="eval_loss",
