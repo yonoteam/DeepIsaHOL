@@ -6,10 +6,6 @@
 import os
 import sys
 import pytest
-import logging
-import tempfile
-from io import StringIO
-from pathlib import Path
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.dirname(os.path.dirname(TEST_DIR))

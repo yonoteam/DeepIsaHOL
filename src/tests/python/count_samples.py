@@ -36,15 +36,7 @@ def main(config_dict):
     logging.info(f"Total number of samples was {total_samples}")
 
 if __name__ == "__main__":
-    try:
-        info = "Tool to count (in a single process) the total number of samples in a dataset split."
-        path = config_ops.parse_config_path(tool_explanation=info)
-        config_dict = dicts.load_json(path)
-        config_ops.check_params(config_dict)
-    except Exception as e:
-        message = f"Loading configuration information: {e}"
-        logging.error(message)
-        raise Exception("Error " + message)
-    
+    info = "Tool to count (in a single process) the total number of samples in a dataset split."
+    config_dict = config_ops.parse_path(info)
     config_ops.setup_logging(f"count_samples_{config_dict['data_split']}.log")
     main(config_dict)

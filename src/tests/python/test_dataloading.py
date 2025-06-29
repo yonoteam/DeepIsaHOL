@@ -85,15 +85,7 @@ def main(accelerator, config_dict):
     
 
 if __name__ == "__main__":
+    explanation = "tests that the model, tokenizer, and datasets are loaded correctly."
+    config_dict = config_ops.parse_path(explanation)
     config_ops.setup_logging("test_dataloading.log")
-    try:
-        explanation = "tests that the model, tokenizer, and datasets are loaded correctly."
-        path = config_ops.parse_config_path(tool_explanation=explanation)
-        config_dict = dicts.load_json(path)
-        config_ops.check_params(config_dict)
-    except Exception as e:
-        message = f"Loading configuration information: {e}"
-        logging.error(message)
-        raise Exception("Error " + message)
-
     distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))
