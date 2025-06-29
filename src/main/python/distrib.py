@@ -25,7 +25,7 @@ def log_cuda_info(accelerator):
 
 def wrap_w_accelerator(f):
     try:
-        accelerator = Accelerator() # mixed_precision="bf16"
+        accelerator = Accelerator() # mixed_precision="bf16", "fp16"
         log_cuda_info(accelerator)
 
         # Main
