@@ -79,10 +79,9 @@ def log_dataset_info(dataloader, accelerator):
 
 def main(accelerator, config_dict):
     model, tokenizer, dataset = test_load_model_tok_data(config_dict, accelerator)
-    model, dataloader = test_prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=config_dict["batch_size"])
+    model, dataloader = test_prepare_model_and_dataloader(model, tokenizer, dataset, accelerator, batch_size=config_dict["hf_training_arguments"]["per_device_eval_batch_size"])
     log_model_forward(model, dataloader, accelerator)
     log_dataset_info(dataloader, accelerator)
-    
 
 if __name__ == "__main__":
     explanation = "tests that the model, tokenizer, and datasets are loaded correctly."

@@ -346,7 +346,7 @@ def with_metric(eval_str, config_dict):
     eval_metric = METRICS[eval_str]
     def general_body(accelerator):
         model, tokenizer, dataset = load_model_tok_data(config_dict, accelerator=accelerator)
-        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["batch_size"], accelerator=accelerator)
+        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["hf_training_arguments"]["per_device_eval_batch_size"], accelerator=accelerator)
         if eval_str == "validation":
             step_kwargs = {"model": model}
         elif eval_str == "matching":
@@ -371,15 +371,6 @@ def with_metric(eval_str, config_dict):
 
 
 if __name__ == "__main__":
-    config_ops.setup_logging("t5_eval.log")
-    try:
-        explanation = "Evaluate the transformer as specified in the input JSON configuration."
-        path = config_ops.parse_config_path(tool_explanation=explanation)
-        config_dict = dicts.load_json(path)
-        config_ops.check_params(config_dict)
-    except Exception as e:
-        message = f"Loading configuration information: {e}"
-        logging.error(message)
-        raise Exception("Error " + message)
-    
+    explanation = "Evaluate the transformer as specified in the input JSON configuration."
+    config_dict = config_ops.parse_path(explanation)
     with_metric("matching", config_dict)
