@@ -16,7 +16,6 @@ SRC_DIR = os.path.dirname(os.path.dirname(TEST_DIR))
 MAIN_DIR = os.path.join(SRC_DIR, 'main/python')
 sys.path.insert(0, MAIN_DIR)
 
-import dicts
 import distrib
 import eval_t5
 import train_t5

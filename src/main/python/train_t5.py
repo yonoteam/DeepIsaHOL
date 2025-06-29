@@ -120,7 +120,7 @@ def load_latest_model(models_dir):
     return model
 
 def get_model(config_dict, vocab_size):
-    _, _, models_dir = save_ops.get_dirs(config_dict, making_dirs=True)
+    _, models_dir = save_ops.get_dirs(config_dict, making_dirs=True)
     previous_model = save_ops.exists_previous("model", models_dir)
 
     if previous_model:
@@ -227,7 +227,7 @@ def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
         logging.info(f"Epoch {epoch + 1} of {num_epochs}")
         train(model, train_dataloader, optimizer, lr_scheduler, epoch, config_dict, accelerator)
         if accelerator.is_main_process:
-            _, _, models_dir = save_ops.get_dirs(config_dict)
+            _, models_dir = save_ops.get_dirs(config_dict)
             save_ops.save_in(accelerator.unwrap_model(model), models_dir)
             logging.info(f"Finished training loop. Checkpoint saved for epoch {epoch}.")
         accelerator.wait_for_everyone()
