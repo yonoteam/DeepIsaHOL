@@ -196,7 +196,7 @@ def string_from(proof_json: dict, readable: bool = False) -> str:
 def add_spk_data(
         proof_json: dict,
         str_list: List[str],
-        data_mode: str = FORMATS["SPK"]
+        data_format: str = FORMATS["SPK"]
     ) -> List[str]:
     """
     Conditinally adds keywords and dependencies to the input list of strings
@@ -204,26 +204,26 @@ def add_spk_data(
 
     :param proof_json: dictionary representation of the proof
     :param str_list: list of strings to extend
-    :param data_mode: one of the values of the FORMATS dictionary
+    :param data_format: one of the values of the FORMATS dictionary
     """
-    if FORMATS["SP"] in data_mode:
+    if FORMATS["SP"] in data_format:
         str_list = add_deps(proof_json, str_list)
 
     # TODO: add isar/apply keyword retrieval
-    if FORMATS["SPK"] in data_mode:
+    if FORMATS["SPK"] in data_format:
         str_list = add_keywords(proof_json, kwrds_type="methods", str_list=str_list)
     return str_list
 
 def inputs_targets_from(
         proof_json: dict,
-        data_mode: str = FORMATS["S"],
+        data_format: str = FORMATS["S"],
         readable: bool = False
     ) -> List[Tuple[str, str]]:
     """
     Extracts (input, target) pairs from a proof for training or analysis.
 
     :param proof_json: dictionary representation of the proof
-    :param data_mode: one of the values of the FORMATS dictionary
+    :param data_format: one of the values of the FORMATS dictionary
     :param readable: whether to use newlines between sections
     """
     data = []
@@ -235,14 +235,14 @@ def inputs_targets_from(
             ' '.join([Separator['user_state'], step['step']['user_state']])
         ]
 
-        xs = add_spk_data(proof_json, xs, data_mode=data_mode)
-        if FORMATS["SPKT"] in data_mode:
+        xs = add_spk_data(proof_json, xs, data_format=data_format)
+        if FORMATS["SPKT"] in data_format:
             xs = add_terms(step, terms_type="variables", str_list=xs)
             xs = add_terms(step, terms_type="constants", str_list=xs)
             xs = add_terms(step, terms_type="type variables", str_list=xs)
 
         x = sep_space.join(xs)
-        x = "isabelle next step: " + x if "finetune" in data_mode else x
+        x = "isabelle next step: " + x if "finetune" in data_format else x
         data.append((x, y))
     return data
 

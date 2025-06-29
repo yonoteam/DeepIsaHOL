@@ -126,8 +126,8 @@ def get_model(config_dict, vocab_size):
     if previous_model:
         model = load_latest_model(models_dir)
     else:
-        ctxt_length = config_ops.get_context_length(config_dict["data_mode"])
-        finetuning = True if config_dict["data_mode"].startswith("finetune") else False
+        ctxt_length = config_ops.get_context_length(config_dict["data_format"])
+        finetuning = True if config_dict["data_format"].startswith("finetune") else False
         model = initialize_model(config_dict["model_name"], finetuning, vocab_size, ctxt_length)
     return model
 
@@ -213,7 +213,7 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, config_dict, accele
             metrics = record(metrics, locals, accelerator, save_file=f"train_metrics{epoch}.json")
         if batch_idx % 10000 == 0 and batch_idx > 0:
                 if accelerator.is_main_process:
-                    _, _, models_dir = save_ops.get_dirs(config_dict)
+                    _, models_dir = save_ops.get_dirs(config_dict)
                     save_ops.save_in(accelerator.unwrap_model(model), models_dir)
         accelerator.wait_for_everyone()
 
@@ -268,39 +268,23 @@ def load_model_tok_data(accelerator, config_dict):
 def main(accelerator, config_dict):
     model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict)
 
-    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=config_dict["batch_size"])
+    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=config_dict["hf_training_arguments"]["per_device_train_batch_size"])
 
     do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict)
+
+def get_training_args(config_dict):
+    train_args_dict = config_dict["hf_training_arguments"]
+    train_args_dict["output_dir"] = "models_dir"
+    return TrainingArguments(**train_args_dict)
 
 def main_alt(accelerator, config_dict):
     model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict)
 
+    train_args = get_training_args(config_dict)
     trainer = accelerator.prepare(
         Trainer(
             model=model,
-            args=TrainingArguments(
-                output_dir=config_dict["output_dir"],
-                # num_train_epochs=config_dict["num_epochs"], # can only do this when dataset is not iterable
-                max_steps=config_dict["max_steps"], # need to fix steps when dataset is iterable
-                per_device_train_batch_size=config_dict["batch_size"],
-                per_device_eval_batch_size=config_dict["batch_size"],
-                # logging parameters
-                logging_dir=config_dict["logging_dir"],
-                logging_steps=1000,
-                # evaluation parameters
-                eval_strategy="steps",
-                eval_steps=1000,
-                load_best_model_at_end=True,
-                metric_for_best_model="eval_loss",
-                # optimization parameters
-                lr_scheduler_type="constant",
-                learning_rate=1e-5,
-                weight_decay=0.01,
-                # saving parameters
-                save_strategy="steps",
-                save_total_limit=5,
-                save_steps=10000,
-            ),
+            args=train_args,
             train_dataset=train_data,
             eval_dataset=valid_data,
             tokenizer=tokenizer,
@@ -313,21 +297,15 @@ def main_alt(accelerator, config_dict):
         )
     )
     
-    trainer.train()
+    train_results = trainer.train()
     trainer.save_model()
+    metrics = train_results.metrics
+    trainer.save_metrics("all")
 
 
 if __name__ == "__main__":
     set_all_seeds(42)
+    explanation = "Train the transformer as specified in the input JSON configuration."
+    config_dict = config_ops.parse_path(explanation)
     config_ops.setup_logging("t5_train.log")
-    try:
-        explanation = "Train the transformer as specified in the input JSON configuration."
-        path = config_ops.parse_config_path(tool_explanation=explanation)
-        config_dict = dicts.load_json(path)
-        config_ops.check_params(config_dict)
-    except Exception as e:
-        message = f"Loading configuration information: {e}"
-        logging.error(message)
-        raise Exception("Error " + message)
-
     distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))

@@ -17,13 +17,11 @@ def get_dirs(config_dict:dict, making_dirs=False):
     :rtype: (str, str, str) tuple
     """
     tokenizers_dir = config_dict["tokenizers_dir"]
-    datasets_dir = config_dict["datasets_dir"]
     models_dir = config_dict["models_dir"]
     if making_dirs:
         os.makedirs(tokenizers_dir, exist_ok=True)
-        os.makedirs(datasets_dir, exist_ok=True)
         os.makedirs(models_dir, exist_ok=True)
-    return tokenizers_dir, datasets_dir, models_dir
+    return tokenizers_dir, models_dir
 
 def get_latest_dir(saving_dir, adding_one=False):
     """

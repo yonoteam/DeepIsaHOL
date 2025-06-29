@@ -61,14 +61,14 @@ def save_proof(repl, prf):
 # DEPTH FIRST SEARCH
 
 def inputs_from(repl, prf_info, dfs_config):
-    data_mode = dfs_config["data_mode"]
+    data_format = dfs_config["data_format"]
     usr_sep = proofs.str_ops.Separator["user_state"]
 
     xs = [repl.proof_so_far(), usr_sep, repl.last_usr_state()]
     xs.extend(prf_info["proof_data"])
 
     x = " ".join(xs)
-    x = "isabelle next step: " + x if "finetune" in data_mode else x
+    x = "isabelle next step: " + x if "finetune" in data_format else x
     return x
 
 # the pos variable indicates a position in the dfs tree, i.e. [i, j, k, l] corresponds 
@@ -256,11 +256,11 @@ def measure_dfs(
 
 # PROOF PROCESSING
 
-def load_proof(data_mode, prf_num, prf_path, thy_name, logic):
+def load_proof(data_format, prf_num, prf_path, thy_name, logic):
     proof = dicts.load_json(prf_path)
     prf_start = proofs.orig_objective_of(proof)
     prf_start = proofs.str_ops.fix_missing_quotations(prf_start)
-    prf_data = proofs.str_ops.add_spk_data(proof, [], data_mode=data_mode)
+    prf_data = proofs.str_ops.add_spk_data(proof, [], data_format=data_format)
     return {
         "num": prf_num,          # proof number inside the theory file
         "path": prf_path,        # path to the proof JSON file
@@ -372,7 +372,7 @@ def process_logic(logic, thys, dfs_config, loop_state):
         logging.info(f"Processing theory {thy_name}")
         for prf_num, prf_path in thys[thy_name]:
             prf_info = load_proof(
-                dfs_config["data_mode"],
+                dfs_config["data_format"],
                 prf_num,
                 prf_path, 
                 thy_name,
@@ -417,14 +417,14 @@ def start_loop_state():
 
 # TODO: make the cpu or gpu choice part of the input config_dict
 def configure(config_dict, saving=False, max_prf_attempts=5):
-    data_mode = config_dict["data_mode"]
+    data_format = config_dict["data_format"]
 
     # model
     model, tokenizer, _ = eval_t5.load_model_tok_data(config_dict)
     model.to("cpu")
 
     # tokenizer
-    tok_max_length = config_ops.get_context_length(data_mode)
+    tok_max_length = config_ops.get_context_length(data_format)
     tokenizer.model_max_length = tok_max_length
     print(f"Model context length = {model.config.n_positions}")
     print(f"Tokenizer context length = {tokenizer.model_max_length}")
@@ -435,7 +435,7 @@ def configure(config_dict, saving=False, max_prf_attempts=5):
     dfs_config["max_prf_attempts"] = max_prf_attempts
 
     # extensions to the configuration
-    dfs_config["data_mode"] = data_mode
+    dfs_config["data_format"] = data_format
     dfs_config["generator"] = pipeline(
         "text2text-generation", 
         model=model, 

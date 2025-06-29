@@ -9,10 +9,14 @@ the tokenizing, training, and evaluation parameters for the models.
 import os
 import logging
 import argparse
+from typing import Union
 
+import dicts
 import proofs.data_dir
 from proofs.str_ops import FORMATS
 from proofs.data_dir import SPLITS
+
+PathLike = Union[str, os.PathLike]
 
 CTX_LENGTHS = {
     FORMATS["S"]: 512,
@@ -27,6 +31,54 @@ CTX_LENGTHS = {
 
 def get_context_length(mode):
     return CTX_LENGTHS.get(mode)
+
+EXAMPLE_TRAINING_ARGS = {
+    # operational
+    "doc": "https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments",
+    "torch_empty_cache_steps": None,
+    "use_cpu": False,
+    "fp16": False,
+    "bf16": True,
+    # training
+    "max_steps": 1000,
+    "per_device_train_batch_size": 8,
+    # logging
+    "logging_strategy": "steps",
+    "log_level": "passive",
+    "logging_dir": os.getcwd(),
+    "log_on_each_node": True,
+    "logging_steps": 1000,
+    # evaluation
+    "eval_strategy": "steps",
+    "eval_steps": 1000,
+    "load_best_model_at_end": True,
+    "metric_for_best_model": "eval_loss",
+    "per_device_eval_batch_size": 8,
+    "batch_eval_metrics": False,
+    # training optimization
+    "lr_scheduler_type": "constant",
+    "learning_rate": 1e-5,
+    "weight_decay": 0.01,
+    # saving
+    "output_dir": os.getcwd(),
+    "overwrite_output_dir": False,
+    "save_strategy": "steps",
+    "save_total_limit": 5,
+    "save_steps": 10000
+}
+
+EXAMPLE_CONFIG_DICT = {
+    "do_train": False,
+    "do_eval": False,
+    "data_dir": os.getcwd(),
+    "model_name": "google/flan-t5-small",
+    "models_dir": os.getcwd(),
+    "tokenizers_dir": os.getcwd(),
+    "data_format": "state",
+    "data_split": "train",
+    "num_epochs": 1,
+    "hf_training_arguments": EXAMPLE_TRAINING_ARGS
+}
 
 def ancester_dir_exists(path):
     """
@@ -43,64 +95,108 @@ def ancester_dir_exists(path):
             return False
         path = directory
 
-def check_params(config_dict):
-    """
-    If the input configuration dictionary is not correct, it raises an error. Otherwise, it does nothing.
-    It tests the existence of the following parameters.
-    'data_dir' - (str) path to a directory recursively containing at leasst one proofN.json
-    'model_name' - (str) a Hugging Face model name
-    'models_dir' - (str) path to a directory for saving models
-    'tokenizers_dir' - (str) path to a directory for saving tokenizers
-    'datasets_dir' - (str) path to a directory for saving tokenized datasets
-    'data_mode' - (str) any of the isa_data.FORMATS
-    'data_split' - (str) any of the possible dataset splits as in isa_data.SPLITS. It will be ignnored in the non-testing scripts.
-    'batch_size' - (int) the number of samples per batch
-    'num_epochs' - (int) the number of times the training/validation loop is repeated
+def check_has_parent(path):
+    if not ancester_dir_exists(path):
+        message = f"""Input '{path}' does not start with a full path."""
+        raise ValueError(f"Error: {message}")
 
-    :param config_dict: (dict) dictionary containing the training configuration
-    """
-    try:
-        data_dir = config_dict["data_dir"]
-        _ = config_dict["model_name"]
-        models_dir = config_dict["models_dir"]
-        tokenizers_dir = config_dict["tokenizers_dir"]
-        datasets_dir = config_dict["datasets_dir"]
-        data_mode = config_dict["data_mode"]
-        data_split = config_dict["data_split"]
-        _ = int(config_dict["batch_size"])
-        _ = int(config_dict["num_epochs"])
-    except KeyError as e:
-        raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
-    except ValueError as e:
-        raise ValueError(f"Error extracting parameter from configuration dictionary: {e}")
-    except Exception as e:
-        raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
-    
+def check_valid_proof_data_dir(data_dir):
     if not proofs.data_dir.is_valid(data_dir):
-        message = f"""No subdirectory in '{data_dir}' contains  a JSON file that starts with 'proof' and ends with '.json'.""".format()
+        message = f"""No subdirectory in '{data_dir}' contains a JSON file that starts with 'proof' and ends with '.json'.""".format()
         raise ValueError(f"Error: {message}.")
     
-    if not ancester_dir_exists(models_dir):
-        message = f"""Input '{models_dir}' does not start with a full path."""
+def check_valid_format(data_format):
+    valid_formats = FORMATS.values()
+    if not data_format in valid_formats:
+        message = f"""Input '{data_format}' is not a valid data mode: {valid_formats}"""
         raise ValueError(f"Error: {message}")
-    
-    if not ancester_dir_exists(tokenizers_dir):
-        message = f"""Input '{tokenizers_dir}' does not start with a full path."""
-        raise ValueError(f"Error: {message}")
-    
-    if not ancester_dir_exists(datasets_dir):
-        message = f"""Input '{datasets_dir}' does not start with a full path."""
-        raise ValueError(f"Error: {message}")
-    
-    valid_modes = FORMATS.values()
-    if not data_mode in valid_modes:
-        message = f"""Input '{data_mode}' is not a valid data mode: {valid_modes}"""
-        raise ValueError(f"Error: {message}")
-    
+
+def check_valid_split(data_split):
     valid_splits = SPLITS.values()
     if not data_split in valid_splits:
         message = f"""Input '{data_split}' is not a valid dataset split: {valid_splits}"""
         raise ValueError(f"Error: {message}")
+
+def check_params(config_dict):
+    """
+    Raises an error if it finds an issue with the input configuration dictionary. 
+    Otherwise, it does nothing.
+
+    :param config_dict: (dict) dictionary containing the training configuration
+    """
+    try:
+        training = config_dict["do_train"]
+        if not isinstance(training, bool):
+            raise ValueError(f"Input for do_train must be a boolean")
+        
+        evaluating = config_dict["do_eval"]
+        if not isinstance(evaluating, bool):
+            raise ValueError(f"Input for do_eval must be a boolean")
+        
+        data_dir = config_dict["data_dir"]
+        _ = config_dict["model_name"]
+        models_dir = config_dict["models_dir"]
+        tokenizers_dir = config_dict["tokenizers_dir"]
+        data_format = config_dict["data_format"]
+
+        train_args = config_dict["hf_training_arguments"]
+        if not isinstance(train_args, dict):
+            raise ValueError(f"Input for hf_training_arguments must be a dictionary.")
+    except KeyError as e:
+        raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
+    except Exception as e:
+        raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
+    except ValueError as e:
+        raise ValueError(f"Error extracting parameter from configuration dictionary: {e}")
+
+    check_valid_proof_data_dir(data_dir)
+    check_has_parent(models_dir)
+    check_has_parent(tokenizers_dir)
+    check_valid_format(data_format)
+    
+    if training:
+        try:
+            _ = int(config_dict["num_epochs"])
+            _ = int(train_args["per_device_train_batch_size"])
+        except KeyError as e:
+            raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
+        except ValueError as e:
+            raise ValueError(f"Error extracting parameter from configuration dictionary: {e}")
+        except Exception as e:
+            raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
+
+    if evaluating:
+        try:
+            _ = int(train_args["per_device_eval_batch_size"])
+        except KeyError as e:
+            raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
+        except ValueError as e:
+            raise ValueError(f"Error extracting parameter from configuration dictionary: {e}")
+        except Exception as e:
+            raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
+
+def parse_path(
+        tool_explanation: str = "Does something as specified in the config path."
+    ):
+    """
+    Entrypoint method to parse the first stdin-argument to a script. The stdin input should be 
+    a path to the configuration dictionary. It offers a customisable explanation argument for 
+    describing the purpose of the scripts calling it.
+    
+    :param tool_explanation: Description of what the main function calling this method will do.
+    """
+    try:
+        parser = argparse.ArgumentParser(description=tool_explanation)
+        parser.add_argument("config_path", type=str, help="Path to the JSON configuration file.")
+        args = parser.parse_args()
+        path = args.config_path
+        if not ancester_dir_exists(path):
+            raise ValueError(f"Not a path: {path}")
+        config_dict = dicts.load_json(path)
+        check_params(config_dict)
+        return config_dict
+    except Exception as e:
+        raise Exception(f"Error loading configuration information: {e}")
     
 
 def setup_logging(log_file_name, log_level=logging.DEBUG, save_dir=os.getcwd()):
@@ -121,13 +217,5 @@ def setup_logging(log_file_name, log_level=logging.DEBUG, save_dir=os.getcwd()):
     )
     logging.info("Logging configured. Writing logs to %s", log_file)
 
-def parse_config_path(tool_explanation="Does something as specified in the config path."):
-    """
-    Parses the first argument (of type 'str') and returns it.
-    
-    :param tool_explanation: Description of what the main function calling this method will do.
-    """
-    parser = argparse.ArgumentParser(description=tool_explanation)
-    parser.add_argument("config_path", type=str, help="Path to the JSON configuration file.")
-    args = parser.parse_args()
-    return args.config_path
+
+

@@ -51,17 +51,17 @@ def estimate_vocab_size(json_data_dir, coverage_threshold=0.95):
     logging.info(f"Estimated vocab size is {optimal_vocab_size}")
     return optimal_vocab_size
 
-def accumulate_approx_split_lengths(lengths, proof, data_mode=str_ops.FORMATS["S"]):
+def accumulate_approx_split_lengths(lengths, proof, data_format=str_ops.FORMATS["S"]):
     """
     Accumulator to be used with proofs.compute_stats. It estimates the number of tokens 
     by splitting the proof's strings of inputs (and targets) with blank spaces.
 
     :param lengths: pair of lists (for lengths of input-target pairs) to accumulate
     :param proof: dictionary abstracting a proof
-    :param data_mode: the data format
+    :param data_format: the data format
     :rtype: tuple(list)
     """
-    x_y_pairs = str_ops.inputs_targets_from(proof, data_mode=data_mode)
+    x_y_pairs = str_ops.inputs_targets_from(proof, data_format=data_format)
     lengths[0].extend(len(x.split()) for x, _ in x_y_pairs)
     lengths[1].extend(len(y.split()) for _, y in x_y_pairs)
     return lengths 
@@ -72,7 +72,7 @@ def compute_stats(accumulator, json_data_dir, **kwargs):
     the estimation from the accumulator.
     
     :param accumulator: function tuple(list) -> tuple(list) with the lengths to process
-    :param data_mode: the data format mode
+    :param data_format: the data format mode
     :returns: dictionary containing the tokenization statistics
     :rtype: dict
     """

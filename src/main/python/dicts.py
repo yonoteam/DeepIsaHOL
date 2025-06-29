@@ -7,7 +7,7 @@ import os
 import json
 import logging
 
-from typing import Union, Optional, List, IO, Any
+from typing import Union, Optional, List, IO
 
 def safe_load_json(file_obj: IO[str]) -> dict:
     """
