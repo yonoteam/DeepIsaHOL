@@ -191,7 +191,7 @@ def train(model, dataloader, optimizer, lr_scheduler, epoch, config_dict, accele
             labels=batch["labels"]
         )
         loss = outputs.loss
-        log_nan_loss(loss, batch_idx, batch, accelerator)
+        log_nan_loss(loss, batch_idx, accelerator)
         
         # Backpropagation
         optimizer.zero_grad()
