@@ -22,8 +22,8 @@ import tokenizer_ops as tokops
 # LOADING
 
 def load_model_tok_data1(config_dict):
-    toks_dir, models_dir = save_ops.get_dirs(config_dict)
-    tokenizer = tokops.load_latest_tokenizer(toks_dir)
+    tokenizer = tokops.get_trained_tokenizer(config_dict, making_dirs=False)
+    vocab_size = len(tokenizer)
 
     generator_kwargs ={
         "tokenizer": tokenizer,
@@ -35,14 +35,15 @@ def load_model_tok_data1(config_dict):
         tokops.t5_tokked_model_inputs,
         gen_kwargs=generator_kwargs
     )
-    
-    model = train_t5.load_latest_model(models_dir)
+
+    model = train_t5.get_model(config_dict, vocab_size)
     return model, tokenizer, dataset
 
 def load_model_tok_dataN(config_dict, accelerator):
     toks_dir, models_dir = save_ops.get_dirs(config_dict)
     if accelerator.is_main_process:
-        tokenizer = tokops.load_latest_tokenizer(toks_dir)
+        tokenizer = tokops.get_trained_tokenizer(config_dict, making_dirs=False)
+        vocab_size = len(tokenizer)
         generator_kwargs ={
             "tokenizer": tokenizer,
             "json_data_dir": config_dict["data_dir"],
@@ -53,7 +54,7 @@ def load_model_tok_dataN(config_dict, accelerator):
             tokops.t5_tokked_model_inputs,
             gen_kwargs=generator_kwargs
         )
-        model = train_t5.load_latest_model(models_dir)
+        model = train_t5.get_model(config_dict, vocab_size)
     else:
         tokenizer = None
         dataset = None
