@@ -77,6 +77,7 @@ EXAMPLE_CONFIG_DICT = {
     "data_format": "state",
     "data_split": "train",
     "num_epochs": 1,
+    "batches_per_epoch": 134740,
     "hf_training_arguments": EXAMPLE_TRAINING_ARGS
 }
 

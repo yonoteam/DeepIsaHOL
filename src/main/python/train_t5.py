@@ -300,38 +300,9 @@ def compute_t5_metrics(eval_preds: EvalPrediction):
     accuracy = corrects_sum.item() / valid_toks.item() if valid_toks.item() > 0 else 0.0
     return {"accuracy": accuracy}
 
-def count_train_data(train_data, data_collator, model, tokenizer, pre_args, accelerator):
-    pre_train_args = TrainingArguments(**pre_args)
-    pre_trainer = Trainer(
-        model=model,
-        args=pre_train_args,
-        train_dataset=train_data,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-    )
-    train_dataloader = pre_trainer.get_train_dataloader()
-    train_dataloader = accelerator.prepare(train_dataloader)
-    
-    local_batches_count = 0
-    for _ in train_dataloader:
-        local_batches_count += 1
-    batches_per_process = torch.tensor(local_batches_count, dtype=torch.long, device=accelerator.device)
-    global_batch_tensor = accelerator.reduce(batches_per_process, reduction="sum")
-    global_batch_count = global_batch_tensor.item()
-
-    if accelerator.is_main_process:
-        dicts.save_as_json(
-            {
-                "training_batches": global_batch_count,
-                "training_samples": global_batch_count * pre_args["per_device_train_batch_size"]
-            }, save_path=os.getcwd()
-        )
-    accelerator.wait_for_everyone()
-    return global_batch_count
-
-def get_training_args(train_data, data_collator, model, tokenizer, config_dict, accelerator):
+def get_training_args(config_dict):
     pre_args = config_dict["hf_training_arguments"]
-    batches_per_epoch = count_train_data(train_data, data_collator, model, tokenizer, pre_args, accelerator)
+    batches_per_epoch = config_dict["batches_per_epoch"]
 
     pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch
     pre_args["logging_dir"] = os.getcwd(),
