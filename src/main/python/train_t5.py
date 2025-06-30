@@ -5,6 +5,7 @@
 
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
+import os
 import logging
 import numpy as np
 import torch
@@ -13,13 +14,15 @@ import random
 import tokenizer_ops as tokops
 
 from torch.utils.data import DataLoader
+from datasets import IterableDataset
 from transformers import (
     TrainingArguments,
     Trainer,
+    DataCollatorForSeq2Seq,
+    EvalPrediction,
     set_seed,
-    AutoConfig, 
-    T5ForConditionalGeneration, 
-    DataCollatorForSeq2Seq, 
+    AutoConfig,
+    T5ForConditionalGeneration,
     get_scheduler
 )
 from accelerate.utils import broadcast_object_list
@@ -28,7 +31,6 @@ import dicts
 import distrib
 import save_ops
 import config_ops
-from proofs.data_dir import SPLITS
 
 # CONFIGURATION
 
@@ -88,7 +90,7 @@ def log_empty_labels(batch_idx, batch, accelerator):
         logging.warning(f"{accelerator.process_index}: Empty labels detected at batch {batch_idx}")
         logging.info(f"{accelerator.process_index}: batch {batch_idx} is {batch}")
 
-def log_nan_loss(loss, batch_idx, batch, accelerator):
+def log_nan_loss(loss, batch_idx, accelerator):
     if torch.isnan(loss).any():
         logging.error(f"{accelerator.process_index}: NaN loss detected at batch {batch_idx}")
 
@@ -246,8 +248,21 @@ def load_model_tok_data(accelerator, config_dict):
         vocab_size = len(tokenizer)
 
         # Data
-        train_data = tokops.get_dataset(tokenizer, config_dict, split = SPLITS["TRAIN"])
-        valid_data = tokops.get_dataset(tokenizer, config_dict, split = SPLITS["VALID"])
+        generator_kwargs = {
+            "tokenizer": tokenizer,
+            "json_data_dir": config_dict["data_dir"],
+            "split": "train",
+            "data_format": config_dict["data_format"]
+        }
+        train_data = IterableDataset.from_generator(
+            tokops.t5_tokked_model_inputs,
+            gen_kwargs=generator_kwargs
+        )
+        generator_kwargs["split"] = "valid"
+        valid_data = IterableDataset.from_generator(
+            tokops.t5_tokked_model_inputs,
+            gen_kwargs=generator_kwargs
+        )
 
         # Model
         model = get_model(config_dict, vocab_size)
@@ -264,7 +279,6 @@ def load_model_tok_data(accelerator, config_dict):
     logging.info(f"{accelerator.process_index}: Successfully broadcasted data, the evidence is that the type of model is {type(model)}")
     return model, tokenizer, train_data, valid_data
 
-# TODO: make lr configurable from configuration JSON
 def main(accelerator, config_dict):
     model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict)
 
@@ -272,30 +286,80 @@ def main(accelerator, config_dict):
 
     do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict)
 
-def get_training_args(config_dict):
-    train_args_dict = config_dict["hf_training_arguments"]
-    train_args_dict["output_dir"] = "models_dir"
-    return TrainingArguments(**train_args_dict)
+# ALTERNATIVE APPROACH WITH TRAINER
+
+def compute_t5_metrics(eval_preds: EvalPrediction):
+    predictions, labels = eval_preds.predictions, eval_preds.label_ids
+
+    valid_mask = (labels != -100)
+    predicted_token_ids = np.argmax(predictions, axis=-1) # most likely token IDs
+    valid_predictions = predicted_token_ids[valid_mask]
+    valid_labels = labels[valid_mask]
+    corrects_sum = (valid_predictions == valid_labels).sum()
+    valid_toks = valid_mask.sum()
+    accuracy = corrects_sum.item() / valid_toks.item() if valid_toks.item() > 0 else 0.0
+    return {"accuracy": accuracy}
+
+def count_train_data(train_data, data_collator, model, tokenizer, pre_args, accelerator):
+    pre_train_args = TrainingArguments(**pre_args)
+    pre_trainer = Trainer(
+        model=model,
+        args=pre_train_args,
+        train_dataset=train_data,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+    )
+    train_dataloader = pre_trainer.get_train_dataloader()
+    train_dataloader = accelerator.prepare(train_dataloader)
+    
+    local_batches_count = 0
+    for _ in train_dataloader:
+        local_batches_count += 1
+    batches_per_process = torch.tensor(local_batches_count, dtype=torch.long, device=accelerator.device)
+    global_batch_tensor = accelerator.reduce(batches_per_process, reduction="sum")
+    global_batch_count = global_batch_tensor.item()
+
+    if accelerator.is_main_process:
+        dicts.save_as_json(
+            {
+                "training_batches": global_batch_count,
+                "training_samples": global_batch_count * pre_args["per_device_train_batch_size"]
+            }, save_path=os.getcwd()
+        )
+    accelerator.wait_for_everyone()
+    return global_batch_count
+
+def get_training_args(train_data, data_collator, model, tokenizer, config_dict, accelerator):
+    pre_args = config_dict["hf_training_arguments"]
+    batches_per_epoch = count_train_data(train_data, data_collator, model, tokenizer, pre_args, accelerator)
+
+    pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch
+    pre_args["eval_steps"] = batches_per_epoch
+    pre_args["save_steps"] = batches_per_epoch
+    pre_args["output_dir"] = config_dict["models_dir"]
+    pre_args["logging_steps"] = max(1, batches_per_epoch // 100)
+    train_args = TrainingArguments(**pre_args)
+    return train_args
 
 def main_alt(accelerator, config_dict):
     model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict)
-
-    train_args = get_training_args(config_dict)
-    trainer = accelerator.prepare(
-        Trainer(
-            model=model,
-            args=train_args,
-            train_dataset=train_data,
-            eval_dataset=valid_data,
-            tokenizer=tokenizer,
-            data_collator=DataCollatorForSeq2Seq(
-                tokenizer, 
-                model, 
-                padding="max_length", 
-                max_length=model.config.n_positions
-            ),
-        )
+    data_collator=DataCollatorForSeq2Seq(
+        tokenizer, 
+        model, 
+        padding="max_length", 
+        max_length=model.config.n_positions
     )
+    train_args = get_training_args(train_data, data_collator, model, tokenizer, config_dict, accelerator)
+    trainer = Trainer(
+        model=model,
+        args=train_args,
+        train_dataset=train_data,
+        eval_dataset=valid_data,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        compute_metrics=compute_t5_metrics
+    )
+    trainer = accelerator.prepare(trainer)
     
     train_results = trainer.train()
     trainer.save_model()

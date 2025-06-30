@@ -3,11 +3,8 @@
 # 
 # Utilities for training and loading Hugging Face tokenizers
 
-import os
 import logging
 
-import torch
-from datasets import IterableDataset
 from transformers import AutoTokenizer
 
 import dicts
@@ -80,7 +77,7 @@ def accumulate_tokenized_lengths(lengths, proof, tokenizer, data_format=FORMATS[
     lengths[1].extend(len(tokenizer(y)["input_ids"]) for _, y in x_y_pairs)
     return lengths
 
-def tokenize(tokenizer, x, y):
+def t5_tokenize(tokenizer, x, y):
     max_length = tokenizer.model_max_length
     inputs = tokenizer(
         x, 
@@ -112,7 +109,7 @@ def tokenize(tokenizer, x, y):
         model_inputs.append(to_add)
     return model_inputs
 
-def generate_model_inputs(tokenizer, json_data_dir, split, data_format=FORMATS["S"]):
+def generate_model_inputs(json_data_dir, split, data_format=FORMATS["S"]):
     """
     Generator function for train, validation, and test data.
 
@@ -123,49 +120,20 @@ def generate_model_inputs(tokenizer, json_data_dir, split, data_format=FORMATS["
     :returns: generator for tokenized inputs with labels for conditional generation
     :rtype: generator
     """
-    tok_max_length = config_ops.get_context_length(data_format)
-    tokenizer.model_max_length = tok_max_length
-    logging.info(f"Tokenizer's model max length is {tokenizer.model_max_length}")
     for path in proofs.data_dir.generate_dataset_paths(json_data_dir, split):
         proof = dicts.load_json(path)
         for input_text, target_text in proofs.str_ops.inputs_targets_from(proof, data_format):
-            model_inputs = tokenize(tokenizer, input_text, target_text)
-            for model_input in model_inputs:
-                yield model_input
+            model_inputs = {"input": input_text, "target": target_text}
+            yield model_inputs
 
-# TODO: add support for HF datasets library
-def get_dataset(tokenizer, config_dict, split=SPLITS["NONE"]):
-    data_format = config_dict["data_format"]
-    dataset = IterableDataset.from_generator(
-        generate_model_inputs, 
-        gen_kwargs={
-            'tokenizer': tokenizer, 
-            'json_data_dir': config_dict["data_dir"], 
-            'split': split, 
-            'data_format': data_format
-        }
-    )
-    logging.info(f"Loading dataset from the '{split}' split with data format '{data_format}'.")
-    return dataset
-
-
-# SAVE AND LOAD DATASETS
-
-def make_and_save_datasets(tokenizer, data_dir, datasets_dir, data_format=FORMATS["S"]):
-    root_dirs = [entry.path for entry in os.scandir(data_dir) if entry.is_dir() and proofs.data_dir.is_valid(entry)]
-    for root_dir in root_dirs:
-        for split in [SPLITS["TRAIN"], SPLITS["VALID"], SPLITS["TEST"]]:
-            dataset = list(generate_model_inputs(tokenizer, root_dir, split=split, data_format=data_format))
-            save_name = os.path.join(os.path.basename(root_dir), split + '.pt')
-            save_path = os.path.join(datasets_dir, save_name)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            torch.save(dataset, save_path)
-
-def generate_data_path_set(datasets_dir, split):
-    datasets_paths = [os.path.join(entry.path, split + '.pt') for entry in os.scandir(datasets_dir) if entry.is_dir() and os.path.isfile(os.path.join(entry.path, split + '.pt'))]
-    for dataset_path in datasets_paths:
-        dataset = torch.load(dataset_path, weights_only=True)
-        yield dataset_path, dataset
+def t5_tokked_model_inputs(tokenizer, json_data_dir, split=SPLITS["NONE"], data_format=FORMATS["S"]):
+    tok_max_length = config_ops.get_context_length(data_format)
+    tokenizer.model_max_length = tok_max_length
+    logging.info(f"Tokenizer's model max length is {tokenizer.model_max_length}")
+    for model_inputs in generate_model_inputs(json_data_dir, split, data_format=data_format):
+        tokked_model_inputs = t5_tokenize(tokenizer, model_inputs["input"], model_inputs["target"])
+        for model_input in tokked_model_inputs:
+            yield model_input
 
 
 # MAIN

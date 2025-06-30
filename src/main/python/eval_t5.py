@@ -7,6 +7,7 @@ import logging
 
 import torch
 from torch.utils.data import DataLoader
+from datasets import IterableDataset
 from transformers import DataCollatorForSeq2Seq
 from accelerate.utils import broadcast_object_list
 
@@ -23,7 +24,18 @@ import tokenizer_ops as tokops
 def load_model_tok_data1(config_dict):
     toks_dir, models_dir = save_ops.get_dirs(config_dict)
     tokenizer = tokops.load_latest_tokenizer(toks_dir)
-    dataset = tokops.get_dataset(tokenizer, config_dict, split = config_dict["data_split"])
+
+    generator_kwargs ={
+        "tokenizer": tokenizer,
+        "json_data_dir": config_dict["data_dir"],
+        "split": config_dict["data_split"],
+        "data_format": config_dict["data_format"]
+    }
+    dataset = IterableDataset.from_generator(
+        tokops.t5_tokked_model_inputs,
+        gen_kwargs=generator_kwargs
+    )
+    
     model = train_t5.load_latest_model(models_dir)
     return model, tokenizer, dataset
 
@@ -31,7 +43,16 @@ def load_model_tok_dataN(config_dict, accelerator):
     toks_dir, models_dir = save_ops.get_dirs(config_dict)
     if accelerator.is_main_process:
         tokenizer = tokops.load_latest_tokenizer(toks_dir)
-        dataset = tokops.get_dataset(tokenizer, config_dict, split = config_dict["data_split"])
+        generator_kwargs ={
+            "tokenizer": tokenizer,
+            "json_data_dir": config_dict["data_dir"],
+            "split": config_dict["data_split"],
+            "data_format": config_dict["data_format"]
+        }
+        dataset = IterableDataset.from_generator(
+            tokops.t5_tokked_model_inputs,
+            gen_kwargs=generator_kwargs
+        )
         model = train_t5.load_latest_model(models_dir)
     else:
         tokenizer = None
