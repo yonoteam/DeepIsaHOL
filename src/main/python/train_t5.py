@@ -248,7 +248,7 @@ def load_model_tok_data(accelerator, config_dict):
         vocab_size = len(tokenizer)
 
         # Data
-        generator_kwargs = {
+        train_kwargs = {
             "tokenizer": tokenizer,
             "json_data_dir": config_dict["data_dir"],
             "split": "train",
@@ -256,12 +256,13 @@ def load_model_tok_data(accelerator, config_dict):
         }
         train_data = IterableDataset.from_generator(
             tokops.t5_tokked_model_inputs,
-            gen_kwargs=generator_kwargs
+            gen_kwargs=train_kwargs
         )
-        generator_kwargs["split"] = "valid"
+        valid_kwargs = train_kwargs.copy()
+        valid_kwargs["split"] = "valid"
         valid_data = IterableDataset.from_generator(
             tokops.t5_tokked_model_inputs,
-            gen_kwargs=generator_kwargs
+            gen_kwargs=valid_kwargs
         )
 
         # Model
@@ -326,7 +327,7 @@ def main_alt(accelerator, config_dict):
         padding="max_length", 
         max_length=model.config.n_positions
     )
-    train_args = get_training_args(train_data, data_collator, model, tokenizer, config_dict, accelerator)
+    train_args = get_training_args(config_dict)
     trainer = Trainer(
         model=model,
         args=train_args,
