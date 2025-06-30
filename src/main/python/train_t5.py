@@ -306,14 +306,14 @@ def get_training_args(config_dict):
     batches_per_epoch = config_dict["batches_per_epoch"]
 
     pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch
-    pre_args["logging_dir"] = os.getcwd(),
+    pre_args["logging_dir"] = os.getcwd()
     pre_args["logging_steps"] = max(1, batches_per_epoch // 100)
     pre_args["eval_strategy"] = "steps"
     pre_args["eval_steps"] = batches_per_epoch
     pre_args["output_dir"] = config_dict["models_dir"]
-    pre_args["overwrite_output_dir"] = True,
+    pre_args["overwrite_output_dir"] = True
     pre_args["save_strategy"] = "steps"
-    pre_args["save_total_limit"] = 5,
+    pre_args["save_total_limit"] = 5
     pre_args["save_steps"] = batches_per_epoch
     
     train_args = TrainingArguments(**pre_args)
