@@ -45,6 +45,7 @@ EXAMPLE_TRAINING_ARGS = {
     # logging
     "logging_strategy": "steps",
     "log_level": "passive",
+    "report_to": "tensorboard",
     "logging_dir": os.getcwd(),
     "log_on_each_node": True,
     "logging_steps": 1000,
@@ -54,7 +55,6 @@ EXAMPLE_TRAINING_ARGS = {
     "load_best_model_at_end": True,
     "metric_for_best_model": "eval_loss",
     "per_device_eval_batch_size": 8,
-    "batch_eval_metrics": False,
     # training optimization
     "lr_scheduler_type": "constant",
     "learning_rate": 1e-5,
