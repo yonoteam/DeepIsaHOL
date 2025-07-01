@@ -339,13 +339,12 @@ def main_alt(accelerator, config_dict):
     )
     
     train_results = trainer.train()
-    trainer.save_metrics("all")
 
-    logging.info(f"Main process: Training complete.")
+    logging.info(f"Training complete.")
     trainer.save_model() # load_best_model_at_end
-    trainer.save_metrics("train_results", train_results.metrics)
+    trainer.save_metrics("all", train_results.metrics)
     trainer.save_state()
-    logging.info(f"Main process: Model saved.")
+    logging.info(f"Model saved.")
 
 if __name__ == "__main__":
     set_all_seeds(42)
