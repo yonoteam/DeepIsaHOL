@@ -323,7 +323,7 @@ def main_alt(accelerator, config_dict):
     model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict)
     data_collator=DataCollatorForSeq2Seq(
         tokenizer, 
-        model, 
+        model,
         padding="max_length", 
         max_length=model.config.n_positions
     )
@@ -337,17 +337,15 @@ def main_alt(accelerator, config_dict):
         data_collator=data_collator,
         compute_metrics=compute_t5_metrics
     )
-    trainer = accelerator.prepare(trainer)
     
     train_results = trainer.train()
     trainer.save_metrics("all")
 
-    if accelerator.is_main_process:
-        logging.info(f"Main process: Training complete.")
-        trainer.save_model() # load_best_model_at_end
-        trainer.save_metrics("train_results", train_results.metrics)
-        trainer.save_state()
-        logging.info(f"Main process: Model saved.")
+    logging.info(f"Main process: Training complete.")
+    trainer.save_model() # load_best_model_at_end
+    trainer.save_metrics("train_results", train_results.metrics)
+    trainer.save_state()
+    logging.info(f"Main process: Model saved.")
 
 if __name__ == "__main__":
     set_all_seeds(42)
