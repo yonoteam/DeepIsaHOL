@@ -41,24 +41,6 @@ def set_all_seeds(seed):
     random.seed(seed)
     set_seed(seed)
 
-def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=8):
-    # Dataloaders
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="max_length", max_length=model.config.n_positions)
-    train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
-    valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
-
-    # Optimizer and Scheduler
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.01)
-    lr_scheduler = get_scheduler("constant", optimizer=optimizer)
-
-    # Accelerate them
-    train_dataloader = accelerator.prepare_data_loader(train_dataloader)
-    valid_dataloader = accelerator.prepare_data_loader(valid_dataloader)
-    log_dataloading(train_dataloader, accelerator)
-    model, optimizer, lr_scheduler = accelerator.prepare(
-            model, optimizer, lr_scheduler
-    )
-    return train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
 
 # LOGGING
 
@@ -96,7 +78,12 @@ def log_nan_loss(loss, batch_idx, accelerator):
 
 # RETRIEVE MODEL
 
-def initialize_model(model_name, finetuning, vocab_size, ctxt_length):
+def initialize_model(config_dict, vocab_size):
+    model_name = config_dict["model_name"]
+    data_format = config_dict["data_format"]
+    finetuning = True if data_format.startswith("finetune") else False
+    ctxt_length = tokops.get_context_length(data_format)
+
     config = AutoConfig.from_pretrained(model_name)
     vocab_size = config.vocab_size if finetuning else vocab_size
     config.update({
@@ -128,9 +115,7 @@ def get_model(config_dict, vocab_size):
     if previous_model:
         model = load_latest_model(models_dir)
     else:
-        ctxt_length = config_ops.get_context_length(config_dict["data_format"])
-        finetuning = True if config_dict["data_format"].startswith("finetune") else False
-        model = initialize_model(config_dict["model_name"], finetuning, vocab_size, ctxt_length)
+        model = initialize_model(config_dict, vocab_size)
     return model
 
 
@@ -240,6 +225,25 @@ def do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
 
 # MAIN
 
+def prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=8):
+    # Dataloaders
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding="max_length", max_length=model.config.n_positions)
+    train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
+    valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
+
+    # Optimizer and Scheduler
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.01)
+    lr_scheduler = get_scheduler("constant", optimizer=optimizer)
+
+    # Accelerate them
+    train_dataloader = accelerator.prepare_data_loader(train_dataloader)
+    valid_dataloader = accelerator.prepare_data_loader(valid_dataloader)
+    log_dataloading(train_dataloader, accelerator)
+    model, optimizer, lr_scheduler = accelerator.prepare(
+            model, optimizer, lr_scheduler
+    )
+    return train_dataloader, valid_dataloader, model, optimizer, lr_scheduler
+
 def load_model_tok_data(accelerator, config_dict):
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
@@ -283,7 +287,14 @@ def load_model_tok_data(accelerator, config_dict):
 def main(accelerator, config_dict):
     model, tokenizer, train_data, valid_data = load_model_tok_data(accelerator, config_dict)
 
-    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = prepare_for_multi_train(model, tokenizer, train_data, valid_data, accelerator, batch_size=config_dict["hf_training_arguments"]["per_device_train_batch_size"])
+    train_dataloader, valid_dataloader, model, optimizer, lr_scheduler = prepare_for_multi_train(
+        model, 
+        tokenizer, 
+        train_data, 
+        valid_data, 
+        accelerator, 
+        batch_size=config_dict["hf_training_arguments"]["per_device_train_batch_size"]
+    )
 
     do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict)
 

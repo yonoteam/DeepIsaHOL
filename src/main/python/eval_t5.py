@@ -13,7 +13,6 @@ from accelerate.utils import broadcast_object_list
 
 import dicts
 import distrib
-import save_ops
 import train_t5
 import config_ops
 import tokenizer_ops as tokops
@@ -40,7 +39,6 @@ def load_model_tok_data1(config_dict):
     return model, tokenizer, dataset
 
 def load_model_tok_dataN(config_dict, accelerator):
-    toks_dir, models_dir = save_ops.get_dirs(config_dict)
     if accelerator.is_main_process:
         tokenizer = tokops.get_trained_tokenizer(config_dict, making_dirs=False)
         vocab_size = len(tokenizer)

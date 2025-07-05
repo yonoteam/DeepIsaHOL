@@ -18,20 +18,6 @@ from proofs.data_dir import SPLITS
 
 PathLike = Union[str, os.PathLike]
 
-CTX_LENGTHS = {
-    FORMATS["S"]: 512,
-    FORMATS["SP"]: 1024,
-    FORMATS["SPK"]: 1024,
-    FORMATS["SPKT"]: 1024,
-    FORMATS["FS"]: 512,
-    FORMATS["FSP"]: 1024,
-    FORMATS["FSPK"]: 1024,
-    FORMATS["FSPKT"]: 1024
-}
-
-def get_context_length(mode):
-    return CTX_LENGTHS.get(mode)
-
 EXAMPLE_TRAINING_ARGS = {
     # operational
     "doc": "https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments",
@@ -76,6 +62,7 @@ EXAMPLE_CONFIG_DICT = {
     "tokenizers_dir": os.getcwd(),
     "data_format": "state",
     "data_split": "train",
+    "float_type": "bf16",
     "num_epochs": 1,
     "batches_per_epoch": 134740,
     "hf_training_arguments": EXAMPLE_TRAINING_ARGS

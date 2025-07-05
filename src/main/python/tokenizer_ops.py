@@ -15,6 +15,21 @@ import proofs
 from proofs.str_ops import FORMATS
 from proofs.data_dir import SPLITS
 
+# CONFIGURATION
+
+T5_CTX_LENGTHS = {
+    FORMATS["S"]: 512,
+    FORMATS["SP"]: 1024,
+    FORMATS["SPK"]: 1024,
+    FORMATS["SPKT"]: 1024,
+    FORMATS["FS"]: 512,
+    FORMATS["FSP"]: 1024,
+    FORMATS["FSPK"]: 1024,
+    FORMATS["FSPKT"]: 1024
+}
+
+def get_context_length(mode):
+    return T5_CTX_LENGTHS.get(mode)
 
 # TRAINING FROM SCRATCH
 
@@ -127,7 +142,7 @@ def generate_model_inputs(json_data_dir, split, data_format=FORMATS["S"]):
             yield model_inputs
 
 def t5_tokked_model_inputs(tokenizer, json_data_dir, split=SPLITS["NONE"], data_format=FORMATS["S"]):
-    tok_max_length = config_ops.get_context_length(data_format)
+    tok_max_length = get_context_length(data_format)
     tokenizer.model_max_length = tok_max_length
     logging.info(f"Tokenizer's model max length is {tokenizer.model_max_length}")
     for model_inputs in generate_model_inputs(json_data_dir, split, data_format=data_format):
