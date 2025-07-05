@@ -81,7 +81,7 @@ def log_nan_loss(loss, batch_idx, accelerator):
 def initialize_model(config_dict, vocab_size):
     model_name = config_dict["model_name"]
     data_format = config_dict["data_format"]
-    finetuning = True if data_format.startswith("finetune") else False
+    finetuning = config_dict["finetuning"]
     ctxt_length = tokops.get_context_length(data_format)
 
     config = AutoConfig.from_pretrained(model_name)

@@ -64,7 +64,7 @@ def get_trained_tokenizer(config_dict, making_dirs=False):
         tokenizer = load_latest_tokenizer(tokenizers_dir)
     else:
         model_name = config_dict["model_name"]
-        finetuning = True if config_dict["data_format"].startswith("finetune") else False
+        finetuning = config_dict["finetuning"]
         if finetuning:
             tokenizer = AutoTokenizer.from_pretrained(model_name)
         else:
@@ -138,7 +138,8 @@ def generate_model_inputs(json_data_dir, split, data_format=FORMATS["S"]):
     for path in proofs.data_dir.generate_dataset_paths(json_data_dir, split):
         proof = dicts.load_json(path)
         for input_text, target_text in proofs.str_ops.inputs_targets_from(proof, data_format):
-            model_inputs = {"input": input_text, "target": target_text}
+            x = "isabelle next step: " + input_text if "finetune" in data_format else input_text
+            model_inputs = {"input": x, "target": target_text}
             yield model_inputs
 
 def t5_tokked_model_inputs(tokenizer, json_data_dir, split=SPLITS["NONE"], data_format=FORMATS["S"]):

@@ -69,6 +69,7 @@ EXAMPLE_CONFIG_DICT = {
     "models_dir": os.getcwd(),
     "tokenizers_dir": os.getcwd(),
     "data_format": "state",
+    "finetuning": True,
     "data_split": "train",
     "float_type": "bf16",
     "num_epochs": 1,

@@ -242,6 +242,5 @@ def inputs_targets_from(
             xs = add_terms(step, terms_type="type variables", str_list=xs)
 
         x = sep_space.join(xs)
-        x = "isabelle next step: " + x if "finetune" in data_format else x
         data.append((x, y))
     return data
