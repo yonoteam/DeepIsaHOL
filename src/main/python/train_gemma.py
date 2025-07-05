@@ -147,7 +147,7 @@ def main(accelerator, config_dict):
 
     logging.info(f"Loaded model.")
     logging.info(f"Configuring trainer.")
-    train_args = configure_trainer(models_dir, torch_dtype)
+    train_args = configure_trainer(config_dict)
     peft_config = configure_lora()
 
     trainer = SFTTrainer(
