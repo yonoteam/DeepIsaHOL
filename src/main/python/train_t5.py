@@ -293,7 +293,7 @@ def main(accelerator, config_dict):
         train_data, 
         valid_data, 
         accelerator, 
-        batch_size=config_dict["hf_training_arguments"]["per_device_train_batch_size"]
+        batch_size=config_dict["hf_train_args"]["per_device_train_batch_size"]
     )
 
     do_epochs(train_dataloader, valid_dataloader, model, optimizer, lr_scheduler, accelerator, config_dict)
@@ -313,7 +313,7 @@ def compute_t5_metrics(eval_preds: EvalPrediction):
     return {"accuracy": accuracy}
 
 def get_training_args(config_dict):
-    pre_args = config_dict["hf_training_arguments"]
+    pre_args = config_dict["hf_train_args"]
     batches_per_epoch = config_dict["batches_per_epoch"]
 
     pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch

@@ -27,7 +27,15 @@ EXAMPLE_TRAINING_ARGS = {
     "bf16": True,
     # training
     "max_steps": 1000,
+    "max_grad_norm": 0.3,
+    "warmup_ratio": 0.03,
+    "gradient_checkpointing": False,
+    "gradient_accumulation_steps": 1,
     "per_device_train_batch_size": 8,
+    # sft-specific args
+    "packing": False,
+    "max_seq_length": 2048,
+    "optim": "adamw_torch_fused",
     # logging
     "logging_strategy": "steps",
     "log_level": "passive",
@@ -65,7 +73,7 @@ EXAMPLE_CONFIG_DICT = {
     "float_type": "bf16",
     "num_epochs": 1,
     "batches_per_epoch": 134740,
-    "hf_training_arguments": EXAMPLE_TRAINING_ARGS
+    "hf_train_args": EXAMPLE_TRAINING_ARGS
 }
 
 def ancester_dir_exists(path):
@@ -127,9 +135,9 @@ def check_params(config_dict):
         tokenizers_dir = config_dict["tokenizers_dir"]
         data_format = config_dict["data_format"]
 
-        train_args = config_dict["hf_training_arguments"]
+        train_args = config_dict["hf_train_args"]
         if not isinstance(train_args, dict):
-            raise ValueError(f"Input for hf_training_arguments must be a dictionary.")
+            raise ValueError(f"Input for hf_train_args must be a dictionary.")
     except KeyError as e:
         raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
     except Exception as e:

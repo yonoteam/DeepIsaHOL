@@ -366,7 +366,7 @@ def with_metric(eval_str, config_dict):
     eval_metric = METRICS[eval_str]
     def general_body(accelerator):
         model, tokenizer, dataset = load_model_tok_data(config_dict, accelerator=accelerator)
-        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["hf_training_arguments"]["per_device_eval_batch_size"], accelerator=accelerator)
+        model, dataloader = prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["hf_train_args"]["per_device_eval_batch_size"], accelerator=accelerator)
         if eval_str == "validation":
             step_kwargs = {"model": model}
         elif eval_str == "matching":
