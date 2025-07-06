@@ -77,6 +77,7 @@ def init_gemma(model_name, torch_dtype):
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
         bnb_4bit_quant_type='nf4',
+        device_map={'': torch.cuda.current_device()},
         bnb_4bit_compute_dtype=model_kwargs['torch_dtype'],
         bnb_4bit_quant_storage=model_kwargs['torch_dtype'],
     )
