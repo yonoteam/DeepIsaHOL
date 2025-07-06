@@ -126,9 +126,13 @@ def configure_trainer(config_dict):
     return sft_args
 
 def main(accelerator, config_dict):
+    cuda_available = torch.cuda.is_available()
+    logging.info(f"CUDA is available?: {cuda_available}")
+    if cuda_available:
+        logging.info(f"CUDA is available?: {torch.cuda.device_count()}")
+        logging.info(f"CUDA is available?: {torch.cuda.current_device()}")
     ftype_str = config_dict["float_type"]
     model_name = config_dict["model_name"]
-    models_dir = config_dict["models_dir"]
     torch_dtype = get_torch_float_type(ftype_str)
 
     logging.info(f"Loading tokenizer and data.")
