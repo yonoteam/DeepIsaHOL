@@ -47,4 +47,5 @@ def wrap_w_accelerator(f):
 if __name__ == "__main__":
     def logging_setup(acc):
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     wrap_w_accelerator(logging_setup)
