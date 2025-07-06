@@ -155,6 +155,9 @@ def main(accelerator, config_dict):
     train_args = configure_trainer(config_dict)
     peft_config = configure_lora()
 
+    logging.info(f"Before Traner initialization let's see device map")
+    for key, val in model.hf_device_map:
+        logging.info(f"Key is {key} and device is {val}")
     trainer = SFTTrainer(
         model=model,
         args=train_args,
