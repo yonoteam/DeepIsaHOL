@@ -211,10 +211,11 @@ def estimate_train_samples(config_dict):
     total_samples = 0
     for batch_idx, batch in enumerate(processed_dataset):
         if batch_idx == 0:
-            logging.info(f"The first batch info is:")
+            logging.info(f"The first batch properties are:")
+            logging.info(f"Keys: {batch.keys()}")
             batch_str = dicts.to_string(batch, max_chars=300)
             logging.info(f"{batch_str}")
-        batch_size = batch["input_ids"].shape[0]
+        batch_size = len(batch["input_ids"])
         total_samples += batch_size
         if batch_idx % 1000 == 0 and batch_idx > 0:
             logging.info(f"Processed {batch_idx} batches so far")
