@@ -20,7 +20,7 @@ import eval_t5
 def main(config_dict):
     logging.info(f"Counting samples from the split: {config_dict['data_split']}")
     model, tokenizer, dataset = eval_t5.load_model_tok_data(config_dict)
-    _, dataloader = eval_t5.prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["hf_training_arguments"]["per_device_eval_batch_size"])
+    _, dataloader = eval_t5.prepare_model_and_dataloader(model, tokenizer, dataset, batch_size=config_dict["hf_train_args"]["per_device_eval_batch_size"])
     total_samples = 0
     for batch_idx, batch in enumerate(dataloader):
         if batch_idx == 0:

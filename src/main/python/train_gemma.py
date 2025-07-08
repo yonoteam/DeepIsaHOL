@@ -9,22 +9,29 @@ import os
 import logging
 
 import torch
+from torch.utils.data import DataLoader
 
 from peft import LoraConfig
-from trl import SFTConfig, SFTTrainer
+from trl import (
+    SFTConfig, 
+    SFTTrainer
+)
 
 from datasets import IterableDataset
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
-    BitsAndBytesConfig
+    BitsAndBytesConfig,
+    DataCollatorForLanguageModeling
 )
+
 from accelerate.utils import broadcast_object_list
 
 import dicts
 import proofs
 import distrib
 import config_ops
+import tokenizer_ops as tokops
 
 gemma_prompt = """Recommend the next Isabelle proof step given the context below:
 {context}
@@ -43,6 +50,9 @@ def generate_gemma_inputs(json_data_dir, split, data_format):
         proof = dicts.load_json(path)
         for input_text, target_text in proofs.str_ops.inputs_targets_from(proof, data_format):
             yield to_gemma_format(input_text, target_text)
+
+
+
 
 def get_torch_float_type(float_type_str):
     torch_type_mapping = {
@@ -126,7 +136,7 @@ def configure_trainer(config_dict):
     sft_args = SFTConfig(**pre_args)
     return sft_args
 
-def main(accelerator, config_dict):
+def load_model_tok_data_trainer(accelerator, config_dict):
     # distrib.log_cuda_info_via_torch()
     ftype_str = config_dict["float_type"]
     model_name = config_dict["model_name"]
@@ -145,14 +155,17 @@ def main(accelerator, config_dict):
 
     logging.info(f"Loaded tokenizer and data.")
     logging.info(f"Loading model.")
-    # model = init_gemma(model_name, torch_dtype)
-    if accelerator.is_main_process:
-        model = init_gemma(model_name, torch_dtype)
+
+    if accelerator is not None:
+        if accelerator.is_main_process:
+            model = init_gemma(model_name, torch_dtype)
+        else:
+            model = None
+        accelerator.wait_for_everyone()
+        model = broadcast_object_list([model])[0]
+        logging.info(f"{accelerator.process_index}: Successfully broadcasted data, the evidence is that the type of model is {type(model)}")
     else:
-        model = None
-    accelerator.wait_for_everyone()
-    model = broadcast_object_list([model])[0]
-    logging.info(f"{accelerator.process_index}: Successfully broadcasted data, the evidence is that the type of model is {type(model)}")
+        model = init_gemma(model_name, torch_dtype)
 
     logging.info(f"Loaded model.")
     logging.info(f"Configuring trainer.")
@@ -169,6 +182,38 @@ def main(accelerator, config_dict):
         peft_config=peft_config,
         processing_class=tokenizer
     )
+    result = dict(
+        model=model,
+        tokenizer=tokenizer,
+        train_data=train_data,
+        train_args=train_args,
+        trainer=trainer
+    )
+    return result
+
+def count_train_samples(config_dict):
+    result = load_model_tok_data_trainer(None, config_dict)
+    trainer = result["trainer"]
+    tokenizer = result["tokenizer"]
+    
+    processed_dataset = trainer._prepare_dataset(
+        dataset=result["train_data"], 
+        processing_class=tokenizer, 
+        args=result["train_args"]
+    )
+    
+    for batch_idx, batch in enumerate(processed_dataset):
+        if batch_idx == 0:
+            vals_shape = {k: v.shape for k, v in batch.items()}
+            logging.info(f"The first batch info is:")
+            logging.info(f"{vals_shape}")
+        break
+
+    return batch
+
+def main(accelerator, config_dict):
+    result = load_model_tok_data_trainer(accelerator, config_dict)
+    trainer = result["trainer"]
 
     logging.info(f"Configured trainer.")
     logging.info(f"Starting training.")
