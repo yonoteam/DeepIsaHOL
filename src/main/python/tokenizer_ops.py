@@ -64,12 +64,17 @@ def get_trained_tokenizer(config_dict, making_dirs=False):
         tokenizer = load_latest_tokenizer(tokenizers_dir)
     else:
         model_name = config_dict["model_name"]
-        finetuning = config_dict["finetuning"]
-        if finetuning:
+        task = config_dict["task"]
+        if task == config_ops.save_hf_tokenizer:
             tokenizer = AutoTokenizer.from_pretrained(model_name)
-        else:
+        elif task == config_ops.train_hf_tokenizer:
             data_dir = config_dict["data_dir"]
             tokenizer = train_tokenizer(model_name, data_dir)
+        else:
+            raise ValueError(
+                f"Undefined task '{task}' for retrieving a tokenizer."
+                f"Expected one of: {list(config_ops.save_hf_tokenizer, config_ops.train_hf_tokenizer)}"
+            )
         save_ops.save_in(tokenizer, tokenizers_dir)
     return tokenizer
 

@@ -81,11 +81,11 @@ def log_nan_loss(loss, batch_idx, accelerator):
 def initialize_model(config_dict, vocab_size):
     model_name = config_dict["model_name"]
     data_format = config_dict["data_format"]
-    finetuning = config_dict["finetuning"]
     ctxt_length = tokops.get_context_length(data_format)
+    task = config_dict["task"]
 
     config = AutoConfig.from_pretrained(model_name)
-    vocab_size = config.vocab_size if finetuning else vocab_size
+    vocab_size = config.vocab_size if task == config_ops.finetune_model else vocab_size
     config.update({
         "vocab_size": vocab_size,
         "n_positions": ctxt_length,
@@ -93,12 +93,17 @@ def initialize_model(config_dict, vocab_size):
         "d_model": config.d_model,
     })
 
-    if finetuning:
+    if task == config_ops.finetune_model:
         model = T5ForConditionalGeneration.from_pretrained(model_name, config=config)
         logging.info(f"Fine-tuning model with context length = {model.config.n_positions}")
-    else:
+    elif task == config_ops.pretrain_model:
         model = T5ForConditionalGeneration(config)
         logging.info(f"Trainig model from scratch with context length = {model.config.n_positions}")
+    else:
+        raise ValueError(
+            f"Undefined task '{task}' for starting model."
+            f"Expected one of: {list(config_ops.pretrain_model, config_ops.finetune_model)}"
+        )
     logging.info(f"Initialized Hugging Face model of type {type(model)}.")
     return model
 

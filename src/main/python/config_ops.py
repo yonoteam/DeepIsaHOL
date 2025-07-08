@@ -61,15 +61,21 @@ EXAMPLE_TRAINING_ARGS = {
     "save_steps": 10000
 }
 
+save_hf_tokenizer = "save_hf_tokenizer"
+train_hf_tokenizer = "train_hf_tokenizer"
+count_dataset = "count_dataset"
+pretrain_model = "pretrain_model"
+finetune_model = "finetune_model"
+eval_model = "eval_model"
+TASKS = [save_hf_tokenizer, train_hf_tokenizer, count_dataset, pretrain_model, finetune_model, eval_model]
+
 EXAMPLE_CONFIG_DICT = {
-    "do_train": False,
-    "do_eval": False,
+    "task": pretrain_model,
     "data_dir": os.getcwd(),
     "model_name": "google/flan-t5-small",
     "models_dir": os.getcwd(),
     "tokenizers_dir": os.getcwd(),
     "data_format": "state",
-    "finetuning": True,
     "data_split": "train",
     "float_type": "bf16",
     "num_epochs": 1,

@@ -9,7 +9,6 @@ import os
 import logging
 
 import torch
-from torch.utils.data import DataLoader
 
 from peft import LoraConfig
 from trl import (
@@ -21,8 +20,7 @@ from datasets import IterableDataset
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
-    BitsAndBytesConfig,
-    DataCollatorForLanguageModeling
+    BitsAndBytesConfig
 )
 
 from accelerate.utils import broadcast_object_list
@@ -50,9 +48,6 @@ def generate_gemma_inputs(json_data_dir, split, data_format):
         proof = dicts.load_json(path)
         for input_text, target_text in proofs.str_ops.inputs_targets_from(proof, data_format):
             yield to_gemma_format(input_text, target_text)
-
-
-
 
 def get_torch_float_type(float_type_str):
     torch_type_mapping = {
@@ -246,5 +241,17 @@ if __name__ == "__main__":
     explanation = "Train Gemma as specified in the input JSON configuration."
     config_dict = config_ops.parse_path(explanation)
     config_ops.setup_logging("gemma_train.log")
-    # main(0, config_dict)
-    distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))
+
+    task = config_dict["task"]
+    if task == config_ops.count_dataset:
+        estimate_train_samples(config_dict)
+    elif task == config_ops.finetune_model:
+        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+            distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))
+        else:
+            main(0, config_dict)
+    else:
+        raise ValueError(
+            f"Undefined task '{task}' for training script."
+            f"Expected one of: {list(config_ops.count_dataset, config_ops.finetune_model)}"
+        )
