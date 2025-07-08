@@ -14,6 +14,13 @@ def reduce_sum_int(value: int, accelerator, device=None):
         device=accelerator.device
     return accelerator.reduce(torch.tensor(value, device=accelerator.device), reduction="sum")
 
+def log_cuda_info_via_torch():
+    cuda_available = torch.cuda.is_available()
+    logging.info(f"CUDA is available?: {cuda_available}")
+    if cuda_available:
+        logging.info(f"How many devices?: {torch.cuda.device_count()}")
+        logging.info(f"What is the current one?: {torch.cuda.current_device()}")
+
 def log_cuda_info(accelerator):
     if accelerator.is_main_process:
         logging.info(f"Accelerator started on {accelerator.num_processes} processes.")

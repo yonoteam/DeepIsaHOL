@@ -19,6 +19,7 @@ from transformers import (
     AutoModelForCausalLM,
     BitsAndBytesConfig
 )
+from accelerate.utils import broadcast_object_list
 
 import dicts
 import proofs
@@ -72,12 +73,12 @@ def init_gemma(model_name, torch_dtype):
         attn_implementation="eager",
         torch_dtype=torch_dtype,
         device_map="auto",
+        # device_map={'': torch.cuda.current_device()}
     )
     model_kwargs["quantization_config"] = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
         bnb_4bit_quant_type='nf4',
-        device_map={'': torch.cuda.current_device()},
         bnb_4bit_compute_dtype=model_kwargs['torch_dtype'],
         bnb_4bit_quant_storage=model_kwargs['torch_dtype'],
     )
@@ -126,11 +127,7 @@ def configure_trainer(config_dict):
     return sft_args
 
 def main(accelerator, config_dict):
-    cuda_available = torch.cuda.is_available()
-    logging.info(f"CUDA is available?: {cuda_available}")
-    if cuda_available:
-        logging.info(f"CUDA is available?: {torch.cuda.device_count()}")
-        logging.info(f"CUDA is available?: {torch.cuda.current_device()}")
+    # distrib.log_cuda_info_via_torch()
     ftype_str = config_dict["float_type"]
     model_name = config_dict["model_name"]
     torch_dtype = get_torch_float_type(ftype_str)
@@ -148,7 +145,14 @@ def main(accelerator, config_dict):
 
     logging.info(f"Loaded tokenizer and data.")
     logging.info(f"Loading model.")
-    model = init_gemma(model_name, torch_dtype)
+    # model = init_gemma(model_name, torch_dtype)
+    if accelerator.is_main_process:
+        model = init_gemma(model_name, torch_dtype)
+    else:
+        model = None
+    accelerator.wait_for_everyone()
+    model = broadcast_object_list([model])[0]
+    logging.info(f"{accelerator.process_index}: Successfully broadcasted data, the evidence is that the type of model is {type(model)}")
 
     logging.info(f"Loaded model.")
     logging.info(f"Configuring trainer.")
@@ -156,8 +160,8 @@ def main(accelerator, config_dict):
     peft_config = configure_lora()
 
     logging.info(f"Before Traner initialization let's see device map")
-    for key, val in model.hf_device_map:
-        logging.info(f"Key is {key} and device is {val}")
+    for val in model.hf_device_map.values():
+        logging.info(f"The value device is {val}")
     trainer = SFTTrainer(
         model=model,
         args=train_args,
@@ -180,4 +184,5 @@ if __name__ == "__main__":
     explanation = "Train Gemma as specified in the input JSON configuration."
     config_dict = config_ops.parse_path(explanation)
     config_ops.setup_logging("gemma_train.log")
+    # main(0, config_dict)
     distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))
