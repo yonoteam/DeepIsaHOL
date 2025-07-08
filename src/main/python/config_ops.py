@@ -11,6 +11,8 @@ import logging
 import argparse
 from typing import Union
 
+import torch
+
 import dicts
 import proofs.data_dir
 from proofs.str_ops import FORMATS
@@ -82,6 +84,30 @@ EXAMPLE_CONFIG_DICT = {
     "batches_per_epoch": 134740,
     "hf_train_args": EXAMPLE_TRAINING_ARGS
 }
+
+def get_torch_float_type(float_type_str):
+    torch_type_mapping = {
+        "float32": torch.float32,
+        "float": torch.float32,
+        "fp32": torch.float32,
+        "float64": torch.float64,
+        "double": torch.float64,
+        "fp64": torch.float64,  
+        "float16": torch.float16,
+        "half": torch.float16,  
+        "fp16": torch.float16,  
+        "bfloat16": torch.bfloat16,
+        "bf16": torch.bfloat16, 
+        "tf32": torch.float32
+    }
+    float_type_str_lower = float_type_str.lower()
+    if float_type_str_lower in torch_type_mapping:
+        return torch_type_mapping[float_type_str_lower]
+    else:
+        raise ValueError(
+            f"Unknown float type '{float_type_str}'. "
+            f"Expected one of: {list(torch_type_mapping.keys())}"
+        )
 
 def ancester_dir_exists(path):
     """

@@ -11,10 +11,7 @@ import logging
 import torch
 
 from peft import LoraConfig
-from trl import (
-    SFTConfig, 
-    SFTTrainer
-)
+from trl import SFTConfig, SFTTrainer
 
 from datasets import IterableDataset
 from transformers import (
@@ -26,52 +23,9 @@ from transformers import (
 from accelerate.utils import broadcast_object_list
 
 import dicts
-import proofs
 import distrib
 import config_ops
 import tokenizer_ops as tokops
-
-gemma_prompt = """Recommend the next Isabelle proof step given the context below:
-{context}
-"""
-
-def to_gemma_format(input_text, target_text):
-    return {
-        "messages": [
-            {"role": "user", "content": gemma_prompt.format(context=input_text)},
-            {"role": "assistant", "content": f"<SUGGESTION>{target_text}</SUGGESTION>"}
-        ]
-    }
-
-def generate_gemma_inputs(json_data_dir, split, data_format):
-    for path in proofs.data_dir.generate_dataset_paths(json_data_dir, split):
-        proof = dicts.load_json(path)
-        for input_text, target_text in proofs.str_ops.inputs_targets_from(proof, data_format):
-            yield to_gemma_format(input_text, target_text)
-
-def get_torch_float_type(float_type_str):
-    torch_type_mapping = {
-        "float32": torch.float32,
-        "float": torch.float32,
-        "fp32": torch.float32,
-        "float64": torch.float64,
-        "double": torch.float64,
-        "fp64": torch.float64,  
-        "float16": torch.float16,
-        "half": torch.float16,  
-        "fp16": torch.float16,  
-        "bfloat16": torch.bfloat16,
-        "bf16": torch.bfloat16, 
-        "tf32": torch.float32
-    }
-    float_type_str_lower = float_type_str.lower()
-    if float_type_str_lower in torch_type_mapping:
-        return torch_type_mapping[float_type_str_lower]
-    else:
-        raise ValueError(
-            f"Unknown float type '{float_type_str}'. "
-            f"Expected one of: {list(torch_type_mapping.keys())}"
-        )
 
 def init_gemma(model_name, torch_dtype, num_processes):
     if num_processes > 1:
@@ -105,10 +59,10 @@ def configure_lora():
     )
     return peft_config
 
-def configure_trainer(config_dict):
+def configure_trainer_args(config_dict):
     pre_args = config_dict["hf_train_args"]
     batches_per_epoch = config_dict["batches_per_epoch"]
-    torch_dtype = get_torch_float_type(config_dict["float_type"])
+    torch_dtype = config_ops.get_torch_float_type(config_dict["float_type"])
 
     # TrainingArguments
     pre_args["fp16"] = True if torch_dtype == torch.float16 else False
@@ -128,6 +82,7 @@ def configure_trainer(config_dict):
     pre_args["warmup_ratio"] = 0.03 # based on QLoRA paper
 
     # SFTConfig
+    pre_args["dataset_text_field"] = "messages"
     pre_args["packing"] = False
     pre_args["optim"] = "adamw_torch_fused"
 
@@ -138,7 +93,7 @@ def load_tok_data(config_dict, split):
     logging.info(f"Loading tokenizer and data.")
     tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-it")
     dataset = IterableDataset.from_generator(
-        generate_gemma_inputs,
+        tokops.generate_gemma_inputs,
         gen_kwargs=dict(
             json_data_dir = config_dict["data_dir"],
             split = split,
@@ -151,7 +106,7 @@ def load_tok_data(config_dict, split):
 def load_model_tok_data_trainer(accelerator, config_dict):
     ftype_str = config_dict["float_type"]
     model_name = config_dict["model_name"]
-    torch_dtype = get_torch_float_type(ftype_str)
+    torch_dtype = config_ops.get_torch_float_type(ftype_str)
 
     tokenizer, train_data = load_tok_data(config_dict, "train")
     logging.info(f"Loading model.")
@@ -169,7 +124,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
 
     logging.info(f"Loaded model.")
     logging.info(f"Configuring trainer.")
-    train_args = configure_trainer(config_dict)
+    train_args = configure_trainer_args(config_dict)
     peft_config = configure_lora()
 
     logging.info(f"Before Traner initialization let's see device map")
@@ -180,6 +135,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
         args=train_args,
         train_dataset=train_data,
         peft_config=peft_config,
+        eval_dataset = None,
         processing_class=tokenizer
     )
     result = dict(
@@ -190,6 +146,20 @@ def load_model_tok_data_trainer(accelerator, config_dict):
         trainer=trainer
     )
     return result
+
+def main(accelerator, config_dict):
+    result = load_model_tok_data_trainer(accelerator, config_dict)
+    trainer = result["trainer"]
+
+    logging.info(f"Configured trainer.")
+    logging.info(f"Starting training.")
+    trainer.train()
+
+    logging.info(f"Training completed.")
+    logging.info(f"Saving progress.")
+    trainer.save()
+
+    logging.info(f"Saved progress. Bye!")
 
 def count_train_samples(config_dict):
     data_split = config_dict["data_split"]
@@ -227,20 +197,6 @@ def count_train_samples(config_dict):
     logging.info(f"Total number of examples was {example_idx + 1}")
     logging.info(f"Total number of tokens was {total_samples}")
     return example
-
-def main(accelerator, config_dict):
-    result = load_model_tok_data_trainer(accelerator, config_dict)
-    trainer = result["trainer"]
-
-    logging.info(f"Configured trainer.")
-    logging.info(f"Starting training.")
-    trainer.train()
-
-    logging.info(f"Training completed.")
-    logging.info(f"Saving progress.")
-    trainer.save()
-
-    logging.info(f"Saved progress. Bye!")
 
 if __name__ == "__main__":
     explanation = "Train Gemma as specified in the input JSON configuration."

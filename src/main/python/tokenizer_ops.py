@@ -156,6 +156,24 @@ def t5_tokked_model_inputs(tokenizer, json_data_dir, split=SPLITS["NONE"], data_
         for model_input in tokked_model_inputs:
             yield model_input
 
+gemma_prompt = """Recommend the next Isabelle proof step given the context below:
+{context}
+"""
+
+def to_gemma_format(input_text, target_text):
+    return {
+        "messages": [
+            {"role": "user", "content": gemma_prompt.format(context=input_text)},
+            {"role": "assistant", "content": f"<SUGGESTION>{target_text}</SUGGESTION>"}
+        ]
+    }
+
+def generate_gemma_inputs(json_data_dir, split, data_format):
+    for path in proofs.data_dir.generate_dataset_paths(json_data_dir, split):
+        proof = dicts.load_json(path)
+        for input_text, target_text in proofs.str_ops.inputs_targets_from(proof, data_format):
+            yield to_gemma_format(input_text, target_text)
+
 
 # MAIN
 
