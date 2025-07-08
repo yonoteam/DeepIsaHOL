@@ -73,12 +73,15 @@ def get_torch_float_type(float_type_str):
             f"Expected one of: {list(torch_type_mapping.keys())}"
         )
 
-def init_gemma(model_name, torch_dtype):
+def init_gemma(model_name, torch_dtype, num_processes):
+    if num_processes > 1:
+        device_map="auto"
+    else:
+        device_map={'': torch.cuda.current_device()}
     model_kwargs = dict(
         attn_implementation="eager",
         torch_dtype=torch_dtype,
-        device_map="auto",
-        # device_map={'': torch.cuda.current_device()}
+        device_map=device_map
     )
     model_kwargs["quantization_config"] = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -155,7 +158,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
 
     if accelerator is not None:
         if accelerator.is_main_process:
-            model = init_gemma(model_name, torch_dtype)
+            model = init_gemma(model_name, torch_dtype, accelerator.num_processes)
         else:
             model = None
         accelerator.wait_for_everyone()
@@ -226,7 +229,6 @@ def count_train_samples(config_dict):
     return example
 
 def main(accelerator, config_dict):
-    # distrib.log_cuda_info_via_torch()
     result = load_model_tok_data_trainer(accelerator, config_dict)
     trainer = result["trainer"]
 
@@ -255,6 +257,7 @@ if __name__ == "__main__":
             distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))
         else:
             logging.info("Starting single finetuning Gemma process.")
+            distrib.log_cuda_info_via_torch()
             main(0, config_dict)
     else:
         raise ValueError(
