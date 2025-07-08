@@ -128,13 +128,9 @@ def check_params(config_dict):
     :param config_dict: (dict) dictionary containing the training configuration
     """
     try:
-        training = config_dict["do_train"]
-        if not isinstance(training, bool):
-            raise ValueError(f"Input for do_train must be a boolean")
-        
-        evaluating = config_dict["do_eval"]
-        if not isinstance(evaluating, bool):
-            raise ValueError(f"Input for do_eval must be a boolean")
+        task = config_dict["task"]
+        if not isinstance(task, str):
+            raise ValueError(f"Input for task must be a string")
         
         data_dir = config_dict["data_dir"]
         _ = config_dict["model_name"]
@@ -157,7 +153,7 @@ def check_params(config_dict):
     check_has_parent(tokenizers_dir)
     check_valid_format(data_format)
     
-    if training:
+    if task == pretrain_model or task == finetune_model:
         try:
             _ = int(config_dict["num_epochs"])
             _ = int(train_args["per_device_train_batch_size"])
@@ -168,7 +164,7 @@ def check_params(config_dict):
         except Exception as e:
             raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
 
-    if evaluating:
+    if task == eval_model:
         try:
             _ = int(train_args["per_device_eval_batch_size"])
         except KeyError as e:
