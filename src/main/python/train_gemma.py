@@ -108,6 +108,8 @@ def configure_trainer(config_dict):
     torch_dtype = get_torch_float_type(config_dict["float_type"])
 
     # TrainingArguments
+    pre_args["fp16"] = True if torch_dtype == torch.float16 else False
+    pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
     pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch
     pre_args["logging_dir"] = os.getcwd()
     pre_args["logging_steps"] = max(1, batches_per_epoch // 100)
@@ -116,8 +118,6 @@ def configure_trainer(config_dict):
     pre_args["save_strategy"] = "steps"
     pre_args["save_total_limit"] = 5
     pre_args["save_steps"] = batches_per_epoch
-    pre_args["fp16"] = True if torch_dtype == torch.float16 else False
-    pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
 
     # Overwriting
     pre_args["learning_rate"] = 2e-4 # based on QLoRA paper
@@ -247,11 +247,14 @@ if __name__ == "__main__":
 
     task = config_dict["task"]
     if task == config_ops.count_dataset:
+        logging.info("Starting counting process.")
         count_train_samples(config_dict)
     elif task == config_ops.finetune_model:
         if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+            logging.info("Starting distributed finetuning Gemma process.")
             distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))
         else:
+            logging.info("Starting single finetuning Gemma process.")
             main(0, config_dict)
     else:
         raise ValueError(
