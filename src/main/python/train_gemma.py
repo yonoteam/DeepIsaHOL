@@ -188,8 +188,9 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     )
     return result
 
-def estimate_train_samples(config_dict):
-    tokenizer, train_data = load_tok_data(config_dict, "train")
+def count_train_samples(config_dict):
+    data_split = config_dict["data_split"]
+    tokenizer, train_data = load_tok_data(config_dict, data_split)
     
     def tokenize(example, tokenizer):
         processed = tokenizer.apply_chat_template(
@@ -209,19 +210,20 @@ def estimate_train_samples(config_dict):
         )
     
     total_samples = 0
-    for batch_idx, batch in enumerate(processed_dataset):
-        if batch_idx == 0:
-            logging.info(f"The first batch properties are:")
-            logging.info(f"Keys: {batch.keys()}")
-            batch_str = dicts.to_string(batch, max_chars=300)
-            logging.info(f"{batch_str}")
-        batch_size = len(batch["input_ids"])
-        total_samples += batch_size
-        if batch_idx % 1000 == 0 and batch_idx > 0:
-            logging.info(f"Processed {batch_idx} batches so far")
-    logging.info(f"Total number of batches was {batch_idx + 1}")
-    logging.info(f"Total number of samples was {total_samples}")
-    return batch
+    for example_idx, example in enumerate(processed_dataset):
+        if example_idx == 0:
+            logging.info(f"The first example properties are:")
+            example_shape = {k: type(v) for k, v in example.items()}
+            logging.info(f"{example_shape}")
+            example_str = dicts.to_string(example, max_chars=300)
+            logging.info(f"{example_str}")
+        example_size = len(example["input_ids"])
+        total_samples += example_size
+        if example_idx % 1000 == 0 and example_idx > 0:
+            logging.info(f"Processed {example_idx} examples so far")
+    logging.info(f"Total number of examples was {example_idx + 1}")
+    logging.info(f"Total number of tokens was {total_samples}")
+    return example
 
 def main(accelerator, config_dict):
     # distrib.log_cuda_info_via_torch()
@@ -245,7 +247,7 @@ if __name__ == "__main__":
 
     task = config_dict["task"]
     if task == config_ops.count_dataset:
-        estimate_train_samples(config_dict)
+        count_train_samples(config_dict)
     elif task == config_ops.finetune_model:
         if torch.cuda.is_available() and torch.cuda.device_count() > 1:
             distrib.wrap_w_accelerator(lambda acc: main(acc, config_dict))
