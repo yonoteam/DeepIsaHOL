@@ -136,24 +136,26 @@ def configure_trainer(config_dict):
     sft_args = SFTConfig(**pre_args)
     return sft_args
 
+def load_tok_data(config_dict, split):
+    logging.info(f"Loading tokenizer and data.")
+    tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-it")
+    dataset = IterableDataset.from_generator(
+        generate_gemma_inputs,
+        gen_kwargs=dict(
+            json_data_dir = config_dict["data_dir"],
+            split = split,
+            data_format = config_dict["data_format"]
+        )
+    )
+    logging.info(f"Loaded tokenizer and data.")
+    return tokenizer, dataset
+
 def load_model_tok_data_trainer(accelerator, config_dict):
-    # distrib.log_cuda_info_via_torch()
     ftype_str = config_dict["float_type"]
     model_name = config_dict["model_name"]
     torch_dtype = get_torch_float_type(ftype_str)
 
-    logging.info(f"Loading tokenizer and data.")
-    tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-it")
-    train_data = IterableDataset.from_generator(
-        generate_gemma_inputs,
-        gen_kwargs=dict(
-            json_data_dir = config_dict["data_dir"],
-            split = "train",
-            data_format = config_dict["data_format"]
-        )
-    )
-
-    logging.info(f"Loaded tokenizer and data.")
+    tokenizer, train_data = load_tok_data(config_dict, "train")
     logging.info(f"Loading model.")
 
     if accelerator is not None:
@@ -191,27 +193,42 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     )
     return result
 
-def count_train_samples(config_dict):
-    result = load_model_tok_data_trainer(None, config_dict)
-    trainer = result["trainer"]
-    tokenizer = result["tokenizer"]
+def estimate_train_samples(config_dict):
+    tokenizer, train_data = load_tok_data(config_dict, "train")
     
-    processed_dataset = trainer._prepare_dataset(
-        dataset=result["train_data"], 
-        processing_class=tokenizer, 
-        args=result["train_args"]
-    )
+    def tokenize(example, tokenizer):
+        processed = tokenizer.apply_chat_template(
+            example["messages"],
+            return_dict=True,
+            return_assistant_tokens_mask=False,
+            tools=example.get("tools"),
+            **example.get("chat_template_kwargs", {}),
+        )
+        return processed
+
+    processed_dataset = train_data.map(
+            tokenize,
+            fn_kwargs={
+                "tokenizer": tokenizer
+            }
+        )
     
+    total_samples = 0
     for batch_idx, batch in enumerate(processed_dataset):
         if batch_idx == 0:
-            vals_shape = {k: v.shape for k, v in batch.items()}
             logging.info(f"The first batch info is:")
-            logging.info(f"{vals_shape}")
-        break
-
+            batch_str = dicts.to_string(batch, max_chars=300)
+            logging.info(f"{batch_str}")
+        batch_size = batch["input_ids"].shape[0]
+        total_samples += batch_size
+        if batch_idx % 1000 == 0 and batch_idx > 0:
+            logging.info(f"Processed {batch_idx} batches so far")
+    logging.info(f"Total number of batches was {batch_idx + 1}")
+    logging.info(f"Total number of samples was {total_samples}")
     return batch
 
 def main(accelerator, config_dict):
+    # distrib.log_cuda_info_via_torch()
     result = load_model_tok_data_trainer(accelerator, config_dict)
     trainer = result["trainer"]
 
