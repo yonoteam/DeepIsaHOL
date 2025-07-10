@@ -46,7 +46,7 @@ def configure_trainer_args(config_dict):
     # SFTConfig
     pre_args["dataset_text_field"] = "messages"
     pre_args["packing"] = False
-    pre_args["optim"] = "adam_8bit"
+    pre_args["optim"] = "adamw_8bit"
 
     sft_args = SFTConfig(**pre_args)
     return sft_args
