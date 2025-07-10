@@ -143,8 +143,8 @@ def main(accelerator, config_dict):
 
     logging.info(f"Training completed.")
     logging.info(f"Saving progress.")
-    trainer.save()
-
+    trainer.save_model()
+    
     logging.info(f"Saved progress. Bye!")
 
 if __name__ == "__main__":
