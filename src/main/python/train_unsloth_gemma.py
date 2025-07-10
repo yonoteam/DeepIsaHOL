@@ -2,14 +2,10 @@
 # Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
 # 
 # Utility for finetuning an Unsloth Gemma Model
+# Following the Unsloth documentation at https://docs.unsloth.ai/basics/gemma-3n-how-to-run-and-fine-tune
 
 import os
 import logging
-
-import torch
-
-from datasets import IterableDataset
-from trl import SFTTrainer, SFTConfig
 
 from unsloth import FastModel
 from unsloth.chat_templates import (
@@ -18,6 +14,9 @@ from unsloth.chat_templates import (
     train_on_responses_only
 )
 
+from datasets import IterableDataset
+from trl import SFTTrainer, SFTConfig
+
 import distrib
 import config_ops
 import tokenizer_ops as tokops
@@ -25,11 +24,11 @@ import tokenizer_ops as tokops
 def configure_trainer_args(config_dict):
     pre_args = config_dict["hf_train_args"]
     batches_per_epoch = config_dict["batches_per_epoch"]
-    torch_dtype = config_ops.get_torch_float_type(config_dict["float_type"])
+    # torch_dtype = config_ops.get_torch_float_type(config_dict["float_type"])
 
     # TrainingArguments
-    pre_args["fp16"] = True if torch_dtype == torch.float16 else False
-    pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
+    # pre_args["fp16"] = True if torch_dtype == torch.float16 else False
+    # pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
     pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch
     pre_args["logging_dir"] = os.getcwd()
     pre_args["logging_steps"] = max(1, batches_per_epoch // 100)
@@ -47,17 +46,14 @@ def configure_trainer_args(config_dict):
     # SFTConfig
     pre_args["dataset_text_field"] = "messages"
     pre_args["packing"] = False
-    pre_args["optim"] = "adamw_torch_fused"
+    pre_args["optim"] = "adam_8bit"
 
     sft_args = SFTConfig(**pre_args)
     return sft_args
 
 def load_model_tok_data_trainer(accelerator, config_dict):
-    model_name = config_dict["model_name"]
-    split = config_dict["data_split"]
-
     model, tokenizer = FastModel.from_pretrained(
-        model_name = "unsloth/gemma-3n-E4B-it",
+        model_name = config_dict["model_name"],
         dtype = None, # None for auto detection
         max_seq_length = 2048, # Choose any for long context!
         load_in_4bit = True,  # 4 bit quantization to reduce memory
@@ -91,7 +87,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
         tokops.generate_gemma_inputs,
         gen_kwargs=dict(
             json_data_dir = config_dict["data_dir"],
-            split = split,
+            split = config_dict["data_split"],
             data_format = config_dict["data_format"]
         )
     )
@@ -144,7 +140,7 @@ def main(accelerator, config_dict):
     logging.info(f"Training completed.")
     logging.info(f"Saving progress.")
     trainer.save_model()
-    
+
     logging.info(f"Saved progress. Bye!")
 
 if __name__ == "__main__":
