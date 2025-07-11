@@ -99,10 +99,13 @@ def initialize_model(config_dict, vocab_size):
     elif task == config_ops.pretrain_model:
         model = T5ForConditionalGeneration(config)
         logging.info(f"Trainig model from scratch with context length = {model.config.n_positions}")
+    elif task == config_ops.count_dataset:
+        model = T5ForConditionalGeneration.from_pretrained(model_name, config=config)
+        logging.info(f"Counting dataset samples with context length = {model.config.n_positions}")
     else:
         raise ValueError(
             f"Undefined task '{task}' for starting model."
-            f"Expected one of: {list(config_ops.pretrain_model, config_ops.finetune_model)}"
+            f"Expected one of: {list(config_ops.pretrain_model, config_ops.finetune_model, config_ops.count_dataset)}"
         )
     logging.info(f"Initialized Hugging Face model of type {type(model)}.")
     return model
