@@ -166,7 +166,7 @@ def count_samples(config_dict):
                 logging.info(f"{example_str}")
             else:
                 logging.info(f"The type of the first example is: {type(example)}")
-        example_size = len(example["input_ids"])
+        example_size = len(example["messages"][0]["content"])
         total_samples += example_size
         if example_idx % 1000 == 0 and example_idx > 0:
             logging.info(f"Processed {example_idx} examples so far")
