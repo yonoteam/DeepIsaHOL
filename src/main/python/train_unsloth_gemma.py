@@ -145,11 +145,17 @@ def main(accelerator, config_dict):
     logging.info(f"Saved progress. Bye!")
 
 def count_samples(config_dict):
-    model_tok_data_dict = load_model_tok_data_trainer(0, config_dict)
-
-    dataset = model_tok_data_dict["dataset"]
+    dataset = IterableDataset.from_generator(
+        tokops.generate_gemma_inputs,
+        gen_kwargs=dict(
+            json_data_dir = config_dict["data_dir"],
+            split = config_dict["data_split"],
+            data_format = config_dict["data_format"]
+        )
+    )
+    dataset = standardize_data_formats(dataset)
     total_samples = 0
-    max_steps = config_dict.get("max_steps", None)
+    max_steps = config_dict.get("batches_per_epoch", None)
     for example_idx, example in dataset:
         if example_idx == 0:
             if type(example) is dict:
