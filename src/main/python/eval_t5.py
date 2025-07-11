@@ -40,19 +40,7 @@ def load_model_tok_data1(config_dict):
 
 def load_model_tok_dataN(config_dict, accelerator):
     if accelerator.is_main_process:
-        tokenizer = tokops.get_trained_tokenizer(config_dict, making_dirs=False)
-        vocab_size = len(tokenizer)
-        generator_kwargs ={
-            "tokenizer": tokenizer,
-            "json_data_dir": config_dict["data_dir"],
-            "split": config_dict["data_split"],
-            "data_format": config_dict["data_format"]
-        }
-        dataset = IterableDataset.from_generator(
-            tokops.t5_tokked_model_inputs,
-            gen_kwargs=generator_kwargs
-        )
-        model = train_t5.get_model(config_dict, vocab_size)
+        model, tokenizer, dataset = load_model_tok_data1(config_dict)
     else:
         tokenizer = None
         dataset = None

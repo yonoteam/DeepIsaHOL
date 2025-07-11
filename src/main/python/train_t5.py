@@ -138,7 +138,7 @@ def record(metrics, locals, accelerator, save_file="metrics.json"):
         metrics["loss"].append(avg_loss)
         metrics["accuracy"].append(global_corrects_sum.item() / global_valid_toks.item())
         metrics["steps"].append(global_train_step.item())
-        logging.info(f"Current step's ({locals["train_step"]}) average loss is {avg_loss:.4f}")
+        logging.info(f"Current step's ({locals['train_step']}) average loss is {avg_loss:.4f}")
         dicts.save_as_json(metrics, save_file)
     accelerator.wait_for_everyone()
     return metrics
