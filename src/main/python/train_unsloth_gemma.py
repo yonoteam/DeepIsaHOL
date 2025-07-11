@@ -156,7 +156,7 @@ def count_samples(config_dict):
     dataset = standardize_data_formats(dataset)
     total_samples = 0
     max_steps = config_dict.get("batches_per_epoch", None)
-    for example_idx, example in dataset:
+    for example_idx, example in enumerate(dataset):
         if example_idx == 0:
             if type(example) is dict:
                 logging.info(f"The first example properties are:")
