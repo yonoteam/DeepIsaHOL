@@ -17,6 +17,7 @@ from unsloth.chat_templates import (
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
+import dicts
 import distrib
 import config_ops
 import tokenizer_ops as tokops
@@ -124,7 +125,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     result = dict(
         model=model,
         tokenizer=tokenizer,
-        train_data=dataset,
+        dataset=dataset,
         train_args=train_args,
         trainer=trainer
     )
@@ -143,11 +144,43 @@ def main(accelerator, config_dict):
 
     logging.info(f"Saved progress. Bye!")
 
+def count_samples(config_dict):
+    model_tok_data_dict = load_model_tok_data_trainer(0, config_dict)
+
+    dataset = model_tok_data_dict["dataset"]
+    total_samples = 0
+    max_steps = config_dict.get("max_steps", None)
+    for example_idx, example in dataset:
+        if example_idx == 0:
+            if type(example) is dict:
+                logging.info(f"The first example properties are:")
+                example_shape = {k: type(v) for k, v in example.items()}
+                logging.info(f"{example_shape}")
+                example_str = dicts.to_string(example, max_chars=300)
+                logging.info(f"{example_str}")
+            else:
+                logging.info(f"The type of the first example is: {type(example)}")
+        example_size = len(example["input_ids"])
+        total_samples += example_size
+        if example_idx % 1000 == 0 and example_idx > 0:
+            logging.info(f"Processed {example_idx} examples so far")
+        if max_steps is not None and example_idx >= max_steps:
+            logging.info(f"Reached max steps of {max_steps}. Stopping counting.")
+            break
+    logging.info(f"Total number of examples was {example_idx + 1}")
+    logging.info(f"Total number of tokens was {total_samples}")
+    return example
+
 if __name__ == "__main__":
     explanation = "Train Gemma as specified in the input JSON configuration."
     config_dict = config_ops.parse_path(explanation)
     config_ops.setup_logging("gemma_train.log")
 
-    logging.info("Starting single finetuning Gemma process.")
-    distrib.log_cuda_info_via_torch()
-    main(0, config_dict)
+    task = config_dict["task"]
+    if task == config_ops.count_dataset:
+        logging.info("Starting counting process.")
+        count_samples(config_dict)
+    else:
+        logging.info("Starting single finetuning Gemma process.")
+        distrib.log_cuda_info_via_torch()
+        main(0, config_dict)
