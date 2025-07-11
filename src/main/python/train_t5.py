@@ -85,7 +85,7 @@ def initialize_model(config_dict, vocab_size):
     task = config_dict["task"]
 
     config = AutoConfig.from_pretrained(model_name)
-    vocab_size = config.vocab_size if task == config_ops.finetune_model else vocab_size
+    vocab_size = config.vocab_size if task in [config_ops.finetune_model, config_ops.count_dataset] else vocab_size
     config.update({
         "vocab_size": vocab_size,
         "n_positions": ctxt_length,
