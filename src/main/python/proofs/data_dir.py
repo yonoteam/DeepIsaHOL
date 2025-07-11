@@ -177,7 +177,7 @@ def generate_dataset_paths(
                 test_split = json_files[train_size + valid_size:]
                 yield from test_split
             else:
-                raise Exception(f"Error: bad input {split}, expected train, valid, or test.")
+                raise Exception(f"Error: bad input {split}, expected one of {SPLITS.values()}.")
             
 def group_paths_by_logic(
         json_data_dir: PathLike, 
