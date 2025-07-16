@@ -45,7 +45,7 @@ def configure_trainer_args(config_dict):
     pre_args["warmup_ratio"] = 0.03 # based on QLoRA paper
 
     # SFTConfig
-    pre_args["dataset_text_field"] = "messages"
+    pre_args["dataset_text_field"] = "text"
     pre_args["packing"] = False
     pre_args["optim"] = "adamw_8bit"
 

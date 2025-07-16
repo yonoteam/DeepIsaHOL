@@ -1,5 +1,5 @@
 theory Isabelle_RL
-  imports Main
+  imports Pure
 begin
 
 ML_file "pred.ML"

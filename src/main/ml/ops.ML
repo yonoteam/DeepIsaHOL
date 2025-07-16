@@ -9,7 +9,6 @@ sig
   (* Generic operations *)
   val ith: int -> 'a list -> 'a
   val last: 'a list -> 'a
-  val insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list
   val intersp: 'a list -> 'a list -> 'a list
   val enumerate_from: int -> 'a list -> (int * 'a) list
   val enumerate: 'a list -> (int * 'a) list
@@ -44,29 +43,20 @@ struct
 
 (** GENERIC OPERATIONS **)
 
-(* ith: int -> 'a list -> 'a *)
 fun ith i xs = (if i>=0 then nth xs i else nth (rev xs) (~i - 1));
 
-(* last: 'a list -> 'a *)
 fun last [] = raise List.Empty
   | last [x] = x
   | last (_ :: xs) = last xs;
 
-(* insert_if: ('a -> bool) -> 'a -> 'a list -> 'a list *)
-fun insert_if P x xs = if P x then x :: xs else xs;
-
-(* intersp: 'a list -> 'a list -> 'a list *)
 fun intersp seps (x :: (xs as  _ :: _)) = (x :: seps) @ (intersp seps xs)
   | intersp _ xs = xs;
 
-(* enumerate_from: int -> 'a list -> (int * 'a) list *)
 fun enumerate_from _ [] = []
   | enumerate_from n (y::ys) = (n, y) :: (enumerate_from (n+1) ys);
 
-(* enumerate: 'a list -> (int * 'a) list *)
 fun enumerate xs = enumerate_from 0 xs;
 
-(* range: int -> int -> 'a list -> 'a list *)
 fun range _ _ [] = []
   | range m n (x :: xs) = 
     if 0 <= m andalso m <= n andalso m <= length (x :: xs) then
@@ -82,24 +72,19 @@ fun range _ _ [] = []
     in rev (#1 (process ([], 0, x :: xs))) end
     else raise Fail ("Ops.range: out of range input.")
 
-(* meta_map: ('a -> 'b) -> 'a list list -> 'b list list *)
 fun meta_map _ [] = []
   | meta_map f xss = rev (fold (fn xs => fn yss => (map f xs) :: yss) xss []);
 
-(* meta_maps: ('a -> 'b) -> 'a list list -> 'b list *)
 fun meta_maps f xss = flat (meta_map f xss);
 
-(* uniques: 'a list -> 'a list *)
 fun uniques xs = Library.distinct (op =) xs;
 
-(* log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list *)
 fun log_fold _ _ [] = []
   | log_fold f s (x :: xs) = let val v = f x s in v :: log_fold f v xs end;
 
 
 (** GROUPING LISTS **)
 
-(* split_into: int -> 'a list -> 'a list list *)
 fun split_into 1 xs = [xs]
   | split_into n xs = 
   let 
@@ -115,8 +100,6 @@ fun split_into 1 xs = [xs]
       in rev (rev remainder :: rev_batches) end
   else raise Fail "Ops.split_into: non-positive split size or larger than list" end;
 
-(* chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
-  -> 'a list -> (string * 'a list) list *)
 fun chop_and_tag tag get_text is_start is_end xs =
   let
     fun add_one x =
@@ -144,7 +127,6 @@ fun chop_and_tag tag get_text is_start is_end xs =
      val _ = if not (null (fst rev_result)) then raise Fail ("unbalanced" ^ tag) else ();
    in rev (map (fn (name, chunk) => (name, rev chunk)) (snd rev_result)) end;
 
-(* bifurcate_at: ''a -> ''a list -> ''a list * ''a * ''a list *)
 fun bifurcate_at a [] = ([], a, [])
   | bifurcate_at a (c :: cs) = 
       if a = c then ([], a, cs)
@@ -152,7 +134,6 @@ fun bifurcate_at a [] = ([], a, [])
         val (xs, _, ys) = bifurcate_at a cs
       in (c::xs, a, ys) end;
 
-(* segmentate_by: ''a list -> ''a list -> ''a list list *)
 fun segmentate_by [] ys = [ys]
   | segmentate_by _ [] = [] 
   | segmentate_by (x :: xs) (y :: ys) =
@@ -183,10 +164,8 @@ fun segmentate_by [] ys = [ys]
            else [not_x @ coincidences @ hd xss] @ (tl xss) end;
      in result end;
 
-(* split_at: string -> string -> string list *)
 fun split_at split_str target_str = space_explode split_str target_str;
 
-(* replace_all: string -> string -> string -> string *)
 fun replace_all str1 str2 txt =
   let
     val chars = String.explode txt;
@@ -198,7 +177,6 @@ fun replace_all str1 str2 txt =
 
 (** SYSTEM OPERATIONS **)
 
-(* apply_with_timeout: Time.time -> ('a -> 'b) -> 'a -> 'b Exn.result option *)
 (* WARNING: potential slowdown due to overhead if too many calls to this method *)
 fun apply_with_timeout timeout f x  = 
   let
@@ -215,7 +193,6 @@ fun apply_with_timeout timeout f x  =
       end;
   in wait_for_future (Time.now ()) end;
 
-(* path_prefix_up_to: string -> Path.T -> Path.T option *)
 fun path_prefix_up_to parent_name path =
   let
     val full_path = File.absolute_path path;
@@ -231,15 +208,12 @@ fun path_prefix_up_to parent_name path =
       | NONE => NONE)
   in check_else_parent_path (SOME full_path) end;
 
-(* file_exists: string -> bool *)
 fun file_exists file_dir 
   = OS.FileSys.access (file_dir, [OS.FileSys.A_READ]) handle OS.SysErr _ => false;
 
-(* is_directory: string -> bool *)
 fun is_directory dir 
   = OS.FileSys.isDir dir handle OS.SysErr _ => false;
 
-(* create_directory: {force: bool} -> string -> unit *)
 fun create_directory {force=forced} dir =
   if is_directory dir then ()
   else let
@@ -261,7 +235,6 @@ fun create_directory {force=forced} dir =
     val _ = fold iter dirs "";
   in () end;
 
-(* create_file: {force: bool} -> string -> string -> string -> unit *)
 fun create_file {force=forced} dir name content =
   let
     val _ = create_directory {force=forced} dir
@@ -274,7 +247,6 @@ fun create_file {force=forced} dir name content =
         TextIO.closeOut outstream end
   end;
 
-(* read_file: string -> string *)
 fun read_file fname = 
   let 
     val IO_instream = TextIO.openIn fname;

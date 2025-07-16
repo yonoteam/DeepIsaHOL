@@ -33,7 +33,7 @@ struct
 
 local
 
-fun not_member_cons_if P x xs = Ops.insert_if (P andf (Pred.neg (member (op =) xs))) x xs;
+fun not_member_cons_if P x xs = Pred.cons_if (P andf (Pred.neg (member (op =) xs))) x xs;
 
 (* alist_by: ('a -> ('val, 'key)) -> 'a list -> ('key * 'val list) list *)
 fun alist_by extract_info xs =
