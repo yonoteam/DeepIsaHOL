@@ -44,6 +44,10 @@ def configure_trainer_args(config_dict):
     pre_args["max_grad_norm"] = 0.3 # based on QLoRA paper
     pre_args["warmup_ratio"] = 0.03 # based on QLoRA paper
 
+    # path
+    pre_args["dataloader_num_workers"] = 0
+    pre_args["dataloader_prefetch_factor"] = None
+
     # SFTConfig
     pre_args["dataset_text_field"] = "text"
     pre_args["packing"] = False
