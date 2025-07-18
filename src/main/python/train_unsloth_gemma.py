@@ -100,7 +100,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     logging.info(f"Checkpoint: dataset standardised.")
 
     def format_prompts(examples):
-        convos = examples["conversations"]
+        convos = examples["messages"]
         texts = [tokenizer.apply_chat_template(convo, tokenize = False, add_generation_prompt = False).removeprefix('<bos>') for convo in convos]
         return { "text" : texts, }
 
