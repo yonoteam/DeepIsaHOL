@@ -17,6 +17,7 @@ from unsloth.chat_templates import (
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
+import torch
 import dicts
 import distrib
 import config_ops
@@ -25,11 +26,11 @@ import tokenizer_ops as tokops
 def configure_trainer_args(config_dict):
     pre_args = config_dict["hf_train_args"]
     batches_per_epoch = config_dict["batches_per_epoch"]
-    # torch_dtype = config_ops.get_torch_float_type(config_dict["float_type"])
+    torch_dtype = config_ops.get_torch_float_type(config_dict["float_type"])
 
     # TrainingArguments
-    # pre_args["fp16"] = True if torch_dtype == torch.float16 else False
-    # pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
+    pre_args["fp16"] = True if torch_dtype == torch.float16 else False
+    pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
     pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch
     pre_args["logging_dir"] = os.getcwd()
     pre_args["logging_steps"] = max(1, batches_per_epoch // 100)
@@ -124,7 +125,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     first_example = next(iter(trainer.train_dataset))
     expected_first_answer = tokenizer.decode(
         [tokenizer.pad_token_id if x == -100 else x for x in first_example["labels"]]
-        ).replace(tokenizer.pad_token, " ")
+        ).replace(tokenizer.pad_token, "")
     logging.info(f"The evidence is: {expected_first_answer}")
 
     result = dict(
