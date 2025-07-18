@@ -162,10 +162,18 @@ gemma_prompt = """Recommend the next Isabelle proof step given the context below
 
 def to_gemma_format(input_text, target_text):
     return {
-        "messages": [
-            {"role": "user", "content": gemma_prompt.format(context=input_text)},
-            {"role": "assistant", "content": f"<SUGGESTION>{target_text}</SUGGESTION>"}
-        ]
+        "messages": [{
+            "role": "user", 
+            "content": [
+                {"type": "text", "text": gemma_prompt.format(context=input_text)}
+            ]
+        }, 
+        {
+            "role": "assistant", 
+            "content": [
+                {"type": "text", "text": f"<SUGGESTION>{target_text}</SUGGESTION>"}
+            ]
+        }]
     }
 
 def generate_gemma_inputs(json_data_dir, split, data_format):
