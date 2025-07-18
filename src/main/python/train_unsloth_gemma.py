@@ -44,7 +44,7 @@ def configure_trainer_args(config_dict):
     pre_args["max_grad_norm"] = 0.3 # based on QLoRA paper
     pre_args["warmup_ratio"] = 0.03 # based on QLoRA paper
 
-    # path
+    # patching
     pre_args["dataloader_num_workers"] = 0
     pre_args["dataloader_prefetch_factor"] = None
 
@@ -121,8 +121,9 @@ def load_model_tok_data_trainer(accelerator, config_dict):
         response_part = "<start_of_turn>model\n",
     )
     logging.info("Checkpoint: Trainer initialised.")
+    first_example = next(iter(trainer.train_dataset))
     expected_first_answer = tokenizer.decode(
-        [tokenizer.pad_token_id if x == -100 else x for x in trainer.train_dataset[0]["labels"]]
+        [tokenizer.pad_token_id if x == -100 else x for x in first_example["labels"]]
         ).replace(tokenizer.pad_token, " ")
     logging.info(f"The evidence is: {expected_first_answer}")
 
