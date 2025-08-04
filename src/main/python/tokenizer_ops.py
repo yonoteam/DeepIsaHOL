@@ -21,11 +21,11 @@ T5_CTX_LENGTHS = {
     FORMATS["S"]: 512,
     FORMATS["SP"]: 1024,
     FORMATS["SPK"]: 1024,
-    FORMATS["SPKT"]: 1024,
+    FORMATS["SPKT"]: 8192,
     FORMATS["FS"]: 512,
     FORMATS["FSP"]: 1024,
     FORMATS["FSPK"]: 1024,
-    FORMATS["FSPKT"]: 1024
+    FORMATS["FSPKT"]: 8192
 }
 
 def get_context_length(mode):

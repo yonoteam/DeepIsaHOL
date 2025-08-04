@@ -61,7 +61,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     model, tokenizer = FastModel.from_pretrained(
         model_name = config_dict["model_name"],
         dtype = None, # None for auto detection
-        max_seq_length = 2048, # Choose any for long context!
+        max_seq_length = tokops.get_context_length(config_dict["data_format"]),
         load_in_4bit = True,  # 4 bit quantization to reduce memory
         full_finetuning = False, # [NEW!] We have full finetuning now!
         # token = "hf_...", # use one if using gated models
