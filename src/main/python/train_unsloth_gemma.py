@@ -17,8 +17,10 @@ from unsloth.chat_templates import (
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
-os.environ['TORCHDYNAMO_CACHE_SIZE_LIMIT'] = '999999999'
+# os.environ['TORCHDYNAMO_CACHE_SIZE_LIMIT'] = '999999999'
 import torch
+# torch._dynamo.config.cache_size_limit = 64
+
 import dicts
 import distrib
 import config_ops
