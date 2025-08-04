@@ -29,11 +29,11 @@ import tokenizer_ops as tokops
 def configure_trainer_args(config_dict):
     pre_args = config_dict["hf_train_args"]
     batches_per_epoch = config_dict["batches_per_epoch"]
-    torch_dtype = config_ops.get_torch_float_type(config_dict["float_type"])
+    # torch_dtype = config_ops.get_torch_float_type(config_dict["float_type"])
 
     # TrainingArguments
-    pre_args["fp16"] = True if torch_dtype == torch.float16 else False
-    pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
+    # pre_args["fp16"] = True if torch_dtype == torch.float16 else False
+    # pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
     pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch
     pre_args["logging_dir"] = os.getcwd()
     pre_args["logging_steps"] = max(1, batches_per_epoch // 100)
