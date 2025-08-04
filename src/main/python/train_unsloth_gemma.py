@@ -17,6 +17,7 @@ from unsloth.chat_templates import (
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
+os.environ['TORCHDYNAMO_CACHE_SIZE_LIMIT'] = '999999999'
 import torch
 import dicts
 import distrib
@@ -102,7 +103,11 @@ def load_model_tok_data_trainer(accelerator, config_dict):
 
     def format_prompts(examples):
         convos = examples["messages"]
-        texts = [tokenizer.apply_chat_template(convo, tokenize = False, add_generation_prompt = False).removeprefix('<bos>') for convo in convos]
+        texts = [tokenizer.apply_chat_template(
+            convo, 
+            tokenize = False,
+            add_generation_prompt = False
+            ).removeprefix('<bos>') for convo in convos]
         return { "text" : texts, }
 
     dataset = dataset.map(format_prompts, batched = True)

@@ -18,13 +18,13 @@ from proofs.data_dir import SPLITS
 # CONFIGURATION
 
 T5_CTX_LENGTHS = {
-    FORMATS["S"]: 512,
-    FORMATS["SP"]: 1024,
-    FORMATS["SPK"]: 1024,
+    FORMATS["S"]: 1024,
+    FORMATS["SP"]: 2048,
+    FORMATS["SPK"]: 4092,
     FORMATS["SPKT"]: 8192,
-    FORMATS["FS"]: 512,
-    FORMATS["FSP"]: 1024,
-    FORMATS["FSPK"]: 1024,
+    FORMATS["FS"]: 1024,
+    FORMATS["FSP"]: 2048,
+    FORMATS["FSPK"]: 4092,
     FORMATS["FSPKT"]: 8192
 }
 
