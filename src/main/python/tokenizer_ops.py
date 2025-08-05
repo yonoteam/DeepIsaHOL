@@ -186,10 +186,19 @@ def to_gemma_format(input_text, target_text):
         }]
     }
 
-def generate_gemma_inputs(json_data_dir, split, data_format):
+def generate_gemma_inputs(json_data_dir, split, data_format, tokenizer=None):
     for path in proofs.data_dir.generate_dataset_paths(json_data_dir, split):
         proof = dicts.load_json(path)
         for input_text, target_text in proofs.str_ops.inputs_targets_from(proof, data_format):
+            if tokenizer:
+                tokenized_x = tokenizer(input_text, return_tensors="pt")
+                tokenized_y = tokenizer(target_text, return_tensors="pt")
+                total_size = tokenized_x["input_ids"].shape[1] + tokenized_y["input_ids"].shape[1]
+                if total_size > get_gemma_context_length(data_format):
+                    logging.warning(
+                        f"Skipping input-target pair due to exceeding context length: {input_text[:1000]}"
+                    )
+                    continue
             yield to_gemma_format(input_text, target_text)
 
 

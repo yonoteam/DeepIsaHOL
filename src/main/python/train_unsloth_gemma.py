@@ -97,7 +97,8 @@ def load_model_tok_data_trainer(accelerator, config_dict):
         gen_kwargs=dict(
             json_data_dir = config_dict["data_dir"],
             split = config_dict["data_split"],
-            data_format = config_dict["data_format"]
+            data_format = config_dict["data_format"],
+            tokenizer = tokenizer
         )
     )
     dataset = standardize_data_formats(dataset)
