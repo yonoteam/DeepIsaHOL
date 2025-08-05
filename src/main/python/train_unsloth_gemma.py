@@ -98,7 +98,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
             json_data_dir = config_dict["data_dir"],
             split = config_dict["data_split"],
             data_format = config_dict["data_format"],
-            tokenizer = tokenizer
+            tokenizer = tokenizer.tokenizer
         )
     )
     dataset = standardize_data_formats(dataset)
