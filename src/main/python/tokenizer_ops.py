@@ -32,7 +32,7 @@ def get_t5_context_length(mode):
     return T5_CTX_LENGTHS.get(mode)
 
 GEMMA_CTX_LENGTHS = {
-    FORMATS["S"]: 2048,
+    FORMATS["S"]: 1024,
     FORMATS["SP"]: 4092,
     FORMATS["SPK"]: 4092,
     FORMATS["SPKT"]: 8192
