@@ -44,7 +44,7 @@ def configure_trainer_args(config_dict):
     pre_args["save_steps"] = batches_per_epoch
 
     # Overwriting
-    pre_args["learning_rate"] = 2e-4 # based on QLoRA paper
+    # pre_args["learning_rate"] = 2e-4 # based on QLoRA paper
     pre_args["max_grad_norm"] = 0.3 # based on QLoRA paper
     pre_args["warmup_ratio"] = 0.03 # based on QLoRA paper
 
