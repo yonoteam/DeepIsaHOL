@@ -425,7 +425,7 @@ def configure(config_dict, saving=False, max_prf_attempts=5):
     model.to("cpu")
 
     # tokenizer
-    tok_max_length = tokops.get_context_length(data_format)
+    tok_max_length = tokops.get_t5_context_length(data_format)
     tokenizer.model_max_length = tok_max_length
     print(f"Model context length = {model.config.n_positions}")
     print(f"Tokenizer context length = {tokenizer.model_max_length}")
