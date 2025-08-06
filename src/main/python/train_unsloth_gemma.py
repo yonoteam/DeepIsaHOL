@@ -8,7 +8,6 @@ import os
 import logging
 import statistics
 
-from transformers import AutoTokenizer
 from unsloth import FastModel
 from unsloth.chat_templates import (
     get_chat_template, 
@@ -16,6 +15,7 @@ from unsloth.chat_templates import (
     train_on_responses_only
 )
 
+from transformers import AutoTokenizer
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
