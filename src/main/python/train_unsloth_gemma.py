@@ -187,6 +187,11 @@ def compute_stats(config_dict):
     max_steps = config_dict.get("batches_per_epoch", None)
     x_lengths = []
     y_lengths = []
+    geq_512 = 0
+    geq_1024 = 0
+    geq_2048 = 0
+    geq_4096 = 0
+    geq_8192 = 0
     gemma_iter = tokops.generate_gemma_inputs(data_dir, split, data_format)
     for i, conversation in enumerate(gemma_iter):
         if max_steps is not None and i >= max_steps:
@@ -194,16 +199,29 @@ def compute_stats(config_dict):
             break
         x = conversation["messages"][0]["content"][0]["text"]
         y = conversation["messages"][1]["content"][0]["text"]
-        x_lengths.append(len(tokenizer(x)["input_ids"]))
-        y_lengths.append(len(tokenizer(y)["input_ids"]))
+        x_tok_len = len(tokenizer(x)["input_ids"])
+        y_tok_len = len(tokenizer(y)["input_ids"])
+        x_lengths.append(x_tok_len)
+        y_lengths.append(y_tok_len)
+        length_sum = x_tok_len + y_tok_len
+        if length_sum > 512:
+            geq_512 += 1
+        if length_sum > 1024:
+            geq_1024 += 1
+        if length_sum > 2048:
+            geq_2048 += 1
+        if length_sum > 4096:
+            geq_4096 += 1
+        if length_sum > 8192:
+            geq_8192 += 1
         if i % 1000 == 0 and i > 0:
             logging.info(f"Processed {i} examples so far")
     
     def get_stats(nums):
-        total_sum = sum(nums)
+        total_tok_sum = sum(nums)
         return {
-            "total": total_sum,
-            "avg": total_sum / len(nums) if nums else 0,
+            "total_tok_sum": total_tok_sum,
+            "avg": total_tok_sum / len(nums) if nums else 0,
             "max": max(nums, default=0),
             "min": min(nums, default=0),
             "median": statistics.median(nums) if nums else 0,
@@ -212,9 +230,10 @@ def compute_stats(config_dict):
     
     x_stats = get_stats(x_lengths)
     y_stats = get_stats(y_lengths)
+    total_datapoints = len(x_lengths)
     result = {
-        "x_total_toks": x_stats["total"],
-        "y_total_toks": y_stats["total"],
+        "x_total_toks": x_stats["total_tok_sum"],
+        "y_total_toks": y_stats["total_tok_sum"],
         "x_avg": x_stats["avg"],
         "y_avg": y_stats["avg"],
         "x_max": x_stats["max"],
@@ -225,7 +244,12 @@ def compute_stats(config_dict):
         "y_median": y_stats["median"],
         "x_mode": x_stats["mode"],
         "y_mode": y_stats["mode"],
-        "total_datapoints": len(x_lengths)
+        "geq_512": geq_512/total_datapoints if total_datapoints > 0 else 0,
+        "geq_1024": geq_1024/total_datapoints if total_datapoints > 0 else 0,
+        "geq_2048": geq_2048/total_datapoints if total_datapoints > 0 else 0,
+        "geq_4096": geq_4096/total_datapoints if total_datapoints > 0 else 0,
+        "geq_8192": geq_8192/total_datapoints if total_datapoints > 0 else 0,
+        "total_datapoints": total_datapoints
     }
     final_message = f"""
     The data statistics for the split '{split}' with the format '{data_format}' are: 
