@@ -232,7 +232,7 @@ def compute_stats(config_dict):
     {dicts.to_string(result)}
     """
     logging.info(final_message)
-    return {conversation, result}
+    return conversation, result
 
 if __name__ == "__main__":
     explanation = "Train Gemma as specified in the input JSON configuration."
