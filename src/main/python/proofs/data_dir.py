@@ -78,6 +78,27 @@ def find_erroneous(
             erroneous_paths.append(file_path)
     return erroneous_paths
 
+def fix_erroneous(
+        json_data_dir: PathLike
+    ) -> tuple[list[str], list[tuple[str,str]]]:
+    """
+    Attempts to fix all erroneous "proof*.json" in the input directory.
+
+    :param json_data_dir: path to the data directory with 'proof*.json's
+    :return: a tuple with:
+        - a list of successfully fixed file paths
+        - a list of the path and the error for the unsuccessfully fixed
+    """
+    fixed_files = []
+    failed_files = []
+    for file_path in find_erroneous(json_data_dir):
+        opt_str = dicts.fix_json_line_breaks(Path(file_path), backing_up=True)
+        if opt_str is None:
+            fixed_files.append(file_path)
+        else:
+            failed_files.append((file_path, opt_str))
+    return fixed_files, failed_files
+
 def delete_erroneous(
         json_data_dir: PathLike
     ) -> tuple[list[str], list[tuple[str, Exception]]]:
