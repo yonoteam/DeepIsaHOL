@@ -237,13 +237,14 @@ def compute_stats(config_dict):
 if __name__ == "__main__":
     explanation = "Train Gemma as specified in the input JSON configuration."
     config_dict = config_ops.parse_path(explanation)
-    config_ops.setup_logging("gemma_train.log")
 
     task = config_dict["task"]
     if task == config_ops.count_dataset:
+        config_ops.setup_logging("gemma_data_stats.log")
         logging.info("Starting counting process.")
         compute_stats(config_dict)
     else:
+        config_ops.setup_logging("gemma_train.log")
         logging.info("Starting single finetuning Gemma process.")
         distrib.log_cuda_info_via_torch()
         main(0, config_dict)
