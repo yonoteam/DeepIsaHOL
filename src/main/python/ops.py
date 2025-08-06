@@ -8,12 +8,14 @@ import re
 import time
 import queue
 import psutil
+import shutil
 import random
 import logging
 import threading
 
+from pathlib import Path
 from datetime import datetime
-from typing import Union, Iterator, TypeVar, Optional
+from typing import Union, Iterator, TypeVar, Optional, List
 T = TypeVar("T")
 
 import matplotlib.pyplot as plt
@@ -188,5 +190,28 @@ def save_tuple_list_as_txt(
         logging.error(message)
         print(message)
 
+# COPY DATA
 
+def copy_files_with_structure(file_paths: List[str], destination: str) -> None:
+    """
+    Copies files to a destination directory, preserving their relative paths
+    from their common root.
+
+    :param file_paths: List of file paths (as strings) to copy.
+    :param destination: Root directory where files will be copied.
+    """
+    path_objs = [Path(p) for p in file_paths]
+    
+    common_root = Path(os.path.commonpath(path_objs))
+    destin_root = Path(destination)
+    destin_root.mkdir(parents=True, exist_ok=True)
+
+    for file_path in path_objs:
+        if not file_path.is_file():
+            logging.info(f"Skipping {file_path}: not a file.")
+            continue
+        relative_path = file_path.relative_to(common_root)
+        destination_path = destin_root / relative_path
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(file_path, destination_path)
 
