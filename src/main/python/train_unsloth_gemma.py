@@ -6,7 +6,9 @@
 
 import os
 import logging
+import statistics
 
+from transformers import AutoTokenizer
 from unsloth import FastModel
 from unsloth.chat_templates import (
     get_chat_template, 
@@ -60,6 +62,27 @@ def configure_trainer_args(config_dict):
     sft_args = SFTConfig(**pre_args)
     return sft_args
 
+def gemma_generator(config_dict, tokenizer):
+    data_dir = config_dict["data_dir"]
+    split = config_dict["data_split"]
+    data_format = config_dict["data_format"]
+    max_length = tokops.get_gemma_context_length(data_format)
+    for conversation in tokops.generate_gemma_inputs(data_dir, split, data_format):
+        x = conversation["messages"][0]["content"][0]["text"]
+        y = conversation["messages"][1]["content"][0]["text"]
+        tok_x = tokenizer(x, return_tensors="pt")
+        tok_y = tokenizer(y, return_tensors="pt")
+        total_size = tok_x["input_ids"].shape[1] + tok_y["input_ids"].shape[1]
+        if total_size > max_length:
+            message = f"""
+            Skipping pair due to exceeding context length:
+                x: {x[:1000]}
+                y: {y}.
+            """
+            logging.warning(message)
+            continue
+        yield conversation
+
 def load_model_tok_data_trainer(accelerator, config_dict):
     model, tokenizer = FastModel.from_pretrained(
         model_name = config_dict["model_name"],
@@ -93,11 +116,9 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     logging.info(f"Checkpoint: loaded tokenizer.")
 
     dataset = IterableDataset.from_generator(
-        tokops.generate_gemma_inputs,
+        gemma_generator,
         gen_kwargs=dict(
-            json_data_dir = config_dict["data_dir"],
-            split = config_dict["data_split"],
-            data_format = config_dict["data_format"],
+            config_dict = config_dict,
             tokenizer = tokenizer.tokenizer
         )
     )
@@ -158,38 +179,60 @@ def main(accelerator, config_dict):
 
     logging.info(f"Saved progress. Bye!")
 
-def count_samples(config_dict):
-    dataset = IterableDataset.from_generator(
-        tokops.generate_gemma_inputs,
-        gen_kwargs=dict(
-            json_data_dir = config_dict["data_dir"],
-            split = config_dict["data_split"],
-            data_format = config_dict["data_format"]
-        )
-    )
-    dataset = standardize_data_formats(dataset)
-    total_samples = 0
+def compute_stats(config_dict):
+    tokenizer = AutoTokenizer.from_pretrained(config_dict["model_name"])
+    data_dir = config_dict["data_dir"]
+    split = config_dict["data_split"]
+    data_format = config_dict["data_format"]
     max_steps = config_dict.get("batches_per_epoch", None)
-    for example_idx, example in enumerate(dataset):
-        if example_idx == 0:
-            if type(example) is dict:
-                logging.info(f"The first example properties are:")
-                example_shape = {k: type(v) for k, v in example.items()}
-                logging.info(f"{example_shape}")
-                example_str = dicts.to_string(example, max_chars=300)
-                logging.info(f"{example_str}")
-            else:
-                logging.info(f"The type of the first example is: {type(example)}")
-        example_size = len(example["messages"][0]["content"])
-        total_samples += example_size
-        if example_idx % 1000 == 0 and example_idx > 0:
-            logging.info(f"Processed {example_idx} examples so far")
-        if max_steps is not None and example_idx >= max_steps:
+    x_lengths = []
+    y_lengths = []
+    gemma_iter = tokops.generate_gemma_inputs(data_dir, split, data_format)
+    for i, conversation in enumerate(gemma_iter):
+        if max_steps is not None and i >= max_steps:
             logging.info(f"Reached max steps of {max_steps}. Stopping counting.")
             break
-    logging.info(f"Total number of examples was {example_idx + 1}")
-    logging.info(f"Total number of tokens was {total_samples}")
-    return example
+        x = conversation["messages"][0]["content"][0]["text"]
+        y = conversation["messages"][1]["content"][0]["text"]
+        x_lengths.append(len(tokenizer(x)["input_ids"]))
+        y_lengths.append(len(tokenizer(y)["input_ids"]))
+        if i % 1000 == 0 and i > 0:
+            logging.info(f"Processed {i} examples so far")
+    
+    def get_stats(nums):
+        total_sum = sum(nums)
+        return {
+            "total": total_sum,
+            "avg": total_sum / len(nums) if nums else 0,
+            "max": max(nums, default=0),
+            "min": min(nums, default=0),
+            "median": statistics.median(nums) if nums else 0,
+            "mode": statistics.mode(nums) if nums else 0
+        }
+    
+    x_stats = get_stats(x_lengths)
+    y_stats = get_stats(y_lengths)
+    result = {
+        "x_total_toks": x_stats["total"],
+        "y_total_toks": y_stats["total"],
+        "x_avg": x_stats["avg"],
+        "y_avg": y_stats["avg"],
+        "x_max": x_stats["max"],
+        "y_max": y_stats["max"],
+        "x_min": x_stats["min"],
+        "y_min": y_stats["min"],
+        "x_median": x_stats["median"],
+        "y_median": y_stats["median"],
+        "x_mode": x_stats["mode"],
+        "y_mode": y_stats["mode"],
+        "total_datapoints": len(x_lengths)
+    }
+    final_message = f"""
+    The data statistics for the split '{split}' with the format '{data_format}' are: 
+    {dicts.to_string(result)}
+    """
+    logging.info(final_message)
+    return {conversation, result}
 
 if __name__ == "__main__":
     explanation = "Train Gemma as specified in the input JSON configuration."
@@ -199,7 +242,7 @@ if __name__ == "__main__":
     task = config_dict["task"]
     if task == config_ops.count_dataset:
         logging.info("Starting counting process.")
-        count_samples(config_dict)
+        compute_stats(config_dict)
     else:
         logging.info("Starting single finetuning Gemma process.")
         distrib.log_cuda_info_via_torch()
