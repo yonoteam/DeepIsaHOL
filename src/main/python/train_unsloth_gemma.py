@@ -200,14 +200,13 @@ def compute_stats(config_dict):
     split = config_dict["data_split"]
     data_format = config_dict["data_format"]
     max_steps = config_dict.get("batches_per_epoch", None)
+
     x_lengths = []
     y_lengths = []
-    geq_512 = 0
-    geq_1024 = 0
-    geq_2048 = 0
-    geq_4096 = 0
-    geq_8192 = 0
+    thresholds = [512, 1024, 2048, 4096, 8192]
+    length_counters = {th: 0 for th in thresholds}
     gemma_iter = tokops.generate_gemma_inputs(data_dir, split, data_format)
+
     for i, conversation in enumerate(gemma_iter):
         if max_steps is not None and i >= max_steps:
             logging.info(f"Reached max steps of {max_steps}. Stopping counting.")
@@ -219,16 +218,10 @@ def compute_stats(config_dict):
         x_lengths.append(x_tok_len)
         y_lengths.append(y_tok_len)
         length_sum = x_tok_len + y_tok_len
-        if length_sum > 512:
-            geq_512 += 1
-        if length_sum > 1024:
-            geq_1024 += 1
-        if length_sum > 2048:
-            geq_2048 += 1
-        if length_sum > 4096:
-            geq_4096 += 1
-        if length_sum > 8192:
-            geq_8192 += 1
+
+        for threshold in thresholds:
+            if length_sum >= threshold:
+                length_counters[threshold] += 1
         if i % 1000 == 0 and i > 0:
             logging.info(f"Processed {i} examples so far")
     
@@ -259,11 +252,7 @@ def compute_stats(config_dict):
         "y_median": y_stats["median"],
         "x_mode": x_stats["mode"],
         "y_mode": y_stats["mode"],
-        "geq_512": geq_512/total_datapoints if total_datapoints > 0 else 0,
-        "geq_1024": geq_1024/total_datapoints if total_datapoints > 0 else 0,
-        "geq_2048": geq_2048/total_datapoints if total_datapoints > 0 else 0,
-        "geq_4096": geq_4096/total_datapoints if total_datapoints > 0 else 0,
-        "geq_8192": geq_8192/total_datapoints if total_datapoints > 0 else 0,
+        **{f"geq_{t}": length_counters[t] / total_datapoints if total_datapoints > 0 else 0 for t in thresholds},
         "total_datapoints": total_datapoints
     }
     final_message = f"""
