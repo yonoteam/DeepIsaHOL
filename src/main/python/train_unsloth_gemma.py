@@ -187,7 +187,7 @@ def load_tuned_model_tok_data(config_dict):
         gemma_generator,
         gen_kwargs=dict(
             config_dict = config_dict,
-            tokenizer = tokenizer.tokenizer
+            tokenizer = tokenizer
         )
     )
     return {
