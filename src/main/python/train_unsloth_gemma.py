@@ -16,6 +16,7 @@ from unsloth.chat_templates import (
 )
 
 from transformers import AutoTokenizer
+from transformers import AutoModelForCausalLM
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
@@ -178,6 +179,22 @@ def main(accelerator, config_dict):
     trainer.save_model()
 
     logging.info(f"Saved progress. Bye!")
+
+def load_tuned_model_tok_data(config_dict):
+    model = AutoModelForCausalLM.from_pretrained(config_dict["models_dir"])
+    tokenizer = AutoTokenizer.from_pretrained(config_dict["model_name"])
+    dataset = IterableDataset.from_generator(
+        gemma_generator,
+        gen_kwargs=dict(
+            config_dict = config_dict,
+            tokenizer = tokenizer.tokenizer
+        )
+    )
+    return {
+        "model": model,
+        "tokenizer": tokenizer,
+        "dataset": dataset
+    }
 
 def compute_stats(config_dict):
     tokenizer = AutoTokenizer.from_pretrained(config_dict["model_name"])
