@@ -93,7 +93,7 @@ def load_preproc_data(tokenizer, config_dict):
         gemma_generator,
         gen_kwargs=dict(
             config_dict = config_dict,
-            tokenizer = preprocessor.tokenizer
+            tokenizer = preprocessor.tokenizer if hasattr(preprocessor, "tokenizer") else preprocessor
         )
     )
     dataset = standardize_data_formats(dataset)
