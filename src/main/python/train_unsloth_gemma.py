@@ -75,12 +75,12 @@ def gemma_generator(config_dict, tokenizer):
         tok_y = tokenizer(y, return_tensors="pt")
         total_size = tok_x["input_ids"].shape[1] + tok_y["input_ids"].shape[1]
         if total_size > max_length:
-            message = f"""
-            Skipping pair due to exceeding context length:
-                x: {x[:1000]}
-                y: {y}.
-            """
-            logging.warning(message)
+            # message = f"""
+            # Skipping pair due to exceeding context length:
+            #     x: {x[:1000]}
+            #     y: {y}.
+            # """
+            # logging.warning(message)
             continue
         yield conversation
 
@@ -122,7 +122,7 @@ def load_training_objs(accelerator, config_dict):
     logging.info(f"Checkpoint: loaded first model and tokenizer.")
 
     preprocessor, dataset = load_preproc_data(tokenizer, config_dict)
-    logging.info(f"Checkpoint: loaded processor and dataset.")
+    logging.info(f"Checkpoint: loaded preprocessor and dataset.")
 
     model = FastModel.get_peft_model(
         model,
