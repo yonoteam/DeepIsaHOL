@@ -84,7 +84,33 @@ def gemma_generator(config_dict, tokenizer):
             continue
         yield conversation
 
-def load_model_tok_data_trainer(accelerator, config_dict):
+def load_preproc_data(tokenizer, config_dict):
+    preprocessor = get_chat_template(
+        tokenizer,
+        chat_template = "gemma-3",
+    )
+    dataset = IterableDataset.from_generator(
+        gemma_generator,
+        gen_kwargs=dict(
+            config_dict = config_dict,
+            tokenizer = preprocessor.tokenizer
+        )
+    )
+    dataset = standardize_data_formats(dataset)
+
+    def format_prompts(examples):
+        convos = examples["messages"]
+        texts = [tokenizer.apply_chat_template(
+            convo, 
+            tokenize = False,
+            add_generation_prompt = False
+            ).removeprefix('<bos>') for convo in convos]
+        return { "text" : texts, }
+
+    dataset = dataset.map(format_prompts, batched = True)
+    return preprocessor, dataset
+
+def load_training_objs(accelerator, config_dict):
     model, tokenizer = FastModel.from_pretrained(
         model_name = config_dict["model_name"],
         dtype = None, # None for auto detection
@@ -94,6 +120,9 @@ def load_model_tok_data_trainer(accelerator, config_dict):
         # token = "hf_...", # use one if using gated models
     )
     logging.info(f"Checkpoint: loaded first model and tokenizer.")
+
+    preprocessor, dataset = load_preproc_data(tokenizer, config_dict)
+    logging.info(f"Checkpoint: loaded processor and dataset.")
 
     model = FastModel.get_peft_model(
         model,
@@ -110,32 +139,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     )
     logging.info(f"Checkpoint: loaded model.")
 
-    tokenizer = get_chat_template(
-        tokenizer,
-        chat_template = "gemma-3",
-    )
-    logging.info(f"Checkpoint: loaded tokenizer.")
-
-    dataset = IterableDataset.from_generator(
-        gemma_generator,
-        gen_kwargs=dict(
-            config_dict = config_dict,
-            tokenizer = tokenizer.tokenizer
-        )
-    )
-    dataset = standardize_data_formats(dataset)
-    logging.info(f"Checkpoint: dataset standardised.")
-
-    def format_prompts(examples):
-        convos = examples["messages"]
-        texts = [tokenizer.apply_chat_template(
-            convo, 
-            tokenize = False,
-            add_generation_prompt = False
-            ).removeprefix('<bos>') for convo in convos]
-        return { "text" : texts, }
-
-    dataset = dataset.map(format_prompts, batched = True)
+    
     logging.info(f"Checkpoint: dataset formatted.")
 
     train_args = configure_trainer_args(config_dict)
@@ -144,7 +148,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
         args=train_args,
         train_dataset=dataset,
         eval_dataset = None,
-        processing_class=tokenizer
+        processing_class=preprocessor
     )
     trainer = train_on_responses_only(
         trainer,
@@ -153,14 +157,14 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     )
     logging.info("Checkpoint: Trainer initialised.")
     first_example = next(iter(trainer.train_dataset))
-    expected_first_answer = tokenizer.decode(
-        [tokenizer.pad_token_id if x == -100 else x for x in first_example["labels"]]
-        ).replace(tokenizer.pad_token, "")
+    expected_first_answer = preprocessor.decode(
+        [preprocessor.pad_token_id if x == -100 else x for x in first_example["labels"]]
+        ).replace(preprocessor.pad_token, "")
     logging.info(f"The evidence is: {expected_first_answer}")
 
     result = dict(
         model=model,
-        tokenizer=tokenizer,
+        preprocessor=preprocessor,
         dataset=dataset,
         train_args=train_args,
         trainer=trainer
@@ -168,7 +172,7 @@ def load_model_tok_data_trainer(accelerator, config_dict):
     return result
 
 def main(accelerator, config_dict):
-    model_tok_data_dict = load_model_tok_data_trainer(accelerator, config_dict)
+    model_tok_data_dict = load_training_objs(accelerator, config_dict)
     trainer = model_tok_data_dict["trainer"]
 
     logging.info(f"Starting training loop.")
@@ -180,19 +184,13 @@ def main(accelerator, config_dict):
 
     logging.info(f"Saved progress. Bye!")
 
-def load_tuned_model_tok_data(config_dict):
+def load_tuned_objs(config_dict):
     model = AutoModelForCausalLM.from_pretrained(config_dict["models_dir"])
     tokenizer = AutoTokenizer.from_pretrained(config_dict["model_name"])
-    dataset = IterableDataset.from_generator(
-        gemma_generator,
-        gen_kwargs=dict(
-            config_dict = config_dict,
-            tokenizer = tokenizer
-        )
-    )
+    preprocessor, dataset = load_preproc_data(tokenizer, config_dict)
     return {
         "model": model,
-        "tokenizer": tokenizer,
+        "preprocessor": preprocessor,
         "dataset": dataset
     }
 
