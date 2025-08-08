@@ -63,13 +63,36 @@ EXAMPLE_TRAINING_ARGS = {
     "save_steps": 10000
 }
 
+DFS_CONFIG_DICT = {
+    "device": -1,
+    "gen_length": 64,
+    "num_return_sequences": 5,
+    "num_beams": 5,
+    "allowed_depth": 5,
+    "saving": False,
+    "proof_timeout_seconds": 30,
+    "loop_start_state": {
+        "prf_attempts_count": 0,
+        "max_prf_attempts": 5,
+        "max_attempts_reached": False
+    }
+}
+
+def get_device_str(config_dict):
+    device_int = config_dict["dfs_config"]["device"]
+    if device_int == -1:
+        return "cpu"
+    else:
+        return f"cuda:{device_int}"
+
+# TASKS
 save_hf_tokenizer = "save_hf_tokenizer"
 train_hf_tokenizer = "train_hf_tokenizer"
 count_dataset = "count_dataset"
 pretrain_model = "pretrain_model"
 finetune_model = "finetune_model"
 eval_model = "eval_model"
-TASKS = [save_hf_tokenizer, train_hf_tokenizer, count_dataset, pretrain_model, finetune_model, eval_model]
+dfs_eval = "dfs_eval"
 
 EXAMPLE_CONFIG_DICT = {
     "task": pretrain_model,
@@ -82,7 +105,8 @@ EXAMPLE_CONFIG_DICT = {
     "float_type": "bf16",
     "num_epochs": 1,
     "batches_per_epoch": 134740,
-    "hf_train_args": EXAMPLE_TRAINING_ARGS
+    "hf_train_args": EXAMPLE_TRAINING_ARGS,
+    "dfs_config": DFS_CONFIG_DICT
 }
 
 def get_torch_float_type(float_type_str):

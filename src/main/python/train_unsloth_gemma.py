@@ -5,8 +5,11 @@
 # Following the Unsloth documentation at https://docs.unsloth.ai/basics/gemma-3n-how-to-run-and-fine-tune
 
 import os
+import re
 import logging
 import statistics
+
+from typing import Optional
 
 from unsloth import FastModel
 from unsloth.chat_templates import (
@@ -84,23 +87,20 @@ def gemma_generator(config_dict, tokenizer):
             continue
         yield conversation
 
-def load_preproc_data(tokenizer, config_dict):
-    preprocessor = get_chat_template(
-        tokenizer,
-        chat_template = "gemma-3",
-    )
+def load_and_format_dataset(preproc, config_dict):
+    tokenizer = preproc.tokenizer if hasattr(preproc, "tokenizer") else preproc
     dataset = IterableDataset.from_generator(
         gemma_generator,
         gen_kwargs=dict(
             config_dict = config_dict,
-            tokenizer = preprocessor.tokenizer if hasattr(preprocessor, "tokenizer") else preprocessor
+            tokenizer = tokenizer
         )
     )
     dataset = standardize_data_formats(dataset)
 
     def format_prompts(examples):
         convos = examples["messages"]
-        texts = [tokenizer.apply_chat_template(
+        texts = [preproc.apply_chat_template(
             convo, 
             tokenize = False,
             add_generation_prompt = False
@@ -108,25 +108,29 @@ def load_preproc_data(tokenizer, config_dict):
         return { "text" : texts, }
 
     dataset = dataset.map(format_prompts, batched = True)
-    return preprocessor, dataset
+    return dataset
 
 def load_training_objs(accelerator, config_dict):
-    model, tokenizer = FastModel.from_pretrained(
+    model, preprocessor = FastModel.from_pretrained(
         model_name = config_dict["model_name"],
-        dtype = None, # None for auto detection
+        dtype = None, # None for Unsloth auto detection
         max_seq_length = tokops.get_gemma_context_length(config_dict["data_format"]),
         load_in_4bit = True,  # 4 bit quantization to reduce memory
-        full_finetuning = False, # [NEW!] We have full finetuning now!
-        # token = "hf_...", # use one if using gated models
+        full_finetuning = False,
     )
-    logging.info(f"Checkpoint: loaded first model and tokenizer.")
+    logging.info(f"Checkpoint: loaded fast model.")
 
-    preprocessor, dataset = load_preproc_data(tokenizer, config_dict)
+    preprocessor = get_chat_template(
+        preprocessor,
+        chat_template = "gemma-3",
+    )
+
+    dataset = load_and_format_dataset(preprocessor, config_dict)
     logging.info(f"Checkpoint: loaded preprocessor and dataset.")
 
     model = FastModel.get_peft_model(
         model,
-        finetune_vision_layers     = False, # Turn off for just text!
+        finetune_vision_layers     = False,
         finetune_language_layers   = True,  # Should leave on!
         finetune_attention_modules = True,  # Attention good for GRPO
         finetune_mlp_modules       = True,  # SHould leave on always!
@@ -137,10 +141,7 @@ def load_training_objs(accelerator, config_dict):
         bias = "none",
         random_state = 3407,
     )
-    logging.info(f"Checkpoint: loaded model.")
-
-    
-    logging.info(f"Checkpoint: dataset formatted.")
+    logging.info(f"Checkpoint: loaded peft model.")
 
     train_args = configure_trainer_args(config_dict)
     trainer = SFTTrainer(
@@ -186,13 +187,38 @@ def main(accelerator, config_dict):
 
 def load_tuned_objs(config_dict):
     model = AutoModelForCausalLM.from_pretrained(config_dict["models_dir"])
-    tokenizer = AutoTokenizer.from_pretrained(config_dict["model_name"])
-    preprocessor, dataset = load_preproc_data(tokenizer, config_dict)
+    tokenizer = get_chat_template(
+        AutoTokenizer.from_pretrained(config_dict["model_name"]),
+        chat_template = "gemma-3",
+    )
     return {
         "model": model,
-        "preprocessor": preprocessor,
-        "dataset": dataset
+        "tokenizer": tokenizer
     }
+
+def extract_suggestion(text: str) -> Optional[str]:
+    pattern = r"<SUGGESTION>(.*?)</SUGGESTION>"
+    match = re.search(pattern, text, re.DOTALL)
+    if match:
+        return match.group(1)
+    return None
+
+def suggest(tokenizer, model, conversation):
+    inputs = tokenizer.apply_chat_template(
+        conversation["messages"],
+        add_generation_prompt = True,
+        return_tensors = "pt",
+        tokenize = True,
+        return_dict = True,
+    ).to("cuda")
+    toked_outputs = model.generate(
+        **inputs,
+        max_new_tokens = 64,
+        temperature = 1.0, top_p = 0.95, top_k = 64,
+    )
+    outputs = tokenizer.batch_decode(toked_outputs)
+    return extract_suggestion(outputs[0])
+
 
 def compute_stats(config_dict):
     tokenizer = AutoTokenizer.from_pretrained(config_dict["model_name"])

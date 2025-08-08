@@ -11,11 +11,9 @@ import logging
 from itertools import takewhile
 
 import torch
-from transformers import pipeline
 
 import dicts
 import proofs
-import eval_t5
 import config_ops
 import tokenizer_ops as tokops
 from repl import REPL
@@ -94,6 +92,7 @@ def make_prf_record(prf_info, duration):
         "duration": duration
     }
 
+# TODO: If text-generation, extract correct predicts
 def dfs(
         repl, # mutable parameters
         metrics,
@@ -357,7 +356,8 @@ def max_attempts_reached(loop_state):
     
     return loop_state["prf_attempts_count"] >= max_attempts
 
-def process_logic(logic, thys, dfs_config, loop_state):
+def process_logic(logic, thys, dfs_config):
+    loop_state = dfs_config["loop_start_state"].copy()
     repl = loop_state["repl"]
     prf_count = 0 # counter with respect to len_proofs
     len_proofs = sum(len(thy_proofs) for thy_proofs in thys.values())
@@ -397,61 +397,63 @@ def process_logic(logic, thys, dfs_config, loop_state):
 
 # MAIN LOOP
 
-# TODO: make these inits part of the input config_dict
-def start_dfs_config():
-    return {
-        "gen_length": 50,
-        "num_return_sequences": 5,
-        "num_beams": 5,
-        "allowed_depth": 5,
-        "saving": False,
-        "proof_timeout_seconds": 30
-    }
+def get_model_type(config_dict):
+    model_name = config_dict["model_name"]
+    lower_case_model = model_name.lower()
+    if "t5" in lower_case_model:
+        return "t5"
+    elif "gemma" in lower_case_model:
+        return "gemma"
+    else:
+        raise ValueError(f"Unsupported model: {model_name}. Supported: T5, Gemma.")
 
-def start_loop_state():
-    return {
-        "prf_attempts_count": 0,
-        "max_prf_attempts": 5,
-        "max_attempts_reached": False,
-        "repl": None
-    }
-
-# TODO: make the cpu or gpu choice part of the input config_dict
-def configure(config_dict, saving=False, max_prf_attempts=5):
+def load_tok_model(config_dict):
+    model_type = get_model_type(config_dict)
     data_format = config_dict["data_format"]
+    device = config_dict["dfs_config"]["device"]
 
-    # model
-    model, tokenizer, _ = eval_t5.load_model_tok_data(config_dict)
-    model.to("cpu")
+    if model_type == "t5":
+        import eval_t5
+        model, tokenizer, _ = eval_t5.load_model_tok_data(config_dict)
+        tok_max_length = tokops.get_t5_context_length(data_format)
+        tokenizer.model_max_length = tok_max_length
+        print(f"Model context length = {model.config.n_positions}")
+        print(f"Tokenizer context length = {tokenizer.model_max_length}")
+    elif model_type == "gemma":
+        import train_unsloth_gemma
+        model, tokenizer = train_unsloth_gemma.load_tuned_objs(config_dict)
+    
+    if device:
+        model.to(config_ops.get_device_str(config_dict))
+    return tokenizer, model
 
-    # tokenizer
-    tok_max_length = tokops.get_t5_context_length(data_format)
-    tokenizer.model_max_length = tok_max_length
-    print(f"Model context length = {model.config.n_positions}")
-    print(f"Tokenizer context length = {tokenizer.model_max_length}")
+def configure(config_dict):
+    model_type = get_model_type(config_dict)
+    data_format = config_dict["data_format"]
+    tokenizer, model = load_tok_model(config_dict)
+    from transformers import pipeline # after importing unsloth in load_tok_model
+
+    if model_type == "t5":
+        generation_task = "text2text-generation"
+    elif model_type == "gemma":
+        generation_task = "text-generation"
     
     # setup configuration
-    dfs_config = start_dfs_config()
-    dfs_config["saving"] = saving
-    dfs_config["max_prf_attempts"] = max_prf_attempts
+    dfs_config = config_dict["dfs_config"].copy()
 
     # extensions to the configuration
+    dfs_config["repl"] = None
     dfs_config["data_format"] = data_format
     dfs_config["generator"] = pipeline(
-        "text2text-generation", 
+        generation_task,
         model=model, 
         tokenizer=tokenizer, 
-        device=-1
+        device=config_dict["dfs_config"]["device"] # -1 for CPU, N for GPU N
     )
-    return dfs_config, start_loop_state()
+    return dfs_config
 
-def process_logics(config_dict, saving=False, max_prf_attempts=5):
-    # llm-generator inside dfs_config
-    dfs_config, loop_state = configure(
-        config_dict, 
-        saving=saving, 
-        max_prf_attempts=max_prf_attempts
-    )
+def process_logics(config_dict):
+    dfs_config = configure(config_dict) # llm-generator inside dfs_config
     progress_file = create_progress_file()
     logics_dict = proofs.data_dir.group_paths_by_logic(
         config_dict["data_dir"], 
@@ -469,7 +471,7 @@ def process_logics(config_dict, saving=False, max_prf_attempts=5):
 
             thys = logics_dict[logic]
             
-            loop_state = process_logic(logic, thys, dfs_config, loop_state)
+            loop_state = process_logic(logic, thys, dfs_config)
     except Exception as e:
         logging.warning(f"Error processing {logic}: {e}")
     finally:
@@ -479,12 +481,10 @@ def process_logics(config_dict, saving=False, max_prf_attempts=5):
 if __name__ == "__main__":
     try:
         info="Evaluates a T5 model via depth-first search proof exploration as specified in the input JSON configuration."
-        path = config_ops.parse_config_path(tool_explanation=info)
-        config_dict = dicts.load_json(path)
-        config_ops.check_params(config_dict)
+        config_dict = config_ops.parse_path(tool_explanation=info)
     except Exception as e:
         message = f"Loading configuration information: {e}"
         logging.error(message)
         raise Exception(f"Error {e}")
     
-    process_logics(config_dict, saving=True, max_prf_attempts=5)
+    process_logics(config_dict)
