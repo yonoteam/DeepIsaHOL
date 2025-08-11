@@ -460,8 +460,8 @@ def load_tok_model(config_dict):
         print(f"Model type = {type(model)}")
         print(f"Tokeinzer type = {type(tokenizer)}")
     
-    if device:
-        model.to(config_ops.get_device_str(config_dict))
+    # if device:
+    #    model.to(config_ops.get_device_str(config_dict))
     return tokenizer, model
 
 def configure(config_dict):
@@ -485,8 +485,8 @@ def configure(config_dict):
     dfs_config["generator"] = pipeline(
         generation_task,
         model=model, 
-        tokenizer=tokenizer, 
-        device=config_dict["dfs_config"]["device"] # -1 for CPU, N for GPU N
+        tokenizer=tokenizer
+        # device=config_dict["dfs_config"]["device"] # -1 for CPU, N for GPU N
     )
     return dfs_config
 
