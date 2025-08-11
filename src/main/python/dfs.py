@@ -89,16 +89,6 @@ def generate_predicts(repl, prf_info, dfs_config):
         predicts = [p["generated_text"] for p in predicts]
     elif model_type == "gemma":
         gemma_prompt = "Recommend the next Isabelle proof step given the context below:\n{context}"
-        # convers = {
-        #     "messages": [
-        #         {
-        #             "role": "user",
-        #             "content": [
-        #                 {"type": "text", "text": gemma_prompt.format(context=x)}
-        #             ]
-        #         }
-        #     ]
-        # }
         predicts = dfs_config["generator"](
             gemma_prompt.format(context=x), 
             max_new_tokens=dfs_config["gen_length"], 
@@ -109,7 +99,7 @@ def generate_predicts(repl, prf_info, dfs_config):
             top_k = 64
         )
         predicts = [extract_gemma_suggestion(p["generated_text"]) for p in predicts]
-    return predicts
+    return x, predicts
 
 # the pos variable indicates a position in the dfs tree, i.e. [i, j, k, l] corresponds 
 # to the i, j, k, and l branches at resp. depths 1, 2, 3, and 4. If the options at a 
@@ -151,7 +141,7 @@ def dfs(
             logging.info(f"Timeout threshold ({timeout_seconds}s) reached during DFS for proof {prf['path']} at pos {pos}. Stopping exploration down this path.")
             return metrics
 
-    predicts = generate_predicts(repl, prf, dfs_config)
+    x, predicts = generate_predicts(repl, prf, dfs_config)
     logging.info(f"at pos={pos}.")
     max_breadth = len(predicts)
 
@@ -165,7 +155,7 @@ def dfs(
         logging.info(f"Attempt at pos={curr_pos}")
         
         # unlikely safety check
-        if predict is None or "generated_text" not in predict:
+        if predict is None:
             message = f"""
             Invalid prediction found at:
             pos = {curr_pos}
