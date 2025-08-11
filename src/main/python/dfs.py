@@ -108,7 +108,8 @@ def generate_predicts(repl, prf_info, dfs_config):
             top_p = 0.95,
             top_k = 64
         )
-        logging.info(f"gemma successful prediction: {predicts[0]["generated_text"][1]["content"]}")
+        first_generation = predicts[0]["generated_text"][1]["content"][:200]
+        logging.info(f"gemma successful prediction: {first_generation}")
         predicts = [extract_gemma_suggestion(p["generated_text"][1]["content"]) for p in predicts]
     return x, predicts
 
