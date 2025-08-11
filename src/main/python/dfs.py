@@ -86,9 +86,19 @@ def generate_predicts(repl, prf_info, dfs_config):
             num_return_sequences=dfs_config["num_return_sequences"],
             num_beams=dfs_config["num_beams"]
         )
-        predicts.map(lambda p: p["generated_text"])
+        predicts = [p["generated_text"] for p in predicts]
     elif model_type == "gemma":
-        convers = tokops.to_gemma_format(x, " ")
+        gemma_prompt = "Recommend the next Isabelle proof step given the context below:\n{context}"
+        convers = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": gemma_prompt.format(context=x)}
+                    ]
+                }
+            ]
+        }
         predicts = dfs_config["generator"](
             convers["messages"], 
             max_new_tokens=dfs_config["gen_length"], 
@@ -98,7 +108,7 @@ def generate_predicts(repl, prf_info, dfs_config):
             top_p = 0.95,
             top_k = 64
         )
-        predicts.map(lambda p: extract_gemma_suggestion(p["generated_text"]))
+        predicts = [extract_gemma_suggestion(p["generated_text"]) for p in predicts]
     return predicts
 
 # the pos variable indicates a position in the dfs tree, i.e. [i, j, k, l] corresponds 
@@ -511,7 +521,7 @@ def process_logics(config_dict):
 
 if __name__ == "__main__":
     try:
-        info="Evaluates a T5 model via depth-first search proof exploration as specified in the input JSON configuration."
+        info="Evaluates a model via depth-first search proof exploration as specified in the input JSON configuration."
         config_dict = config_ops.parse_path(tool_explanation=info)
     except Exception as e:
         message = f"Loading configuration information: {e}"
