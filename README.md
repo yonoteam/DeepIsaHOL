@@ -133,7 +133,7 @@ You can see the REPL's methods in this project's `/src/main/scala/repl.scala`. F
 ```scala
 scala> import isabelle_rl._
 
-scala> repl = new REPL("HOL") // see Isabelle's documentation for more logic options
+scala> val repl = new REPL("HOL") // see Isabelle's documentation for more logic options
 REPL started!
 val repl: isabelle_rl.REPL = isabelle_rl.REPL@7274a164
 

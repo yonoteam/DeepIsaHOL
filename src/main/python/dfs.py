@@ -89,18 +89,18 @@ def generate_predicts(repl, prf_info, dfs_config):
         predicts = [p["generated_text"] for p in predicts]
     elif model_type == "gemma":
         gemma_prompt = "Recommend the next Isabelle proof step given the context below:\n{context}"
-        convers = {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": gemma_prompt.format(context=x)}
-                    ]
-                }
-            ]
-        }
+        # convers = {
+        #     "messages": [
+        #         {
+        #             "role": "user",
+        #             "content": [
+        #                 {"type": "text", "text": gemma_prompt.format(context=x)}
+        #             ]
+        #         }
+        #     ]
+        # }
         predicts = dfs_config["generator"](
-            convers["messages"], 
+            gemma_prompt.format(context=x), 
             max_new_tokens=dfs_config["gen_length"], 
             num_return_sequences=dfs_config["num_return_sequences"],
             num_beams=dfs_config["num_beams"],
