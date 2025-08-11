@@ -89,8 +89,18 @@ def generate_predicts(repl, prf_info, dfs_config):
         predicts = [p["generated_text"] for p in predicts]
     elif model_type == "gemma":
         gemma_prompt = "Recommend the next Isabelle proof step given the context below:\n{context}"
+        convers = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": gemma_prompt.format(context=x)}
+                    ]
+                }
+            ]
+        }
         predicts = dfs_config["generator"](
-            gemma_prompt.format(context=x), 
+            convers["messages"], 
             max_new_tokens=dfs_config["gen_length"], 
             num_return_sequences=dfs_config["num_return_sequences"],
             num_beams=dfs_config["num_beams"],
@@ -98,7 +108,8 @@ def generate_predicts(repl, prf_info, dfs_config):
             top_p = 0.95,
             top_k = 64
         )
-        predicts = [extract_gemma_suggestion(p["generated_text"]) for p in predicts]
+        logging.info(f"gemma successful prediction: {predicts[0]["generated_text"][1]["content"]}")
+        predicts = [extract_gemma_suggestion(p["generated_text"][1]["content"]) for p in predicts]
     return x, predicts
 
 # the pos variable indicates a position in the dfs tree, i.e. [i, j, k, l] corresponds 
@@ -155,7 +166,7 @@ def dfs(
         logging.info(f"Attempt at pos={curr_pos}")
         
         # unlikely safety check
-        if predict is None:
+        if predict is None or "generated_text" not in predict:
             message = f"""
             Invalid prediction found at:
             pos = {curr_pos}
