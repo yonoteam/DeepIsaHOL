@@ -432,11 +432,13 @@ def get_model_type(config_dict):
     model_name = config_dict["model_name"]
     lower_case_model = model_name.lower()
     if "t5" in lower_case_model:
-        return "t5"
+        model_type = "t5"
     elif "gemma" in lower_case_model:
-        return "gemma"
+        model_type = "gemma"
     else:
         raise ValueError(f"Unsupported model: {model_name}. Supported: T5, Gemma.")
+    logging.info(f"Model type set to {model_type} based on model name {model_name}.")
+    return model_type
 
 def load_tok_model(config_dict):
     model_type = get_model_type(config_dict)
@@ -452,7 +454,11 @@ def load_tok_model(config_dict):
         print(f"Tokenizer context length = {tokenizer.model_max_length}")
     elif model_type == "gemma":
         import train_unsloth_gemma
-        model, tokenizer = train_unsloth_gemma.load_tuned_objs(config_dict)
+        tuned_objs = train_unsloth_gemma.load_tuned_objs(config_dict)
+        model = tuned_objs["model"]
+        tokenizer = tuned_objs["tokenizer"]
+        print(f"Model type = {type(model)}")
+        print(f"Tokeinzer type = {type(tokenizer)}")
     
     if device:
         model.to(config_ops.get_device_str(config_dict))
