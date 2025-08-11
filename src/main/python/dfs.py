@@ -4,6 +4,7 @@
 # Draft for a loop evaluating the T5 model interation with the repl
 
 import os
+import re
 import gc
 import time
 import fcntl
@@ -59,16 +60,46 @@ def save_proof(repl, prf):
 
 # DEPTH FIRST SEARCH
 
-def inputs_from(repl, prf_info, dfs_config):
+def extract_gemma_suggestion(text):
+    pattern = r"<SUGGESTION>(.*?)</SUGGESTION>"
+    match = re.search(pattern, text, re.DOTALL)
+    if match:
+        return match.group(1)
+    return None
+
+def generate_predicts(repl, prf_info, dfs_config):
     data_format = dfs_config["data_format"]
+    model_type = dfs_config["model_type"]
     usr_sep = proofs.str_ops.Separator["user_state"]
 
     xs = [repl.proof_so_far(), usr_sep, repl.last_usr_state()]
     xs.extend(prf_info["proof_data"])
 
     x = " ".join(xs)
-    x = "isabelle next step: " + x if "finetune" in data_format else x
-    return x
+    logging.info(f"Next (trimmed) model input from Isabelle is: {x[:500]}")
+
+    if model_type == "t5":
+        x = "isabelle next step: " + x if "finetune" in data_format else x  
+        predicts = dfs_config["generator"](
+            x, 
+            max_length=dfs_config["gen_length"], 
+            num_return_sequences=dfs_config["num_return_sequences"],
+            num_beams=dfs_config["num_beams"]
+        )
+        predicts.map(lambda p: p["generated_text"])
+    elif model_type == "gemma":
+        convers = tokops.to_gemma_format(x, " ")
+        predicts = dfs_config["generator"](
+            convers["messages"], 
+            max_new_tokens=dfs_config["gen_length"], 
+            num_return_sequences=dfs_config["num_return_sequences"],
+            num_beams=dfs_config["num_beams"],
+            temperature = 1.0,
+            top_p = 0.95,
+            top_k = 64
+        )
+        predicts.map(lambda p: extract_gemma_suggestion(p["generated_text"]))
+    return predicts
 
 # the pos variable indicates a position in the dfs tree, i.e. [i, j, k, l] corresponds 
 # to the i, j, k, and l branches at resp. depths 1, 2, 3, and 4. If the options at a 
@@ -110,17 +141,8 @@ def dfs(
             logging.info(f"Timeout threshold ({timeout_seconds}s) reached during DFS for proof {prf['path']} at pos {pos}. Stopping exploration down this path.")
             return metrics
 
-    # retrieve current state
-    x = inputs_from(repl, prf, dfs_config)
-    logging.info(f"The trimmed model input from Isabelle at pos {pos} is: {x[:500]}")
-
-    # generate next-step predictions
-    predicts = dfs_config["generator"](
-        x, 
-        max_length=dfs_config["gen_length"], 
-        num_return_sequences=dfs_config["num_return_sequences"],
-        num_beams=dfs_config["num_beams"]
-    )
+    predicts = generate_predicts(repl, prf, dfs_config)
+    logging.info(f"at pos={pos}.")
     max_breadth = len(predicts)
 
     # determine current position in dfs tree
@@ -143,7 +165,7 @@ def dfs(
             continue
 
         # apply prediction replacing by with apply
-        y = predict["generated_text"]
+        y = predict
         logging.info(f"Model output at pos={curr_pos} is: {y}")
         handling_by = y.strip().startswith("by")
         if handling_by:
@@ -444,6 +466,7 @@ def configure(config_dict):
     # extensions to the configuration
     dfs_config["repl"] = None
     dfs_config["data_format"] = data_format
+    dfs_config["model_type"] = model_type
     dfs_config["generator"] = pipeline(
         generation_task,
         model=model, 
