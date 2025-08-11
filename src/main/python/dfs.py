@@ -378,8 +378,7 @@ def max_attempts_reached(loop_state):
     
     return loop_state["prf_attempts_count"] >= max_attempts
 
-def process_logic(logic, thys, dfs_config):
-    loop_state = dfs_config["loop_start_state"].copy()
+def process_logic(logic, thys, dfs_config, loop_state):
     repl = loop_state["repl"]
     prf_count = 0 # counter with respect to len_proofs
     len_proofs = sum(len(thy_proofs) for thy_proofs in thys.values())
@@ -475,8 +474,17 @@ def configure(config_dict):
     )
     return dfs_config
 
+def init_loop_state(dfs_config):
+    return {
+        "prf_attempts_count": 0,
+        "max_prf_attempts": dfs_config.get("max_prf_attempts", None),
+        "max_attempts_reached": False,
+        "repl": None
+    }
+
 def process_logics(config_dict):
     dfs_config = configure(config_dict) # llm-generator inside dfs_config
+    loop_state = init_loop_state(dfs_config)
     progress_file = create_progress_file()
     logics_dict = proofs.data_dir.group_paths_by_logic(
         config_dict["data_dir"], 
@@ -494,7 +502,7 @@ def process_logics(config_dict):
 
             thys = logics_dict[logic]
             
-            loop_state = process_logic(logic, thys, dfs_config)
+            loop_state = process_logic(logic, thys, dfs_config, loop_state)
     except Exception as e:
         logging.warning(f"Error processing {logic}: {e}")
     finally:

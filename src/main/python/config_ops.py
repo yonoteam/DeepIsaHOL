@@ -71,11 +71,7 @@ DFS_CONFIG_DICT = {
     "allowed_depth": 5,
     "saving": False,
     "proof_timeout_seconds": 30,
-    "loop_start_state": {
-        "prf_attempts_count": 0,
-        "max_prf_attempts": 5,
-        "max_attempts_reached": False
-    }
+    "max_prf_attempts": 5
 }
 
 def get_device_str(config_dict):
