@@ -88,19 +88,11 @@ def generate_predicts(repl, prf_info, dfs_config):
         )
         predicts = [p["generated_text"] for p in predicts]
     elif model_type == "gemma":
-        gemma_prompt = "Recommend the next Isabelle proof step given the context below:\n{context}"
-        convers = {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": gemma_prompt.format(context=x)}
-                    ]
-                }
-            ]
-        }
+        conversation = tokops.to_gemma_format(x, "")
+        generation_messages = [conversation["messages"][0]]
+        
         predicts = dfs_config["generator"](
-            convers["messages"], 
+            generation_messages, 
             max_new_tokens=dfs_config["gen_length"], 
             num_return_sequences=dfs_config["num_return_sequences"],
             num_beams=dfs_config["num_beams"],
@@ -445,7 +437,7 @@ def get_model_type(config_dict):
 def load_tok_model(config_dict):
     model_type = get_model_type(config_dict)
     data_format = config_dict["data_format"]
-    device = config_dict["dfs_config"]["device"]
+    # device = config_dict["dfs_config"]["device"]
 
     if model_type == "t5":
         import eval_t5

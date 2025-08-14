@@ -166,7 +166,7 @@ def t5_tokked_model_inputs(tokenizer, json_data_dir, split=SPLITS["NONE"], data_
         for model_input in tokked_model_inputs:
             yield model_input
 
-gemma_prompt = """Recommend the next Isabelle proof step given the context below:
+gemma_prompt = """Recommend the next Isabelle proof step given the context below. Enclose the suggestion in <SUGGESTION>-</SUGGESTION> tags. Only return the suggestion, do not include any other text.
 {context}
 """
 

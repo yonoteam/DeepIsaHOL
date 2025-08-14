@@ -19,7 +19,6 @@ from unsloth.chat_templates import (
 )
 
 from transformers import AutoTokenizer
-from transformers import AutoModelForCausalLM
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
@@ -186,20 +185,20 @@ def main(accelerator, config_dict):
     logging.info(f"Saved progress. Bye!")
 
 def load_tuned_objs(config_dict):
-    model, tokenizer = FastModel.from_pretrained(
-        model_name = config_dict["models_dir"],
+    model, preprocessor = FastModel.from_pretrained(
+        model_name = config_dict["model_name"],
         max_seq_length = tokops.get_gemma_context_length(config_dict["data_format"]),
         load_in_4bit = True,
     )
-    
+    model.load_adapter(config_dict["models_dir"])
     # model = AutoModelForCausalLM.from_pretrained(config_dict["models_dir"])
-    # tokenizer = get_chat_template(
-    #     AutoTokenizer.from_pretrained(config_dict["model_name"]),
-    #     chat_template = "gemma-3",
-    # )
+    preprocessor = get_chat_template(
+        AutoTokenizer.from_pretrained(config_dict["model_name"]),
+        chat_template = "gemma-3",
+    )
     return {
         "model": model,
-        "tokenizer": tokenizer
+        "preprocessor": preprocessor
     }
 
 def extract_suggestion(text: str) -> Optional[str]:
