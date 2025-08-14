@@ -46,7 +46,7 @@ def configure_trainer_args(config_dict):
     pre_args["overwrite_output_dir"] = True
     pre_args["save_strategy"] = "steps"
     pre_args["save_total_limit"] = 5
-    pre_args["save_steps"] = batches_per_epoch
+    pre_args["save_steps"] = max(1, batches_per_epoch // 100)
 
     # Overwriting
     # pre_args["learning_rate"] = 2e-4 # based on QLoRA paper

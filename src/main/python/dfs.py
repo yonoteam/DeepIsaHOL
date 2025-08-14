@@ -159,7 +159,7 @@ def dfs(
         logging.info(f"Attempt at pos={curr_pos}")
         
         # unlikely safety check
-        if predict is None or "generated_text" not in predict:
+        if predict is None:
             message = f"""
             Invalid prediction found at:
             pos = {curr_pos}
