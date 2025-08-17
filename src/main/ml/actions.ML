@@ -20,14 +20,17 @@ sig
   val make': theory -> string -> T list
 
   (* Application *)
-  val apply_safe: T -> Toplevel.state -> Toplevel.state * (exn * string) option
-  val apply: T -> Toplevel.state -> Toplevel.state
+  val apply: T -> Toplevel.state -> Toplevel.state option * Runtime.error list
+  val apply': T -> Toplevel.state -> Toplevel.state
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
-  val apply_all: T list -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
-  val apply_all': T list -> Toplevel.state -> (Toplevel.state * T * (exn * string) option) list
-  val apply_while: (Toplevel.state * T * (exn * string) option -> bool) -> T list  -> Toplevel.state
-    -> (Toplevel.state * T * (exn * string) option) list * T list
-  val timed_apply_all: {timeout_in_secs: int} -> T list -> Toplevel.state -> (T * Toplevel.state * (exn * string) option) list
+  val apply_all: T list -> Toplevel.state option 
+      -> (T * Toplevel.state option * Runtime.error list) list
+  val apply_while: (T * Toplevel.state option * Runtime.error list -> bool)
+      -> T list -> Toplevel.state option 
+      -> (T * Toplevel.state option * Runtime.error list) list * T list
+  val timed_apply_all: {timeout_in_secs: int} 
+      -> T list -> Toplevel.state option
+      -> (T * Toplevel.state option * Runtime.error list) list
 
   (* Data preparation *)
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
@@ -61,10 +64,8 @@ fun kind_of (Action a) = Toplevel.name_of (#transition a);
 
 fun pos_of (Action a) = Toplevel.pos_of (#transition a);
 
-(* on_text: (string -> 'a) -> Actions.T -> 'a *)
 fun on_text f act = f (text_of act);
 
-(* on_kind: (string -> 'a) -> Actions.T -> 'a *)
 fun on_kind f act = f (kind_of act);
 
 (* inspired by Portal-to-Isabelle's parse_text MLFunction2 *)
@@ -96,63 +97,49 @@ fun make' thy0 thy_text =
 
 (** APPLICATION **)
 
-(* apply_safe: Actions.T -> Toplevel.state -> Toplevel.state * (exn * string) option *)
-fun apply_safe (Action a) st = Toplevel.transition true (#transition a) st;
+fun apply (Action a) st = 
+  let 
+    val (errs', st') = Toplevel.command_errors true (#transition a) st;
+  in (st', errs') end;
 
-(* apply: Actions.T -> Toplevel.state -> Toplevel.state *)
-fun apply act st = fst (apply_safe act st);
+fun apply' act st = the (fst (apply act st));
 
-(* next_state: Actions.T Sections.T -> Toplevel.state -> Toplevel.state *)
-val next_state = Sections.next_state apply;
+val next_state = Sections.next_state apply';
 
-(* apply_all: Actions.T list -> Toplevel.state 
-  -> (Actions.T * Toplevel.state * (exn * string) option) list *)
 fun apply_all [] _ = []
-  | apply_all acts st =
+  | apply_all acts opt_st =
   let
-    fun do_next act' (_, st, _) =
+    fun do_next act' (_, opt_st, _) =
       let
-        val (st', err') = apply_safe act' st
-      in (act', st', err') end;
-  in Ops.log_fold do_next (void, st, NONE) acts end;
+        val (opt_st', errs') = (case opt_st of
+          SOME st => apply act' st
+          | NONE => (NONE, []))
+      in (act', opt_st', errs') end;
+  in Ops.log_fold do_next (void, opt_st, []) acts end;
 
-(* apply_all': Actions.T list -> Toplevel.state 
-  -> (Toplevel.state * Actions.T * (exn * string) option) list *)
-fun apply_all' [] st = [(st, void, NONE)]
-  | apply_all' acts st =
+fun apply_while P acts opt_st =
   let
-    fun do_next act (st, so_far) =
+    fun do_next act' (_, opt_st, _) =
       let
-        val (st', err') = apply_safe act st;
-      in (st', (st, act, err') :: so_far) end;
-    val (_, rev_result) = fold do_next acts (st, [])
-  in rev rev_result end;
+        val (opt_st', errs') = (case opt_st of
+          SOME st => apply act' st
+          | NONE => (NONE, []))
+      in (act', opt_st', errs') end;
+  in Pred.log_fold P do_next acts (void, opt_st, []) end;
 
-(* apply_while: (Toplevel.state * Actions.T * (exn * string) option -> bool) 
-  -> Actions.T list -> Toplevel.state 
-  -> (Toplevel.state * Actions.T * (exn * string) option) list * Actions.T list *)
-fun apply_while P acts st =
-  let
-    fun do_next act' (st, _, _) =
-      let
-        val (st', err') = apply_safe act' st;
-      in (st', act', err') end;
-  in Pred.log_fold P do_next acts (st, void, NONE) end;
-
-(* timed_apply_all: {timeout_in_secs: int} 
-  -> Actions.T list -> Toplevel.state 
-  -> (Actions.T * Toplevel.state * (exn * string) option) list *)
-  fun timed_apply_all {timeout_in_secs=t} acts st =
+fun timed_apply_all {timeout_in_secs=t} acts opt_st =
   let
     val t' = Time.fromSeconds t
-    fun timeout_apply act st = case Ops.apply_with_timeout t' (apply_safe act) st of
-        Exn.Exn exn => (st, SOME (exn, "TIMEOUT"))
+    fun timeout_apply act st = case Ops.apply_with_timeout t' (apply act) st of
+        Exn.Exn exn => (NONE, Runtime.exn_messages exn)
       | Exn.Res result => result
-    fun do_next act' (_, st, _) =
+    fun do_next act' (_, opt_st, _) =
     let
-      val (st', err') = timeout_apply act' st
-    in (act', st', err') end;
-  in Ops.log_fold do_next (void, st, NONE) acts end;
+      val (opt_st', errs') = (case opt_st of
+        SOME st => timeout_apply act' st
+        | NONE => (NONE, []))
+    in (act', opt_st', errs') end;
+  in Ops.log_fold do_next (void, opt_st, []) acts end;
 
 
 (** DATA PREPARATION **)
@@ -169,7 +156,7 @@ fun theory_separators thy =
 fun segmentate state0 separators acts =
   let
     val init = if null acts then (state0, void) else (state0, hd acts);
-    fun iter a' (s, a) = (apply a s, a');
+    fun iter a' (s, a) = (apply' a s, a');
     val steps = Ops.log_fold iter init (tl acts)
     fun lift f (_, a) = f a;
     fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
@@ -180,7 +167,7 @@ fun segmentate state0 separators acts =
 fun segmentate_triplets state0 separators acts =
   let
     val init = (state0, void, state0);
-    fun iter a (_, _, s) = (s, a, apply a s);
+    fun iter a (_, _, s) = (s, a, apply' a s);
     val triplets = Ops.log_fold iter init acts
     fun lift f (_, a, _) = f a;
     fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);

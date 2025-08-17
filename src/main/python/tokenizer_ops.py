@@ -20,11 +20,11 @@ from proofs.data_dir import SPLITS
 T5_CTX_LENGTHS = {
     FORMATS["S"]: 1024,
     FORMATS["SP"]: 2048,
-    FORMATS["SPK"]: 4092,
+    FORMATS["SPK"]: 4096,
     FORMATS["SPKT"]: 8192,
     FORMATS["FS"]: 1024,
     FORMATS["FSP"]: 2048,
-    FORMATS["FSPK"]: 4092,
+    FORMATS["FSPK"]: 4096,
     FORMATS["FSPKT"]: 8192
 }
 
@@ -33,8 +33,8 @@ def get_t5_context_length(mode):
 
 GEMMA_CTX_LENGTHS = {
     FORMATS["S"]: 1024,
-    FORMATS["SP"]: 4092,
-    FORMATS["SPK"]: 4092,
+    FORMATS["SP"]: 4096,
+    FORMATS["SPK"]: 4096,
     FORMATS["SPKT"]: 8192
 }
 

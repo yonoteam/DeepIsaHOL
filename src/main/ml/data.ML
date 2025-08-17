@@ -58,18 +58,29 @@ fun grp_cmmnds_of e = #grp_cmmnds (rep_env e);
 fun get_env get_st_act proof =
   if Sections.get_top_tag proof = SOME Sections.proof_tag then
     let 
+      fun make_error_str ((num, err), str_opt) =
+        let
+          val s1 = Value.print_int num ^ ": "
+          val s2 = (Get.string_of_yxml err)
+        in (case str_opt of
+          SOME txt => s1^s2^ ", opt: " ^ (Get.string_of_yxml txt)
+          | NONE => s1^s2) end;
       val (s0, a0) = get_st_act (Sections.get_first proof);
       val (sN, aN) = get_st_act (Sections.get_last proof);
-      val (s1', err') = Actions.apply_safe a0 s0;
-      val _ = (case err' of 
-        SOME (_, str) => raise Fail ("Data.get_env: Failed after " ^ Actions.text_of a0 ^ ".\n" ^ str)
+      val (s1', err') = Actions.apply a0 s0;
+      val error_str = (case err' of 
+        [] => NONE
+        | errs => SOME (String.concatWith " | " (map make_error_str errs)))
+      val _ = (case error_str of 
+        SOME str => 
+          raise Fail ("Data.get_env: Failed after " ^ Actions.text_of a0 ^ ".\n" ^ str)
         | NONE => ()
       );
-      val sN' = Actions.apply aN sN;
+      val sN' = Actions.apply' aN sN;
       val ctxtN' = Toplevel.context_of sN';
       val thyN' = Toplevel.theory_of sN';
       val diffs = Get.new_thms s0 sN';
-    in Env {s1 = s1',
+    in Env {s1 = the s1',
       context = ctxtN', 
       methods = Get.methods (Toplevel.context_of s0), 
       deps = Get.deps thyN' (maps snd diffs), 
@@ -227,7 +238,7 @@ fun apply txt old_data =
   let 
     val s = state_of old_data;
     val a = Actions.make_one (Toplevel.theory_of s) txt;
-    val s' = Actions.apply a s;
+    val s' = Actions.apply' a s;
     val cmmnds = Get.grouped_commands (Toplevel.theory_of s');
     val prop = Proof.goal (Toplevel.proof_of s');
     val goal_hyps = map Thm.prop_of (#goal prop :: #facts prop);

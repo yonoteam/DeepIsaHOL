@@ -8,8 +8,8 @@ sig
   val final_thy: theory -> string -> theory option
   val final_thy_from_file: theory list -> string -> theory option
   val stateful_transitions: theory -> string 
-    -> {error: (exn * string) option, 
-      state:Toplevel.state, 
+    -> {error: Runtime.error list,
+      state:Toplevel.state option, 
       text: string, 
       transition: Toplevel.transition} list
 
@@ -107,7 +107,6 @@ fun final_thy_from_file thy_parents thy_file =
     val thy_text = File.read (Path.explode thy_file);
   in final_thy thy0 thy_text end;
 
-(* stateful_transitions: theory -> string -> Toplevel.transition list *)
 fun stateful_transitions thy0 thy_file_dir =
   let
     val thy_text = File.read (Path.explode thy_file_dir)
@@ -116,19 +115,22 @@ fun stateful_transitions thy0 thy_file_dir =
     fun tr_dist tr1 tr2 =
       Position.distance_of (Toplevel.pos_of tr1, Toplevel.pos_of tr2)
       |> Option.valOf;
-    fun mk_next st syms tr =
+    fun mk_next opt_st syms tr =
       let
         val txt' = implode syms;
-        val (st', err') = Toplevel.transition true tr st;
-      in {text=txt', transition=tr, state=st', error=err'} end;
-    fun process st syms [tr] = [mk_next st syms tr]
+        val (run_errs, opt_st') = (case opt_st of
+          SOME st => Toplevel.command_errors true tr st
+          | NONE => ([], NONE)
+        )
+      in {text=txt', transition=tr, state=opt_st', error=run_errs} end;
+    fun process opt_st syms [tr] = [mk_next opt_st syms tr]
       | process _ _ [] = []
-      | process st syms (tr1 :: tr2 :: trs) = 
+      | process opt_st syms (tr1 :: tr2 :: trs) = 
           let 
            val (syms1, syms2) = Library.chop (tr_dist tr1 tr2) syms;
-           val result = mk_next st syms1 tr1;
+           val result = mk_next opt_st syms1 tr1;
           in result :: process (#state result) syms2 (tr2 :: trs) end;
-  in process st0 (Symbol.explode thy_text) trs end;
+  in process (SOME st0) (Symbol.explode thy_text) trs end;
 
 
 (** THEORY INFORMATION **)
@@ -138,7 +140,6 @@ val string_of_yxml = YXML.parse_body #> XML.content_of;
 
 val string_of_state = Toplevel.pretty_state #> Pretty.chunks #> Pretty.string_of;
 
-(* transitions: theory -> Position.T -> string -> Toplevel.transition list *)
 fun transitions thy0 pos0 thy_text = Outer_Syntax.parse_text thy0 (K thy0) pos0 thy_text;
 
 (* user_state: {break_lines: bool} -> Toplevel.state -> string *)
