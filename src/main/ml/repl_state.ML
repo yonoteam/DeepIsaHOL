@@ -18,6 +18,7 @@ sig
   val last_state: T -> string
   val last_error: T -> string
   val size: T -> int
+  val extract_err: Runtime.error list -> string
 
   val init: theory -> T
   val read: string * T -> T
@@ -52,11 +53,12 @@ type step = {
 fun is_at_proof' (step:step) = Toplevel.is_proof (#st step);
 
 fun no_subgoals' step = 
+  if not (is_at_proof' step) then false else
   let
     val thm = #goal (Proof.goal (Toplevel.proof_of (#st step)))
     val prop = Thm.prop_of thm;
     val (As, _) = Logic.strip_horn prop;
-  in is_at_proof' step andalso  null As end;
+  in null As end;
 
 fun make_one (
     n: int,
@@ -67,27 +69,13 @@ fun make_one (
 
 fun make_error_str ((num, err), str_opt) =
   let
-    val s1 = Value.print_int num ^ ": "
-    val s2 = (Get.string_of_yxml err)
+    val str1 = Value.print_int num ^ ": "
+    val str2 = (Get.string_of_yxml err)
   in (case str_opt of
-    SOME txt => s1^s2^ ", opt: " ^ (Get.string_of_yxml txt)
-    | NONE => s1^s2) end;
+    SOME txt => str1 ^ str2 ^ ", opt: " ^ (Get.string_of_yxml txt)
+    | NONE => str1 ^ str2) end;
 
 fun extract_err (mssgs:Runtime.error list) = String.concatWith " | " (map make_error_str mssgs);
-
-fun old_extract_err e =
-  let
-    fun add_loc txts txt = 
-      if txt = "" 
-      then txts 
-      else txts @ ["\n", txt, "\n"]
-    fun message_of err = 
-      Runtime.exn_messages err
-      |> map (fn ((_, txt), _) => Get.string_of_yxml txt)
-    val (mssgs, loc_mssg) = (case e of
-      SOME (err, str) => (message_of err, Get.string_of_yxml str)
-      | NONE => ([], ""));
-  in implode (add_loc mssgs loc_mssg) end;
 
 
 (* DEFINITION *)
@@ -120,11 +108,11 @@ fun read (txt, state) =
     val st = get_st state;
     val thy = Toplevel.theory_of st;
     val acts = Actions.make thy txt
-    val new_act_sts = Actions.timed_apply_all {timeout_in_secs=10} acts (SOME st)
-    fun convert (act, opt_st, e) =
+    val new_act_sts = Actions.timed_apply_all {timeout_in_secs=10} acts st
+    fun convert (act, st, e) =
       let
-        val err = extract_err e
-      in make_one (n+1, act, the opt_st, err) end;
+        val err = extract_err e;
+      in make_one (n+1, act, st, err) end;
     val state' = map convert new_act_sts
   in rev state' end;
 
@@ -172,11 +160,11 @@ fun go_to (thy, thy_path, act_txt) =
     val thy_text = File.read (Path.explode thy_path);
     val acts = Actions.make' thy thy_text;
     val pre_acts = Pred.take_until (Actions.on_text (Pred.contains act_txt)) acts;
-    val act_st_errs = Actions.apply_all pre_acts (SOME (Toplevel.make_state (SOME thy)));
-    val (act, opt_st, e) = if null act_st_errs then raise Fail empty_err_mssg
+    val act_st_errs = Actions.apply_all pre_acts (Toplevel.make_state (SOME thy));
+    val (act, st', e) = if null act_st_errs then raise Fail empty_err_mssg
       else Ops.last act_st_errs;
     val err = extract_err e;
-  in [make_one(0, act, the opt_st, err)] end;
+  in [make_one(0, act, st', err)] end;
 
 
 (* INFORMATION RETRIEVAL *)

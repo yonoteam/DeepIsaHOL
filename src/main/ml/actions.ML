@@ -20,17 +20,17 @@ sig
   val make': theory -> string -> T list
 
   (* Application *)
-  val apply: T -> Toplevel.state -> Toplevel.state option * Runtime.error list
+  val apply: T -> Toplevel.state -> Toplevel.state * Runtime.error list
   val apply': T -> Toplevel.state -> Toplevel.state
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
-  val apply_all: T list -> Toplevel.state option 
-      -> (T * Toplevel.state option * Runtime.error list) list
-  val apply_while: (T * Toplevel.state option * Runtime.error list -> bool)
-      -> T list -> Toplevel.state option 
-      -> (T * Toplevel.state option * Runtime.error list) list * T list
+  val apply_all: T list -> Toplevel.state 
+      -> (T * Toplevel.state * Runtime.error list) list
+  val apply_while: (T * Toplevel.state * Runtime.error list -> bool)
+      -> T list -> Toplevel.state 
+      -> (T * Toplevel.state * Runtime.error list) list * T list
   val timed_apply_all: {timeout_in_secs: int} 
-      -> T list -> Toplevel.state option
-      -> (T * Toplevel.state option * Runtime.error list) list
+      -> T list -> Toplevel.state
+      -> (T * Toplevel.state * Runtime.error list) list
 
   (* Data preparation *)
   val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
@@ -68,8 +68,6 @@ fun on_text f act = f (text_of act);
 
 fun on_kind f act = f (kind_of act);
 
-(* inspired by Portal-to-Isabelle's parse_text MLFunction2 *)
-(* make: theory -> string -> Actions.T list *)
 fun make thy0 thy_text =
   let
     val trs = Get.transitions thy0 Position.start thy_text;
@@ -83,7 +81,6 @@ fun make thy0 thy_text =
           in act :: record_acts syms2 (tr2 :: trs) end;
   in record_acts (Symbol.explode thy_text) trs end;
 
-(* make_one: theory -> string -> Actions.T *)
 fun make_one thy0 thy_text = hd (make thy0 thy_text)
 
 (* make': theory -> string -> Actions.T list *)
@@ -99,47 +96,33 @@ fun make' thy0 thy_text =
 
 fun apply (Action a) st = 
   let 
-    val (errs', st') = Toplevel.command_errors true (#transition a) st;
-  in (st', errs') end;
+    val (errs', opt_st) = Toplevel.command_errors true (#transition a) st;
+    val final_st = (case opt_st of
+      NONE => st
+      | SOME st' => st')
+  in (final_st, errs') end;
 
-fun apply' act st = the (fst (apply act st));
+fun apply' act st = fst (apply act st);
 
 val next_state = Sections.next_state apply';
 
+fun iter_next apply_fun act' (_: T, st: Toplevel.state, _: Runtime.error list) =
+  let
+    val (st', errs') = apply_fun act' st;
+  in (act', st', errs') end;
+
 fun apply_all [] _ = []
-  | apply_all acts opt_st =
-  let
-    fun do_next act' (_, opt_st, _) =
-      let
-        val (opt_st', errs') = (case opt_st of
-          SOME st => apply act' st
-          | NONE => (NONE, []))
-      in (act', opt_st', errs') end;
-  in Ops.log_fold do_next (void, opt_st, []) acts end;
+  | apply_all acts opt_st = Ops.log_fold (iter_next apply) (void, opt_st, []) acts;
 
-fun apply_while P acts opt_st =
-  let
-    fun do_next act' (_, opt_st, _) =
-      let
-        val (opt_st', errs') = (case opt_st of
-          SOME st => apply act' st
-          | NONE => (NONE, []))
-      in (act', opt_st', errs') end;
-  in Pred.log_fold P do_next acts (void, opt_st, []) end;
+fun apply_while P acts opt_st = Pred.log_fold P (iter_next apply) acts (void, opt_st, []);
 
-fun timed_apply_all {timeout_in_secs=t} acts opt_st =
+fun timed_apply_all {timeout_in_secs=t} acts st =
   let
     val t' = Time.fromSeconds t
-    fun timeout_apply act st = case Ops.apply_with_timeout t' (apply act) st of
-        Exn.Exn exn => (NONE, Runtime.exn_messages exn)
-      | Exn.Res result => result
-    fun do_next act' (_, opt_st, _) =
-    let
-      val (opt_st', errs') = (case opt_st of
-        SOME st => timeout_apply act' st
-        | NONE => (NONE, []))
-    in (act', opt_st', errs') end;
-  in Ops.log_fold do_next (void, opt_st, []) acts end;
+    fun timeout_apply act' st = case Ops.apply_with_timeout t' (apply act') st of
+        Exn.Exn exn => (st, Runtime.exn_messages exn)
+      | Exn.Res result => result;
+  in Ops.log_fold (iter_next timeout_apply) (void, st, []) acts end;
 
 
 (** DATA PREPARATION **)

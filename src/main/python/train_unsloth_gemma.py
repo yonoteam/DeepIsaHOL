@@ -125,7 +125,7 @@ def load_training_objs(accelerator, config_dict):
     )
 
     dataset = load_and_format_dataset(preprocessor, config_dict)
-    logging.info(f"Checkpoint: loaded preprocessor and dataset.")
+    logging.info(f"Checkpoint: loaded preprocessor and dataset for split '{config_dict['data_split']}' and data format '{config_dict['data_format']}'.")
 
     model = FastModel.get_peft_model(
         model,
