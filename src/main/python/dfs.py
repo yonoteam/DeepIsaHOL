@@ -4,7 +4,6 @@
 # Draft for a loop evaluating the T5 model interation with the repl
 
 import os
-import re
 import gc
 import time
 import fcntl
@@ -16,8 +15,10 @@ import torch
 import dicts
 import proofs
 import config_ops
-import tokenizer_ops as tokops
+import generation_ops as genops
 from repl import REPL
+
+from transformers import pipeline # after genops including unsloth
 
 # DFS OPERATIONS
 
@@ -60,51 +61,6 @@ def save_proof(repl, prf):
 
 # DEPTH FIRST SEARCH
 
-def extract_gemma_suggestion(text):
-    pattern = r"<SUGGESTION>(.*?)</SUGGESTION>"
-    match = re.search(pattern, text, re.DOTALL)
-    if match:
-        return match.group(1)
-    return None
-
-def generate_predicts(repl, prf_info, dfs_config):
-    data_format = dfs_config["data_format"]
-    model_type = dfs_config["model_type"]
-    usr_sep = proofs.str_ops.Separator["user_state"]
-
-    xs = [repl.proof_so_far(), usr_sep, repl.last_usr_state()]
-    xs.extend(prf_info["proof_data"])
-
-    x = " ".join(xs)
-    logging.info(f"Next (trimmed) model input from Isabelle is: {x[:500]}")
-
-    if model_type == "t5":
-        x = "isabelle next step: " + x if "finetune" in data_format else x  
-        predicts = dfs_config["generator"](
-            x, 
-            max_length=dfs_config["gen_length"], 
-            num_return_sequences=dfs_config["num_return_sequences"],
-            num_beams=dfs_config["num_beams"]
-        )
-        predicts = [p["generated_text"] for p in predicts]
-    elif model_type == "gemma":
-        conversation = tokops.to_gemma_format(x, "")
-        generation_messages = [conversation["messages"][0]]
-        
-        predicts = dfs_config["generator"](
-            generation_messages, 
-            max_new_tokens=dfs_config["gen_length"], 
-            num_return_sequences=dfs_config["num_return_sequences"],
-            num_beams=dfs_config["num_beams"],
-            temperature = 1.0,
-            top_p = 0.95,
-            top_k = 64
-        )
-        first_generation = predicts[0]["generated_text"][1]["content"][:200]
-        logging.info(f"gemma successful prediction: {first_generation}")
-        predicts = [extract_gemma_suggestion(p["generated_text"][1]["content"]) for p in predicts]
-    return x, predicts
-
 # the pos variable indicates a position in the dfs tree, i.e. [i, j, k, l] corresponds 
 # to the i, j, k, and l branches at resp. depths 1, 2, 3, and 4. If the options at a 
 # given depth are exhausted, e.g. [i, max_width, max_width, 0], the repl needs to 
@@ -145,8 +101,16 @@ def dfs(
             logging.info(f"Timeout threshold ({timeout_seconds}s) reached during DFS for proof {prf['path']} at pos {pos}. Stopping exploration down this path.")
             return metrics
 
-    x, predicts = generate_predicts(repl, prf, dfs_config)
+    prf_info = {
+        "proof_so_far": repl.proof_so_far(),
+        "last_usr_state": repl.last_usr_state(),
+        "proof_data": prf["proof_data"]
+    }
+    x, predicts = genops.generate_predicts(prf_info, dfs_config)
+    logging.info(f"Next (trimmed) model input from Isabelle is: {x[:500]}")
     logging.info(f"at pos={pos}.")
+    first_generation = predicts[0]["generated_text"][1]["content"][:200]
+    logging.info(f"gemma successful prediction: {first_generation}")
     max_breadth = len(predicts)
 
     # determine current position in dfs tree
@@ -422,47 +386,10 @@ def process_logic(logic, thys, dfs_config, loop_state):
 
 # MAIN LOOP
 
-def get_model_type(config_dict):
-    model_name = config_dict["model_name"]
-    lower_case_model = model_name.lower()
-    if "t5" in lower_case_model:
-        model_type = "t5"
-    elif "gemma" in lower_case_model:
-        model_type = "gemma"
-    else:
-        raise ValueError(f"Unsupported model: {model_name}. Supported: T5, Gemma.")
-    logging.info(f"Model type set to {model_type} based on model name {model_name}.")
-    return model_type
-
-def load_tok_model(config_dict):
-    model_type = get_model_type(config_dict)
-    data_format = config_dict["data_format"]
-    # device = config_dict["dfs_config"]["device"]
-
-    if model_type == "t5":
-        import eval_t5
-        model, tokenizer, _ = eval_t5.load_model_tok_data(config_dict)
-        tok_max_length = tokops.get_t5_context_length(data_format)
-        tokenizer.model_max_length = tok_max_length
-        print(f"Model context length = {model.config.n_positions}")
-        print(f"Tokenizer context length = {tokenizer.model_max_length}")
-    elif model_type == "gemma":
-        import train_unsloth_gemma
-        tuned_objs = train_unsloth_gemma.load_tuned_objs(config_dict)
-        model = tuned_objs["model"]
-        tokenizer = tuned_objs["tokenizer"]
-        print(f"Model type = {type(model)}")
-        print(f"Tokeinzer type = {type(tokenizer)}")
-    
-    # if device:
-    #    model.to(config_ops.get_device_str(config_dict))
-    return tokenizer, model
-
 def configure(config_dict):
-    model_type = get_model_type(config_dict)
+    model_type = genops.get_model_type(config_dict)
     data_format = config_dict["data_format"]
-    tokenizer, model = load_tok_model(config_dict)
-    from transformers import pipeline # after importing unsloth in load_tok_model
+    tokenizer, model = genops.load_tok_model(config_dict)
 
     if model_type == "t5":
         generation_task = "text2text-generation"
@@ -472,8 +399,10 @@ def configure(config_dict):
     # setup configuration
     dfs_config = config_dict["dfs_config"].copy()
 
+    for key, value in config_dict["generation_config"].items():
+        dfs_config[key] = value
+
     # extensions to the configuration
-    dfs_config["repl"] = None
     dfs_config["data_format"] = data_format
     dfs_config["model_type"] = model_type
     dfs_config["generator"] = pipeline(
@@ -520,12 +449,6 @@ def process_logics(config_dict):
             loop_state["repl"].shutdown_gateway()
 
 if __name__ == "__main__":
-    try:
-        info="Evaluates a model via depth-first search proof exploration as specified in the input JSON configuration."
-        config_dict = config_ops.parse_path(tool_explanation=info)
-    except Exception as e:
-        message = f"Loading configuration information: {e}"
-        logging.error(message)
-        raise Exception(f"Error {e}")
-    
+    info = "Evaluates a model via depth-first search proof exploration as specified in the input JSON configuration."
+    config_dict = config_ops.parse_path(tool_explanation=info)
     process_logics(config_dict)

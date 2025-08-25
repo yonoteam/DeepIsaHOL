@@ -63,12 +63,15 @@ EXAMPLE_TRAINING_ARGS = {
     "save_steps": 10000
 }
 
-DFS_CONFIG_DICT = {
-    "device": -1,
+GENERATION_CONFIG = {
     "gen_length": 64,
     "num_return_sequences": 5,
     "num_beams": 5,
-    "allowed_depth": 5,
+    "allowed_depth": 5
+}
+
+DFS_CONFIG = {
+    "device": -1,
     "saving": False,
     "proof_timeout_seconds": 30,
     "max_prf_attempts": 5
@@ -102,7 +105,8 @@ EXAMPLE_CONFIG_DICT = {
     "num_epochs": 1,
     "batches_per_epoch": 134740,
     "hf_train_args": EXAMPLE_TRAINING_ARGS,
-    "dfs_config": DFS_CONFIG_DICT
+    "generation_config": GENERATION_CONFIG,
+    "dfs_config": DFS_CONFIG
 }
 
 def get_torch_float_type(float_type_str):

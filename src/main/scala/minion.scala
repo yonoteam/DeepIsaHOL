@@ -6,7 +6,9 @@ Minion class that does every possible work Isabelle-related
 */
 
 package isabelle_rl
+import scala.sys.process._
 import scala.jdk.CollectionConverters._
+import java.io.File
 import java.nio.file.{Files, Path}
 import de.unruh.isabelle.control.{Isabelle}
 import de.unruh.isabelle.mlvalue.MLValue.{compileValue, compileFunction}
@@ -58,7 +60,7 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   val isabelle_rl_thy : Theory = Theory(Path.of(Directories.isabelle_rl))
   
   override def toString(): String = {
-    "Minion(work_dir=" + work_dir + "logic=" + logic + ", imports_dir=" + imports_dir + ")"
+    "Minion(work_dir=" + work_dir + ", logic=" + logic + ", imports_dir=" + imports_dir + ")"
   }
   
 
@@ -80,6 +82,15 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   def test_isabelle (ml_code: String = "if true then \"hi Scala\" else \"bye\""): Unit = { 
     val to_print = compileValue[String](ml_code).retrieveNow
     println(to_print)
+  }
+
+  def launch_python_script(script_path: Path): Process = {
+    val script_dir = script_path.getParent.toString
+    val python_cmnd = "python" // depends on your system setup
+    val command = Seq(python_cmnd, script_path.toString())
+    println(s"Attempting to start Python server: ${command.mkString(" ")}")
+    val process: Process = Process(command, new File(script_dir)).run()
+    return process
   }
 
   // MINION WRITING TASKS
