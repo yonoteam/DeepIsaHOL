@@ -12,9 +12,9 @@ from typing import BinaryIO
 
 import proofs
 import config_ops
-import generation_ops as genops
+# import generation_ops as genops
 
-from transformers import pipeline # after genops including unsloth
+# from transformers import pipeline # after genops including unsloth
 
 LOCAL_HOST = "127.0.0.1"
 PORT = 5006
@@ -30,25 +30,37 @@ def make_proof_info(str_mssg, data_format):
         proof_json = {} 
     return {
         "proof_so_far": proof_json.get("proof_so_far", ""),
-        "last_usr_state": proof_json.get("last_usr_state", ""),
+        "last_usr_state": proof_json.get("user_state", ""),
         "proof_data": proofs.str_ops.add_spk_data(proof_json, [], data_format=data_format)
     }
 
 def prompt_llm(buffer, generation_config):
-    end_of_prompt_keyword = b"<|eop|>" 
+    end_of_prompt = b"<|eop|>" 
 
-    if end_of_prompt_keyword in buffer:
-        client_byte_mssg, remaining_buffer = buffer.split(end_of_prompt_keyword, 1)
+    if end_of_prompt in buffer:
+        client_byte_mssg, remaining_buffer = buffer.split(end_of_prompt, 1)
         client_str_mssg = client_byte_mssg.decode("utf-8")
         proof_info = make_proof_info(client_str_mssg, generation_config["data_format"])
         _, predicts = genops.generate_predicts(proof_info, generation_config)
         response_text = predicts[0] if predicts and predicts[0] is not None else "No prediction generated."
-        response_bytes = response_text.encode("utf-8") + b"\n"
+        response_bytes = response_text.encode("utf-8") + end_of_prompt
         return response_bytes, remaining_buffer
 
     return b"", buffer
 
-def handle_client(conn: BinaryIO, addr: tuple, generator):
+def echo_input(buffer):
+    end_of_prompt = b"<|eop|>" 
+
+    if end_of_prompt in buffer:
+        client_byte_mssg, remaining_buffer = buffer.split(end_of_prompt, 1)
+        client_str_mssg = client_byte_mssg.decode("utf-8")
+        response_text = client_str_mssg
+        response_bytes = response_text.encode("utf-8") + end_of_prompt
+        return response_bytes, remaining_buffer
+
+    return b"", buffer
+
+def handle_client(conn: BinaryIO, addr: tuple, generation_config):
     logging.info(f"Connected on address {addr}")
     buffer = b""
     try:
@@ -70,8 +82,9 @@ def handle_client(conn: BinaryIO, addr: tuple, generator):
                 break
             buffer += data
 
-            response, buffer = prompt_llm(buffer, generator)
+            response, buffer = echo_input(buffer)
             if response:
+                print(f"Response: {response.decode('utf-8')}")
                 conn.sendall(response)
 
     except Exception as e:
@@ -81,27 +94,28 @@ def handle_client(conn: BinaryIO, addr: tuple, generator):
         conn.close()
         logging.info(f"[{addr}] Disconnected.")
 
-def configure_generation(config_dict):
-    model_type = genops.get_model_type(config_dict)
-    data_format = config_dict["data_format"]
-    tokenizer, model = genops.load_tok_model(config_dict)
+# def configure_generation(config_dict):
+#     model_type = genops.get_model_type(config_dict)
+#     data_format = config_dict["data_format"]
+#     tokenizer, model = genops.load_tok_model(config_dict)
 
-    if model_type == "t5":
-        generation_task = "text2text-generation"
-    elif model_type == "gemma":
-        generation_task = "text-generation"
+#     if model_type == "t5":
+#         generation_task = "text2text-generation"
+#     elif model_type == "gemma":
+#         generation_task = "text-generation"
 
-    generation_config = config_dict.get("generation_config", {}).copy()
-    generation_config["data_format"] = data_format
-    generation_config["model_type"] = model_type
-    generation_config["generator"] = pipeline(
-        generation_task,
-        model=model,
-        tokenizer=tokenizer
-    )
-    return generation_config
+#     generation_config = config_dict.get("generation_config", {}).copy()
+#     generation_config["data_format"] = data_format
+#     generation_config["model_type"] = model_type
+#     generation_config["generator"] = pipeline(
+#         generation_task,
+#         model=model,
+#         tokenizer=tokenizer
+#     )
+#     return generation_config
 
 def launch_server(config_dict):
+    generation_config = {} # configure_generation(config_dict)
     global server_socket_global
     server_socket_global = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket_global.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -125,7 +139,7 @@ def launch_server(config_dict):
                 conn, addr = server_socket_global.accept()
                 client_thread = threading.Thread(
                     target=handle_client,
-                    args=(conn, addr),
+                    args=(conn, addr, generation_config),
                     daemon=True
                 )
                 client_thread.start()

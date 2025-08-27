@@ -71,7 +71,9 @@ fun on_kind f act = f (kind_of act);
 fun make thy0 thy_text =
   let
     val trs = Get.transitions thy0 Position.start thy_text;
-    fun dist tr1 tr2 = Option.valOf (Position.distance_of (Toplevel.pos_of tr1, Toplevel.pos_of tr2));
+    fun dist tr1 tr2 = 
+      Position.distance_of (Toplevel.pos_of tr1, Toplevel.pos_of tr2)
+      |> Option.valOf;
     fun record_acts syms [tr] = [build (implode syms) tr]
       | record_acts _ [] = []
       | record_acts syms (tr1 :: tr2 :: trs) = 
