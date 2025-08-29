@@ -241,7 +241,6 @@ def measure_dfs(
         prf=prf_info, 
         dfs_config=dfs_config
         )
-    metrics["total_proofs"] += 1
     return metrics
 
 # PROOF PROCESSING
@@ -280,6 +279,7 @@ def attempt_proof(
             prf_info,
             dfs_config
         )
+        metrics["total_proofs"] += 1
         update_repling_records(metrics, "repling_records.json")
     except Exception as e:
         logging.warning(f"Error processing proof at {prf_path} with REPL at {logic}.{thy_name}: {e}")
@@ -380,7 +380,7 @@ def process_logic(logic, thys, dfs_config, loop_state):
             if max_attempts_reached(loop_state):
                 loop_state["max_attempts_reached"] = True
                 break
-    print(f"Processed all theories in {logic} or processed {loop_state['prf_attempts_count']} proofs out of {loop_state['max_attempts_reached']}.")
+    print(f"Processed all theories in {logic} or processed {loop_state['prf_attempts_count']} proofs out of {loop_state['max_prf_attempts']}.")
     return loop_state
 
 
