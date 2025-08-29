@@ -35,7 +35,7 @@ def load_tok_model(config_dict):
     elif model_type == "gemma":
         tuned_objs = train_unsloth_gemma.load_tuned_objs(config_dict)
         model = tuned_objs["model"]
-        tokenizer = tuned_objs["tokenizer"]
+        tokenizer = tuned_objs["preprocessor"]
         print(f"Model type = {type(model)}")
         print(f"Tokeinzer type = {type(tokenizer)}")
     return tokenizer, model
