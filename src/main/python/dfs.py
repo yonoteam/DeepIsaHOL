@@ -381,6 +381,7 @@ def process_logic(logic, thys, dfs_config, loop_state):
             )
             logging.info(f"Processed proof {prf_count} of {len_proofs}: {prf_path}\n\n")
             loop_state["prf_attempts_count"] += 1
+            print(f"Proof attempts so far: {loop_state['prf_attempts_count']}")
             if max_attempts_reached(loop_state):
                 loop_state["max_attempts_reached"] = True
                 break
