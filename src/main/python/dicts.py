@@ -100,8 +100,8 @@ def replace_in_opened(data: dict, file: IO[str], indent: int = 4) -> None:
     :param indent: indentation level for pretty-printing (default: 4)
     """
     file.seek(0)
-    json.dump(data, file, indent=indent)
     file.truncate()
+    json.dump(data, file, indent=indent)
 
 def save_as_json(data: dict, save_path: Union[str, os.PathLike], indent=4) -> None:
     """
