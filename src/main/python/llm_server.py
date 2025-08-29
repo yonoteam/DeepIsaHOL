@@ -94,25 +94,25 @@ def handle_client(conn: BinaryIO, addr: tuple, generation_config):
         conn.close()
         logging.info(f"[{addr}] Disconnected.")
 
-# def configure_generation(config_dict):
-#     model_type = genops.get_model_type(config_dict)
-#     data_format = config_dict["data_format"]
-#     tokenizer, model = genops.load_tok_model(config_dict)
+def configure_generation(config_dict):
+    model_type = genops.get_model_type(config_dict)
+    data_format = config_dict["data_format"]
+    tokenizer, model = genops.load_tok_model(config_dict)
 
-#     if model_type == "t5":
-#         generation_task = "text2text-generation"
-#     elif model_type == "gemma":
-#         generation_task = "text-generation"
+    if model_type == "t5":
+        generation_task = "text2text-generation"
+    elif model_type == "gemma":
+        generation_task = "text-generation"
 
-#     generation_config = config_dict.get("generation_config", {}).copy()
-#     generation_config["data_format"] = data_format
-#     generation_config["model_type"] = model_type
-#     generation_config["generator"] = pipeline(
-#         generation_task,
-#         model=model,
-#         tokenizer=tokenizer
-#     )
-#     return generation_config
+    generation_config = config_dict.get("generation_config", {}).copy()
+    generation_config["data_format"] = data_format
+    generation_config["model_type"] = model_type
+    generation_config["generator"] = pipeline(
+        generation_task,
+        model=model,
+        tokenizer=tokenizer
+    )
+    return generation_config
 
 def launch_server(config_dict):
     generation_config = {} # configure_generation(config_dict)

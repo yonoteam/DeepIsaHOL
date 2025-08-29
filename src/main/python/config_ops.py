@@ -25,10 +25,10 @@ EXAMPLE_TRAINING_ARGS = {
     "doc": "https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments",
     "torch_empty_cache_steps": None,
     "use_cpu": False,
-    "fp16": False,
-    "bf16": True,
+    "fp16": False,                       # computed automatically
+    "bf16": True,                        # computed automatically
     # training
-    "max_steps": 1000,
+    "max_steps": 1000,                   # computed automatically
     "max_grad_norm": 0.3,
     "warmup_ratio": 0.03,
     "gradient_checkpointing": False,
@@ -56,7 +56,7 @@ EXAMPLE_TRAINING_ARGS = {
     "learning_rate": 1e-5,
     "weight_decay": 0.01,
     # saving
-    "output_dir": os.getcwd(),
+    "output_dir": os.getcwd(),           # computed automatically
     "overwrite_output_dir": False,
     "save_strategy": "steps",
     "save_total_limit": 5,
