@@ -380,7 +380,7 @@ def process_logic(logic, thys, dfs_config, loop_state):
             if max_attempts_reached(loop_state):
                 loop_state["max_attempts_reached"] = True
                 break
-    print(f"Processed all theories in {logic} or max attempts reached.")
+    print(f"Processed all theories in {logic} or processed {loop_state['prf_attempts_count']} proofs out of {loop_state['max_attempts_reached']}.")
     return loop_state
 
 
