@@ -45,6 +45,7 @@ def extract_gemma_suggestion(text: str) -> Optional[str]:
     match = re.search(pattern, text, re.DOTALL)
     if match:
         return match.group(1)
+    logging.warning(f"No suggestion found in generated text: {text}")
     return None
 
 def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, list[Optional[str]]]:

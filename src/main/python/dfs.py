@@ -36,12 +36,7 @@ def update_repling_records(
                 if isinstance(value, float):
                     curr_data[key] = curr_data.get(key, 0) + value
                 if isinstance(value, int):
-                    if key == "total_proofs":
-                        print(f"data on file is: {curr_data.get(key, 0)}")
-                        print(f"data from proof is: {value}")
                     curr_data[key] = curr_data.get(key, 0) + value
-                    if key == "total_proofs":
-                        print(f"Updated on file is: {curr_data[key]}")
                 elif isinstance(value, list):
                     curr_data.setdefault(key, []).extend(value)
                 else:
@@ -116,9 +111,17 @@ def dfs(
     x, predicts = genops.generate_predicts(prf_info, dfs_config)
     logging.info(f"Next (trimmed) model input from Isabelle is: {x[:500]}")
     logging.info(f"at pos={pos}.")
-    logging.info(f"The type of predicts is {type(predicts)} and its length is {len(predicts)}")
-    first_generation = predicts[0][:200]
-    logging.info(f"gemma successful prediction: {first_generation}")
+    if not predicts:
+        logging.warning(f"No predictions returned for proof {prf['path']} at pos={pos}")
+        return metrics
+    
+    first_generation = predicts[0]
+    if first_generation is None:
+        logging.warning(f"First prediction is None at pos={pos} for proof {prf['path']}")
+    else:
+        first_generation = predicts[0][:200]
+        logging.info(f"gemma successful prediction: {first_generation}")
+    
     max_breadth = len(predicts)
 
     # determine current position in dfs tree
@@ -249,6 +252,7 @@ def measure_dfs(
         prf=prf_info, 
         dfs_config=dfs_config
         )
+    metrics["total_proofs"] += 1
     return metrics
 
 # PROOF PROCESSING
@@ -287,7 +291,6 @@ def attempt_proof(
             prf_info,
             dfs_config
         )
-        metrics["total_proofs"] += 1
         update_repling_records(metrics, "repling_records.json")
     except Exception as e:
         logging.warning(f"Error processing proof at {prf_path} with REPL at {logic}.{thy_name}: {e}")
