@@ -33,11 +33,14 @@ def update_repling_records(
         try:
             curr_data = dicts.safe_load_json(f)
             for key, value in new_metrics.items():
-                if isinstance(value, (int, float)):
+                if isinstance(value, float):
                     curr_data[key] = curr_data.get(key, 0) + value
+                if isinstance(value, int):
                     if key == "total_proofs":
                         print(f"data on file is: {curr_data.get(key, 0)}")
                         print(f"data from proof is: {value}")
+                    curr_data[key] = curr_data.get(key, 0) + value
+                    if key == "total_proofs":
                         print(f"Updated on file is: {curr_data[key]}")
                 elif isinstance(value, list):
                     curr_data.setdefault(key, []).extend(value)
