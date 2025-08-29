@@ -109,7 +109,7 @@ def dfs(
     x, predicts = genops.generate_predicts(prf_info, dfs_config)
     logging.info(f"Next (trimmed) model input from Isabelle is: {x[:500]}")
     logging.info(f"at pos={pos}.")
-    first_generation = predicts[0]["generated_text"][1]["content"][:200]
+    first_generation = predicts[0][:200]
     logging.info(f"gemma successful prediction: {first_generation}")
     max_breadth = len(predicts)
 
