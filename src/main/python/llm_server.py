@@ -12,9 +12,7 @@ from typing import BinaryIO
 
 import proofs
 import config_ops
-# import generation_ops as genops
-
-# from transformers import pipeline # after genops including unsloth
+import generation_ops as genops
 
 LOCAL_HOST = "127.0.0.1"
 PORT = 5006
@@ -82,7 +80,7 @@ def handle_client(conn: BinaryIO, addr: tuple, generation_config):
                 break
             buffer += data
 
-            response, buffer = echo_input(buffer)
+            response, buffer = prompt_llm(buffer, generation_config) # echo_input(buffer)
             if response:
                 print(f"Response: {response.decode('utf-8')}")
                 conn.sendall(response)
@@ -107,6 +105,8 @@ def configure_generation(config_dict):
     generation_config = config_dict.get("generation_config", {}).copy()
     generation_config["data_format"] = data_format
     generation_config["model_type"] = model_type
+
+    from transformers import pipeline # after genops including unsloth
     generation_config["generator"] = pipeline(
         generation_task,
         model=model,
@@ -115,7 +115,7 @@ def configure_generation(config_dict):
     return generation_config
 
 def launch_server(config_dict):
-    generation_config = {} # configure_generation(config_dict)
+    generation_config = configure_generation(config_dict)
     global server_socket_global
     server_socket_global = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket_global.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

@@ -4,7 +4,7 @@ import re
 import logging
 from typing import Optional
 
-import train_unsloth_gemma
+import torch
 import eval_t5
 
 import proofs
@@ -22,6 +22,34 @@ def get_model_type(config_dict):
     logging.info(f"Model type set to {model_type} based on model name {model_name}.")
     return model_type
 
+# def load_mps_tuned_objs(config_dict):
+#     from transformers import (
+#         AutoTokenizer,
+#         AutoModelForCausalLM
+#     )
+#     model = AutoModelForCausalLM.from_pretrained(
+#         config_dict["models_dir"],
+#         device_map="mps",
+#         torch_dtype=torch.float16
+#     )
+#     model.load_adapter(config_dict["models_dir"])
+
+#     preprocessor = AutoTokenizer.from_pretrained(
+#         config_dict["model_name"], 
+#         trust_remote_code=True
+#     )
+#     if not preprocessor.chat_template:
+#         raise ValueError("The Gemma tokenizer does not have a chat template.")
+#     # preprocessor = get_chat_template(
+#     #     preprocessor,
+#     #     chat_template = "gemma-3",
+#     # )
+
+#     return {
+#         "model": model,
+#         "preprocessor": preprocessor
+#     }
+
 def load_tok_model(config_dict):
     model_type = get_model_type(config_dict)
     data_format = config_dict["data_format"]
@@ -33,6 +61,10 @@ def load_tok_model(config_dict):
         print(f"Model context length = {model.config.n_positions}")
         print(f"Tokenizer context length = {tokenizer.model_max_length}")
     elif model_type == "gemma":
+        # if torch.backends.mps.is_available():
+        #     tuned_objs = load_mps_tuned_objs(config_dict)
+        # elif torch.cuda.is_available():
+        import train_unsloth_gemma
         tuned_objs = train_unsloth_gemma.load_tuned_objs(config_dict)
         model = tuned_objs["model"]
         tokenizer = tuned_objs["preprocessor"]

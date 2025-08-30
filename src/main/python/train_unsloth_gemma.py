@@ -19,6 +19,7 @@ from unsloth.chat_templates import (
 )
 
 from transformers import AutoTokenizer
+from peft import PeftModel
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
@@ -190,14 +191,15 @@ def load_tuned_objs(config_dict):
         max_seq_length = tokops.get_gemma_context_length(config_dict["data_format"]),
         load_in_4bit = True,
     )
-    model.load_adapter(config_dict["models_dir"])
+    peft_model = PeftModel.from_pretrained(model, config_dict["models_dir"])
+    # model.load_adapter(config_dict["models_dir"])
     # model = AutoModelForCausalLM.from_pretrained(config_dict["models_dir"])
     preprocessor = get_chat_template(
         AutoTokenizer.from_pretrained(config_dict["model_name"]),
         chat_template = "gemma-3",
     )
     return {
-        "model": model,
+        "model": peft_model,
         "preprocessor": preprocessor
     }
 

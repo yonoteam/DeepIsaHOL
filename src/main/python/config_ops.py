@@ -67,13 +67,13 @@ GENERATION_CONFIG = {
     "gen_length": 64,
     "num_return_sequences": 5,
     "num_beams": 5,
-    "allowed_depth": 5
+    "allowed_depth": 5,
+    "proof_timeout_seconds": 30
 }
 
 DFS_CONFIG = {
     "device": -1,
     "saving": False,
-    "proof_timeout_seconds": 30,
     "max_prf_attempts": 5
 }
 
