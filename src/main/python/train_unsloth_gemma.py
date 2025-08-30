@@ -191,16 +191,29 @@ def load_tuned_objs(config_dict):
         max_seq_length = tokops.get_gemma_context_length(config_dict["data_format"]),
         load_in_4bit = True,
     )
-    peft_model = PeftModel.from_pretrained(model, config_dict["models_dir"])
-    peft_model.load_adapter(config_dict["models_dir"], "DeepIsaHOL")
-    peft_model.set_adapter("DeepIsaHOL")
+    # peft_model = PeftModel.from_pretrained(model, config_dict["models_dir"])
+    model = FastModel.get_peft_model(
+        model,
+        finetune_vision_layers     = False,
+        finetune_language_layers   = True,  # Should leave on!
+        finetune_attention_modules = True,  # Attention good for GRPO
+        finetune_mlp_modules       = True,  # SHould leave on always!
+
+        r = 8,           # Larger = higher accuracy, but might overfit
+        lora_alpha = 8,  # Recommended alpha == r at least
+        lora_dropout = 0,
+        bias = "none",
+        random_state = 3407,
+    )
+    model.load_adapter(config_dict["models_dir"], "DeepIsaHOL")
+    model.set_adapter("DeepIsaHOL")
     # model = AutoModelForCausalLM.from_pretrained(config_dict["models_dir"])
     preprocessor = get_chat_template(
         AutoTokenizer.from_pretrained(config_dict["model_name"]),
         chat_template = "gemma-3",
     )
     return {
-        "model": peft_model,
+        "model": model,
         "preprocessor": preprocessor
     }
 
