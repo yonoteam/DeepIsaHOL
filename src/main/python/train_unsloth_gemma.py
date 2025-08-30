@@ -192,7 +192,8 @@ def load_tuned_objs(config_dict):
         load_in_4bit = True,
     )
     peft_model = PeftModel.from_pretrained(model, config_dict["models_dir"])
-    # model.load_adapter(config_dict["models_dir"])
+    peft_model.load_adapter(config_dict["models_dir"], "DeepIsaHOL")
+    peft_model.set_adapter("DeepIsaHOL")
     # model = AutoModelForCausalLM.from_pretrained(config_dict["models_dir"])
     preprocessor = get_chat_template(
         AutoTokenizer.from_pretrained(config_dict["model_name"]),
