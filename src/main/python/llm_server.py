@@ -2,6 +2,7 @@
 # A cross-platform TCP server for hosting a local Hugging Face Transformers LLM.
 # Listens on localhost:5006 for newline-delimited JSON requests and returns JSON responses.
 
+import os
 import json
 import time
 import signal
@@ -14,6 +15,7 @@ import proofs
 import config_ops
 import generation_ops as genops
 
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 LOCAL_HOST = "127.0.0.1"
 PORT = 5006
 RECV_BUFFER = 4096 # buffer size for socket recv
@@ -38,6 +40,7 @@ def prompt_llm(buffer, generation_config):
     if end_of_prompt in buffer:
         client_byte_mssg, remaining_buffer = buffer.split(end_of_prompt, 1)
         client_str_mssg = client_byte_mssg.decode("utf-8")
+        print(f"Received prompt: {client_str_mssg}")
         proof_info = make_proof_info(client_str_mssg, generation_config["data_format"])
         _, predicts = genops.generate_predicts(proof_info, generation_config)
         response_text = predicts[0] if predicts and predicts[0] is not None else "No prediction generated."
@@ -105,13 +108,17 @@ def configure_generation(config_dict):
     generation_config = config_dict.get("generation_config", {}).copy()
     generation_config["data_format"] = data_format
     generation_config["model_type"] = model_type
+    generation_config["use_unsloth"] = genops.using_unsloth()
 
-    from transformers import pipeline # after genops including unsloth
-    generation_config["generator"] = pipeline(
-        generation_task,
-        model=model,
-        tokenizer=tokenizer
-    )
+    if generation_config["use_unsloth"]:
+        from transformers import pipeline # after genops including unsloth
+        generation_config["generator"] = pipeline(
+            generation_task,
+            model=model,
+            tokenizer=tokenizer
+        )
+    else:
+        generation_config["generator"] = model
     return generation_config
 
 def launch_server(config_dict):

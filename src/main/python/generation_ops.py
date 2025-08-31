@@ -10,6 +10,9 @@ import eval_t5
 import proofs
 import tokenizer_ops as tokops
 
+def using_unsloth():
+    return torch.cuda.is_available()
+
 def get_model_type(config_dict):
     model_name = config_dict["model_name"]
     lower_case_model = model_name.lower()
@@ -22,33 +25,20 @@ def get_model_type(config_dict):
     logging.info(f"Model type set to {model_type} based on model name {model_name}.")
     return model_type
 
-# def load_mps_tuned_objs(config_dict):
-#     from transformers import (
-#         AutoTokenizer,
-#         AutoModelForCausalLM
-#     )
-#     model = AutoModelForCausalLM.from_pretrained(
-#         config_dict["models_dir"],
-#         device_map="mps",
-#         torch_dtype=torch.float16
-#     )
-#     model.load_adapter(config_dict["models_dir"])
+def load_ollama_tuned_objs(config_dict):
+    from llama_cpp import Llama, LlamaTokenizer
 
-#     preprocessor = AutoTokenizer.from_pretrained(
-#         config_dict["model_name"], 
-#         trust_remote_code=True
-#     )
-#     if not preprocessor.chat_template:
-#         raise ValueError("The Gemma tokenizer does not have a chat template.")
-#     # preprocessor = get_chat_template(
-#     #     preprocessor,
-#     #     chat_template = "gemma-3",
-#     # )
-
-#     return {
-#         "model": model,
-#         "preprocessor": preprocessor
-#     }
+    model = Llama(
+        model_path=config_dict["models_dir"],
+        n_ctx=tokops.get_gemma_context_length(config_dict["data_format"]),
+        n_gpu_layers=-1 # all on GPU if possible
+        # 0  # CPU for all layers
+    )
+    preprocessor = LlamaTokenizer(model)
+    return {
+        "model": model,
+        "preprocessor": preprocessor
+    }
 
 def load_tok_model(config_dict):
     model_type = get_model_type(config_dict)
@@ -61,11 +51,11 @@ def load_tok_model(config_dict):
         print(f"Model context length = {model.config.n_positions}")
         print(f"Tokenizer context length = {tokenizer.model_max_length}")
     elif model_type == "gemma":
-        # if torch.backends.mps.is_available():
-        #     tuned_objs = load_mps_tuned_objs(config_dict)
-        # elif torch.cuda.is_available():
-        import train_unsloth_gemma
-        tuned_objs = train_unsloth_gemma.load_tuned_objs(config_dict)
+        if using_unsloth():
+            import train_unsloth_gemma
+            tuned_objs = train_unsloth_gemma.load_tuned_objs(config_dict)
+        else:
+            tuned_objs = load_ollama_tuned_objs(config_dict)
         model = tuned_objs["model"]
         tokenizer = tuned_objs["preprocessor"]
         print(f"Model type = {type(model)}")
@@ -86,6 +76,7 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
     gen_length = generation_config.get("gen_length", 4096)
     num_return_sequences = generation_config.get("num_return_sequences", 1)
     num_beams = generation_config.get("num_beams", 1)
+    using_unsloth = generation_config.get("use_unsloth", False)
 
     usr_sep = proofs.str_ops.Separator["user_state"]
     xs = [
@@ -107,17 +98,29 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         )
         predicts = [p["generated_text"] for p in predicts]
     elif model_type == "gemma":
-        conversation = tokops.to_gemma_format(x, "")
-        generation_messages = [conversation["messages"][0]]
-        
-        predicts = generation_config["generator"](
-            generation_messages, 
-            max_new_tokens=gen_length, 
-            num_return_sequences=num_return_sequences,
-            num_beams=num_beams,
-            temperature = 1.0,
-            top_p = 0.95,
-            top_k = 64
-        )
-        predicts = [extract_gemma_suggestion(p["generated_text"][1]["content"]) for p in predicts]
+        if using_unsloth:
+            conversation = tokops.to_gemma_format(x, "")
+            generation_messages = [conversation["messages"][0]]
+            
+            predicts = generation_config["generator"](
+                generation_messages, 
+                max_new_tokens=gen_length, 
+                num_return_sequences=num_return_sequences,
+                num_beams=num_beams,
+                temperature = 1.0,
+                top_p = 0.95,
+                top_k = 64
+            )
+            predicts = [extract_gemma_suggestion(p["generated_text"][1]["content"]) for p in predicts]
+        else:
+            prompt = f"<start_of_turn>user\n{tokops.gemma_prompt.format(context=x)}<end_of_turn>\n<start_of_turn>model"
+            print(f"Prompt to Gemma:\n{prompt}")
+            predicts = generation_config["generator"](
+                prompt,
+                max_tokens=gen_length,
+                temperature=1.0,
+                top_p=0.95,
+                top_k=64
+            )
+            predicts = [extract_gemma_suggestion(p["text"]) for p in predicts["choices"]]
     return x, predicts

@@ -289,6 +289,7 @@ in
         Print.pretty_json_attribs false "{" "}" 0 [usr_st, prf_so_far]
         |> Print.string_of_pretty
         |> rewrite_quote
+      val _ = Output.writeln prf
     in prf end;
 
 end;
