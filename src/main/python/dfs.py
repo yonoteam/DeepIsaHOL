@@ -108,7 +108,12 @@ def dfs(
         "last_usr_state": repl.last_usr_state(),
         "proof_data": prf["proof_data"]
     }
-    x, predicts = genops.generate_predicts(prf_info, dfs_config)
+    try:
+        x, predicts = genops.generate_predicts(prf_info, dfs_config)
+    except Exception as e:
+        logging.warning(f"Error generating predictions at pos={pos} for proof {prf['path']}: {e}")
+        return metrics
+
     logging.info(f"Next (trimmed) model input from Isabelle is: {x[:500]}")
     logging.info(f"at pos={pos}.")
     if not predicts:
@@ -415,6 +420,7 @@ def configure(config_dict):
         dfs_config[key] = value
 
     # extensions to the configuration
+    dfs_config["use_unsloth"] = genops.using_unsloth()
     dfs_config["data_format"] = data_format
     dfs_config["model_type"] = model_type
     dfs_config["generator"] = pipeline(

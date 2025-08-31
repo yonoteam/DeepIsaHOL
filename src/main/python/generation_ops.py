@@ -77,7 +77,7 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
     gen_length = generation_config.get("gen_length", 4096)
     num_return_sequences = generation_config.get("num_return_sequences", 1)
     num_beams = generation_config.get("num_beams", 1)
-    using_unsloth = generation_config.get("use_unsloth", False)
+    using_unsloth = generation_config["use_unsloth"]
 
     usr_sep = proofs.str_ops.Separator["user_state"]
     xs = [
