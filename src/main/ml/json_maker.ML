@@ -276,20 +276,26 @@ in
   fun llm_proof_data thy_file st line_num =
     let
       val backslash = "\\";
-      val start_quote = backslash ^ "<";
-      fun rewrite_quote txt = 
-        Ops.replace_all start_quote (backslash ^ start_quote) txt
+      val new_line = "\n";
+      val quote = "\"";
+      val str_quote = backslash ^ quote;
+      val isa_quote = backslash ^ "<";
+      fun string_fix txt = 
+        Ops.replace_all quote (str_quote) txt
+        |> Ops.replace_all isa_quote (backslash ^ isa_quote)
+        |> Ops.replace_all new_line "\\n"
+        |> Library.enclose quote quote
       val usr_st = 
         Get.user_state {break_lines=false} st
-        |> Pretty.str |> Print.pretty_json_elem "last_usr_state"
+        |> string_fix
+        |> Pretty.str |> Print.pretty_json_elem "user_state"
       val prf_so_far = 
         proof_text_at thy_file line_num
+        |> string_fix
         |> Pretty.str |> Print.pretty_json_elem "proof_so_far"
       val prf =
         Print.pretty_json_attribs false "{" "}" 0 [usr_st, prf_so_far]
         |> Print.string_of_pretty
-        |> rewrite_quote
-      val _ = Output.writeln prf
     in prf end;
 
 end;

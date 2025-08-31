@@ -58,9 +58,11 @@ fun send_message msg =
         val full_message = Bytes.string (msg ^ end_of_prompt)
         val _ = Byte_Message.write out_stream [full_message];
         val _ = Byte_Message.flush out_stream;
-        
         val response = read_until end_of_prompt in_stream;
-      in if is_some response then last_response := response else () end
+        val _ = (case response of 
+          SOME str => Output.writeln ("Response is: " ^ str)
+          | NONE => Output.writeln ("Response is NONE"))
+      in last_response := response end
     | NONE => raise Fail "Not connected to server")
 
 fun get_last_response () = !last_response

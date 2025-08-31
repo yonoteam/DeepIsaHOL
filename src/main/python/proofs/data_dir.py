@@ -92,7 +92,7 @@ def fix_erroneous(
     fixed_files = []
     failed_files = []
     for file_path in find_erroneous(json_data_dir):
-        opt_str = dicts.fix_json_line_breaks(Path(file_path), backing_up=True)
+        opt_str = dicts.fix_json_line_breaks_at(Path(file_path), backing_up=True)
         if opt_str is None:
             fixed_files.append(file_path)
         else:

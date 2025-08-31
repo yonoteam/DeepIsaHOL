@@ -52,10 +52,26 @@ def load_json(json_path: Union[str, os.PathLike]) -> dict:
         logging.error(f"An unexpected error occurred: {e}")
     return result
 
-def fix_json_line_breaks(json_path: Path, backing_up: bool = True) -> Optional[str]:
+def clean_linebreaks_in_quoted_strings(text: str) -> str:
+    def replace_new_line(regex_match):
+        s = regex_match.group(0)
+        return s.replace('\n', '\\n')
+
+    return re.sub(r'"(?:[^"\\]|\\.)*?"', replace_new_line, text, flags=re.DOTALL)
+
+def fix_json_line_breaks(text: str) -> Optional[str]:
+    cleaned = clean_linebreaks_in_quoted_strings(text)
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        logging.error(f"Error fixing JSON: {e}")
+        return None
+    return parsed
+
+def fix_json_line_breaks_at(json_path: Path, backing_up: bool = True) -> Optional[str]:
     """
     Attempts to fix improper line breaks, i.e. `\n`, in a JSON file.
-    If successfule, it saves the corrected version.
+    If successful, it saves the corrected version.
 
     :param json_path: Path to the JSON file.
     :param backing_up: Whether to save a backup of the original file.
@@ -69,26 +85,15 @@ def fix_json_line_breaks(json_path: Path, backing_up: bool = True) -> Optional[s
     except json.JSONDecodeError:
         pass # proceed to attempt fixing
 
-    def clean_linebreaks_in_quoted_strings(text: str) -> str:
-        def replace_new_line(regex_match):
-            s = regex_match.group(0)
-            return s.replace('\n', '\\n')
+    opt_fixed = fix_json_line_breaks(raw)
 
-        return re.sub(r'"(?:[^"\\]|\\.)*?"', replace_new_line, text, flags=re.DOTALL)
-
-    cleaned = clean_linebreaks_in_quoted_strings(raw)
-
-    try:
-        parsed = json.loads(cleaned)
-    except json.JSONDecodeError as e:
-        return f"Failed to fix {json_path}: {e}"
-
-    if backing_up:
-        json_path.with_suffix(json_path.suffix + ".bak").write_text(raw, encoding="utf-8")
-
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(parsed, f, indent=2, ensure_ascii=False)
-    return None
+    if opt_fixed:
+        if backing_up:
+            json_path.with_suffix(json_path.suffix + ".bak").write_text(raw, encoding="utf-8")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(opt_fixed, f, indent=2, ensure_ascii=False)
+        return None
+    return f"Failed to fix {json_path}."
 
 def replace_in_opened(data: dict, file: IO[str], indent: int = 4) -> None:
     """

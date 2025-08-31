@@ -11,6 +11,7 @@ import logging
 import threading
 from typing import BinaryIO
 
+import dicts
 import proofs
 import config_ops
 import generation_ops as genops
@@ -22,11 +23,10 @@ RECV_BUFFER = 4096 # buffer size for socket recv
 shutdown_event = threading.Event()
 
 
-def make_proof_info(str_mssg, data_format):
-    try:
-        proof_json = json.loads(str_mssg)
-    except json.JSONDecodeError as e:
-        logging.error(f"Failed to decode JSON from client message: {e}")
+def make_proof_info(mssg_dict, data_format):
+    proof_json = mssg_dict
+    if not isinstance(proof_json, dict):
+        logging.error(f"Make proof info received a None dictionary")
         proof_json = {} 
     return {
         "proof_so_far": proof_json.get("proof_so_far", ""),
@@ -40,8 +40,11 @@ def prompt_llm(buffer, generation_config):
     if end_of_prompt in buffer:
         client_byte_mssg, remaining_buffer = buffer.split(end_of_prompt, 1)
         client_str_mssg = client_byte_mssg.decode("utf-8")
-        print(f"Received prompt: {client_str_mssg}")
-        proof_info = make_proof_info(client_str_mssg, generation_config["data_format"])
+        # print(f"Received this from client: {client_str_mssg}")
+        fixed_newlines = dicts.fix_json_line_breaks(client_str_mssg)
+        # print(f"This is the result of 'fixing': {fixed_newlines}")
+        proof_info = make_proof_info(fixed_newlines, generation_config["data_format"])
+        # print(f"Prepared info is: {proof_info}")
         _, predicts = genops.generate_predicts(proof_info, generation_config)
         response_text = predicts[0] if predicts and predicts[0] is not None else "No prediction generated."
         response_bytes = response_text.encode("utf-8") + end_of_prompt

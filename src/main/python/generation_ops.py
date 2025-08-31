@@ -31,7 +31,8 @@ def load_ollama_tuned_objs(config_dict):
     model = Llama(
         model_path=config_dict["models_dir"],
         n_ctx=tokops.get_gemma_context_length(config_dict["data_format"]),
-        n_gpu_layers=-1 # all on GPU if possible
+        n_gpu_layers=-1, # all on GPU if possible
+        verbose=False
         # 0  # CPU for all layers
     )
     preprocessor = LlamaTokenizer(model)
@@ -114,7 +115,7 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
             predicts = [extract_gemma_suggestion(p["generated_text"][1]["content"]) for p in predicts]
         else:
             prompt = f"<start_of_turn>user\n{tokops.gemma_prompt.format(context=x)}<end_of_turn>\n<start_of_turn>model"
-            print(f"Prompt to Gemma:\n{prompt}")
+            # print(f"Prompt to Gemma:\n{prompt}")
             predicts = generation_config["generator"](
                 prompt,
                 max_tokens=gen_length,
