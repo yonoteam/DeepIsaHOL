@@ -19,7 +19,6 @@ from unsloth.chat_templates import (
 )
 
 from transformers import AutoTokenizer
-from peft import PeftModel
 from datasets import IterableDataset
 from trl import SFTTrainer, SFTConfig
 
