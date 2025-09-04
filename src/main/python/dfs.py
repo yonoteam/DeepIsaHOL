@@ -113,6 +113,11 @@ def dfs(
     except Exception as e:
         logging.warning(f"Error generating predictions at pos={pos} for proof {prf['path']}: {e}")
         return metrics
+    
+    # cleanup after generation
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
 
     logging.info(f"Next (trimmed) model input from Isabelle is: {x[:500]}")
     logging.info(f"at pos={pos}.")
