@@ -3,7 +3,6 @@
 # Listens on localhost:5006 for newline-delimited JSON requests and returns JSON responses.
 
 import os
-import json
 import time
 import signal
 import socket
@@ -42,11 +41,12 @@ def prompt_llm(buffer, generation_config):
         client_str_mssg = client_byte_mssg.decode("utf-8")
         # print(f"Received this from client: {client_str_mssg}")
         fixed_newlines = dicts.fix_json_line_breaks(client_str_mssg)
-        # print(f"This is the result of 'fixing': {fixed_newlines}")
+        # print(f"This is the result of 'fixing': {fixed_newlines}")
         proof_info = make_proof_info(fixed_newlines, generation_config["data_format"])
-        # print(f"Prepared info is: {proof_info}")
+        # print(f"Prepared info is: {proof_info}")
         _, predicts = genops.generate_predicts(proof_info, generation_config)
         response_text = predicts[0] if predicts and predicts[0] is not None else "No prediction generated."
+        # print(f"The prepared response is: {response_text}")
         response_bytes = response_text.encode("utf-8") + end_of_prompt
         return response_bytes, remaining_buffer
 
@@ -113,7 +113,7 @@ def configure_generation(config_dict):
     generation_config["model_type"] = model_type
     generation_config["use_unsloth"] = genops.using_unsloth()
 
-    if generation_config["use_unsloth"]:
+    if generation_config["use_unsloth"] or model_type == "t5":
         from transformers import pipeline # after genops including unsloth
         generation_config["generator"] = pipeline(
             generation_task,

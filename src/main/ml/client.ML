@@ -6,6 +6,7 @@ sig
   val last_response: string option Unsynchronized.ref
   val connect_to_server: int -> unit
   val send_message: string -> unit
+  val get_response: unit -> unit
   val get_last_response: unit -> string option
   val disconnect: unit -> unit
 end;
@@ -13,6 +14,7 @@ end;
 structure Client: CLIENT =
 struct
 
+val end_of_prompt = "<|eop|>"
 val local_host = "127.0.0.1"
 val connection = Unsynchronized.ref (NONE : (BinIO.instream * BinIO.outstream) option)
 val last_response = Unsynchronized.ref (NONE: string option)
@@ -50,11 +52,21 @@ fun read_until stop_kwrd stream =
         end)
   in read_body Bytes.empty end;
 
+fun get_response () =
+  (case !connection of
+    SOME (in_stream, _) =>
+      let
+        val response = read_until end_of_prompt in_stream;
+        val _ = (case response of 
+          SOME str => Output.writeln ("Response is: " ^ str)
+          | NONE => Output.writeln ("Response is NONE"))
+      in last_response := response end
+    | NONE => raise Fail "Not connected to server")
+
 fun send_message msg =
   (case !connection of
     SOME (in_stream, out_stream) =>
       let
-        val end_of_prompt = "<|eop|>"
         val full_message = Bytes.string (msg ^ end_of_prompt)
         val _ = Byte_Message.write out_stream [full_message];
         val _ = Byte_Message.flush out_stream;

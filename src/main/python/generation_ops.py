@@ -91,6 +91,7 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
 
     if model_type == "t5":
         x = "isabelle next step: " + x if "finetune" in data_format else x  
+        # print(f"Generating...")
         predicts = generation_config["generator"](
             x, 
             max_length=gen_length, 
@@ -124,4 +125,6 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
                 top_k=64
             )
             predicts = [extract_gemma_suggestion(p["text"]) for p in predicts["choices"]]
+
+    # print(f"Prediction from model:\n{predicts[0]}")
     return x, predicts
