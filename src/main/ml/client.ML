@@ -1,12 +1,14 @@
+(* Mantainers: 
+    Jonathan Julián Huerta y Munive huertjon[at]cvut[dot]cz
+
+Part of project DeepIsaHOL. A simple client reading until an end-of-prompt token.
+*)
 
 signature CLIENT =
 sig
   val local_host: string
-  val connection: (BinIO.instream * BinIO.outstream) option Unsynchronized.ref
-  val last_response: string option Unsynchronized.ref
   val connect_to_server: int -> unit
-  val send_message: string -> unit
-  val get_response: unit -> unit
+  val communicate: string -> unit
   val get_last_response: unit -> string option
   val disconnect: unit -> unit
 end;
@@ -44,40 +46,34 @@ fun read_until stop_kwrd stream =
       NONE => if Bytes.is_empty bs then NONE else SOME (Bytes.content bs)
       | SOME b =>
         let
-          val updated_buffer = Bytes.add (str (Byte.byteToChar b)) bs
-          val buffer_content = Bytes.content updated_buffer
+          val updated_buffer = Bytes.add (str (Byte.byteToChar b)) bs;
+          val buffer_content = Bytes.content updated_buffer;
         in if Pred.contains stop_kwrd buffer_content 
-          then SOME (Library.unsuffix stop_kwrd buffer_content)
+            then SOME (Library.unsuffix stop_kwrd buffer_content)
           else read_body updated_buffer
         end)
   in read_body Bytes.empty end;
 
-fun get_response () =
-  (case !connection of
-    SOME (in_stream, _) =>
-      let
-        val response = read_until end_of_prompt in_stream;
-        val _ = (case response of 
-          SOME str => Output.writeln ("Response is: " ^ str)
-          | NONE => Output.writeln ("Response is NONE"))
-      in last_response := response end
-    | NONE => raise Fail "Not connected to server")
+fun update_response in_stream =
+  let
+    val response = read_until end_of_prompt in_stream;
+    val _ = (case response of 
+      SOME str => Output.writeln ("Response is: " ^ str)
+      | NONE => Output.writeln ("Response is NONE"))
+  in last_response := response end;
 
-fun send_message msg =
-  (case !connection of
-    SOME (in_stream, out_stream) =>
-      let
-        val full_message = Bytes.string (msg ^ end_of_prompt)
-        val _ = Byte_Message.write out_stream [full_message];
-        val _ = Byte_Message.flush out_stream;
-        val response = read_until end_of_prompt in_stream;
-        val _ = (case response of 
-          SOME str => Output.writeln ("Response is: " ^ str)
-          | NONE => Output.writeln ("Response is NONE"))
-      in last_response := response end
-    | NONE => raise Fail "Not connected to server")
+fun send_message msg out_stream =
+  let
+    val full_message = Bytes.string (msg ^ end_of_prompt)
+    val _ = Byte_Message.write out_stream [full_message];
+  in Byte_Message.flush out_stream end;
 
-fun get_last_response () = !last_response
+fun communicate msg =
+  (case !connection of
+    SOME (in_stream, out_stream) => (send_message msg out_stream; update_response in_stream)
+    | NONE => raise Fail "Not connected to server");
+
+fun get_last_response () = !last_response;
 
 fun disconnect () =
   (case !connection of

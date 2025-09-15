@@ -28,6 +28,7 @@ sig
   val take_until: ('a -> bool) -> 'a list -> 'a list
   val take_until': ('a -> bool) -> 'a list -> 'a list
   val drop_until: ('a -> bool) -> 'a list -> 'a list
+  val drop_until': ('a -> bool) -> 'a list -> 'a list
   val take_while: ('a -> bool) -> 'a list -> 'a list
   val drop_while: ('a -> bool) -> 'a list -> 'a list
   val bifurcate_ifL: ('a -> bool) -> 'a list -> 'a list * 'a list
@@ -127,6 +128,9 @@ fun take_until' _ [] = []
 
 fun drop_until _ [] = []
   | drop_until P (x :: xs) = if P x then x :: xs else drop_until P xs;
+
+fun drop_until' _ [] = []
+  | drop_until' P (x :: xs) = if P x then xs else drop_until' P xs;
 
 val take_while = Library.take_prefix
 
