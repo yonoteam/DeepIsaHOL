@@ -63,8 +63,7 @@ val string_of_state = Toplevel.pretty_state #> Pretty.chunks #> Pretty.string_of
 fun start_thy_of thy_file =
   let
     val thy_path = Path.explode thy_file;
-    val dir_path = Path.dir thy_path;
-    val _ = Imports.init_for dir_path;
+    val _ = Imports.init_for thy_path;
   in Imports.start_thy_of thy_path end;
 
 fun final_thy_of thy_file =

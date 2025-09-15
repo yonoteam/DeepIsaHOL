@@ -30,13 +30,13 @@ fun connect_to_server port_num =
   in if not (lowest_port < port_num andalso port_num < highest_port) then
     Output.error_message ("Invalid port=" ^ str_port ^ ". Choose between " ^ range_str ^ ".")
   else (case !connection of
-       SOME _ => Output.error_message "Already connected.\n"
+       SOME _ => Output.warning "Already connected.\n"
      | NONE =>
         let
           val server_str = local_host ^ ":" ^ (Value.print_int port_num);
           val streams = Socket_IO.open_streams server_str
           val _ = connection := SOME streams
-          val _ = Output.writeln "Connected successfully.\n"
+          (* val _ = Output.writeln "Connected successfully.\n" *)
         in () end)
   end;
 
@@ -57,9 +57,9 @@ fun read_until stop_kwrd stream =
 fun update_response in_stream =
   let
     val response = read_until end_of_prompt in_stream;
-    val _ = (case response of 
+    (* val _ = (case response of 
       SOME str => Output.writeln ("Response is: " ^ str)
-      | NONE => Output.writeln ("Response is NONE"))
+      | NONE => Output.writeln ("Response is NONE")) *)
   in last_response := response end;
 
 fun send_message msg out_stream =
@@ -80,8 +80,9 @@ fun disconnect () =
     SOME (in_stream, out_stream) =>
       (BinIO.closeIn in_stream;
        BinIO.closeOut out_stream;
-       connection := NONE;
-       Output.writeln "disconnected")
+       connection := NONE(* ;
+       Output.writeln "disconnected" *)
+      )
   | NONE => Output.writeln "already disconnected")
 
 end;
