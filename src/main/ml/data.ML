@@ -204,7 +204,7 @@ fun extract_proofs thy0 thy_text =
     val state0 = Toplevel.make_state NONE;
     val proofs =
       thy_text
-      |> Actions.make' thy0
+      |> Actions.make_filtered thy0
       |> Actions.segmentate state0 (Actions.theory_separators thy0)
       |> Sections.get_topmost Sections.proof_tag
       |> map extract_proof;

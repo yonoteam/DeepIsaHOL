@@ -158,7 +158,7 @@ fun go_to (thy, thy_path, act_txt) =
   let
     val empty_err_mssg = "repl.go_to: empty actions for input " ^ act_txt ^ " on location " ^ thy_path
     val thy_text = File.read (Path.explode thy_path);
-    val acts = Actions.make' thy thy_text;
+    val acts = Actions.make_filtered thy thy_text;
     val pre_acts = Pred.take_until (Actions.on_text (Pred.contains act_txt)) acts;
     val act_st_errs = Actions.apply_all pre_acts (Toplevel.make_state (SOME thy));
     val (act, st', e) = if null act_st_errs then raise Fail empty_err_mssg

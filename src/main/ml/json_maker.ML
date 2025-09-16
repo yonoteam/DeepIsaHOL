@@ -22,7 +22,7 @@ sig
   val pretty_step: bool -> int -> Proof.context -> Data.T -> Pretty.T
   val pretty_proof: bool -> int -> Data.env -> Data.T Sections.T -> Pretty.T
   val json_proof: (Data.env * Data.T Sections.T) -> string
-  val llm_proof_data: string -> Toplevel.state -> int -> string
+  val llm_proof_data: string -> int -> string
 end;
 
 
@@ -249,56 +249,47 @@ in
 
 end;
 
+fun proof_at thy_file line_num =
+  Actions.make_upto thy_file line_num
+  |> (fn acts => Actions.apply_all acts (Toplevel.make_state NONE))
+  |> rev
+  |> Pred.take_while (fn (_, st, _) => Toplevel.is_proof st)
+  |> rev;
 
 local
 
-  fun st_acts_upto thy_file line_num =
-    if line_num <= 0 then raise Fail ("Invalid line number " ^ (Value.print_int line_num))
-    else let
-      val thy0 = Get.start_thy_of thy_file;
-      fun is_below n a = the (Position.line_of (Toplevel.pos_of (Actions.transition_of a))) > n
-      val acts = 
-        Actions.make thy0 (File.read (Path.explode thy_file))
-        |> Pred.take_until' (is_below line_num)
-    in Actions.apply_all acts (Toplevel.make_state NONE) end;
-  
-  fun proof_text_at thy_file line_num =
-    st_acts_upto thy_file line_num
-    |> rev
-    |> Pred.take_while (fn (_, st, _) => Toplevel.is_proof st)
-    |> rev
-    |> map (fn (a, _, _) => Actions.text_of a)
-    |> Library.space_implode "";
-
-  fun make_parseable txt =
-    let
-      val backslash = "\\";
-      val new_line = "\n";
-      val quote = "\"";
-      val str_quote = backslash ^ quote;
-      val isa_quote = backslash ^ "<";
-    in Ops.replace_all quote (str_quote) txt
-      |> Ops.replace_all isa_quote (backslash ^ isa_quote)
-      |> Ops.replace_all new_line "\\n"
-      |> Library.enclose quote quote
-    end;
+fun make_parseable txt =
+  let
+    val backslash = "\\";
+    val new_line = "\n";
+    val quote = "\"";
+    val str_quote = backslash ^ quote;
+    val isa_quote = backslash ^ "<";
+  in Ops.replace_all quote (str_quote) txt
+    |> Ops.replace_all isa_quote (backslash ^ isa_quote)
+    |> Ops.replace_all new_line "\\n"
+    |> Library.enclose quote quote
+  end;
 
 in
   
-  fun llm_proof_data thy_file st line_num =
-    let
-      val usr_st = 
-        Get.user_state {break_lines=false} st
-        |> make_parseable
-        |> Pretty.str |> Print.pretty_json_elem "user_state"
-      val prf_so_far = 
-        proof_text_at thy_file line_num
-        |> make_parseable
-        |> Pretty.str |> Print.pretty_json_elem "proof_so_far"
-      val prf_data =
-        Print.pretty_json_attribs false "{" "}" 0 [usr_st, prf_so_far]
-        |> Print.string_of_pretty
-    in prf_data end;
+fun llm_proof_data thy_file line_num =
+  let
+    val stacts = proof_at thy_file line_num;
+    val (_, st, _) = Ops.last stacts;
+    val usr_st = 
+      Get.user_state {break_lines=false} st
+      |> make_parseable
+      |> Pretty.str |> Print.pretty_json_elem "user_state"
+    val prf_so_far = stacts
+      |> map (fn (a, _, _) => Actions.text_of a)
+      |> Library.space_implode ""
+      |> make_parseable
+      |> Pretty.str |> Print.pretty_json_elem "proof_so_far"
+    val prf_data =
+      Print.pretty_json_attribs false "{" "}" 0 [usr_st, prf_so_far]
+      |> Print.string_of_pretty
+  in prf_data end;
 
 end;
 

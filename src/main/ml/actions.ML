@@ -17,7 +17,8 @@ sig
   val on_kind: (string -> 'a) -> T -> 'a
   val make: theory -> string -> T list
   val make_one: theory -> string -> T
-  val make': theory -> string -> T list
+  val make_filtered: theory -> string -> T list
+  val make_upto: string -> int -> T list
 
   (* Application *)
   val apply: T -> Toplevel.state -> Toplevel.state * Runtime.error list
@@ -85,13 +86,22 @@ fun make thy0 thy_text =
 
 fun make_one thy0 thy_text = hd (make thy0 thy_text)
 
-(* make': theory -> string -> Actions.T list *)
-fun make' thy0 thy_text =
+fun make_filtered thy0 thy_text =
   let
     val does_something = on_kind (
       Pred.is_not "<ignored>" 
       andf Pred.neg (Seps.is_document_step (Get.grouped_commands thy0)))
   in void :: (filter does_something (make thy0 thy_text)) end;
+
+fun make_upto thy_file line_num =
+  if line_num <= 0 then raise Fail ("Invalid line number " ^ (Value.print_int line_num))
+  else let
+    val thy0 = Get.start_thy_of thy_file;
+    fun is_below n a = n < the (Position.line_of (Toplevel.pos_of (transition_of a)))
+    val acts = 
+      make thy0 (File.read (Path.explode thy_file))
+      |> Pred.take_until' (is_below line_num)
+  in acts end;
 
 
 (** APPLICATION **)
