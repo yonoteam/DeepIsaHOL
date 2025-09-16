@@ -38,7 +38,7 @@ fun write_g2tac_proof format write_file_path (env, proof) =
           G2tac_Formatter.pretty_step_of format prev env step
           |> Print.string_of_pretty
           |> Ops.replace_all start_quote (backslash ^ start_quote)
-        val _ = Print.write_to (Print.FILE write_file_path) to_write
+        val _ = Print.write_to_file write_file_path to_write
       in step end;
     val _ = fold write_next steps (hd steps)
   in () end;
@@ -88,18 +88,15 @@ fun write_g2tac_proofs (write_dir, thy0, thy_text) =
 
 (** JSONS **)
 
-(* extract_jsons: theory * string -> string *)
 fun extract_jsons (thy0, thy_text) =
   Data.extract_proofs thy0 thy_text
   |> map Json_Maker.json_proof
   |> String.concatWith " ISA_RL_SEP ";
 
-(* write_json_proof: string -> (Data.env * Data.T Sections.T) -> unit *)
 fun write_json_proof file_path proof = if Ops.file_exists file_path 
   then warning ("write_proof: File " ^ file_path ^ " already exists (skipping)")
-  else Json_Maker.json_proof proof |> Print.write_to (Print.FILE file_path);
+  else Json_Maker.json_proof proof |> Print.write_to_file file_path;
 
-(* write_json_proofs: (string * theory * string) -> unit *)
 fun write_json_proofs (write_dir, thy0, thy_text) =
   let 
     val proofs = Data.extract_proofs thy0 thy_text;
