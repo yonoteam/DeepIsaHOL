@@ -61,9 +61,9 @@ fun get_env get_st_act proof =
       fun make_error_str ((num, err), str_opt) =
         let
           val s1 = Value.print_int num ^ ": "
-          val s2 = (Get.string_of_yxml err)
+          val s2 = (Print.yxml_to_string err)
         in (case str_opt of
-          SOME txt => s1^s2^ ", opt: " ^ (Get.string_of_yxml txt)
+          SOME txt => s1^s2^ ", opt: " ^ (Print.yxml_to_string txt)
           | NONE => s1^s2) end;
       val (s0, a0) = get_st_act (Sections.get_first proof);
       val (sN, aN) = get_st_act (Sections.get_last proof);

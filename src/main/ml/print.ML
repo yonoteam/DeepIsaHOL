@@ -9,6 +9,7 @@ sig
   val yxml_to_string: string -> string
   val string_of_pretty: Pretty.T -> string
   val string_of_term: Proof.context -> term -> string
+  val string_of_type: Proof.context -> typ -> string
   val ast_of_term: term -> string
   val write_to_file: string -> string -> unit
   val pretty_json_elem: string -> Pretty.T -> Pretty.T
@@ -26,6 +27,10 @@ val string_of_pretty = yxml_to_string o Pretty.string_of
 
 fun string_of_term ctxt t = 
   Syntax.string_of_term ctxt t
+  |> Protocol_Message.clean_output;
+
+fun string_of_type ctxt T = 
+  Syntax.string_of_typ ctxt T
   |> Protocol_Message.clean_output;
 
 val ast_of_term = ML_Syntax.print_term;

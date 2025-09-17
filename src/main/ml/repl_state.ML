@@ -70,9 +70,9 @@ fun make_one (
 fun make_error_str ((num, err), str_opt) =
   let
     val str1 = Value.print_int num ^ ": "
-    val str2 = (Get.string_of_yxml err)
+    val str2 = (Print.yxml_to_string err)
   in (case str_opt of
-    SOME txt => str1 ^ str2 ^ ", opt: " ^ (Get.string_of_yxml txt)
+    SOME txt => str1 ^ str2 ^ ", opt: " ^ (Print.yxml_to_string txt)
     | NONE => str1 ^ str2) end;
 
 fun extract_err (mssgs:Runtime.error list) = String.concatWith " | " (map make_error_str mssgs);

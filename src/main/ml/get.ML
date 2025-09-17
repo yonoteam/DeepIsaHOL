@@ -6,9 +6,6 @@ Part of project DeepIsaHOL. Utilities for retrieving data from Isabelle.
 
 signature GET =
 sig
-  val string_of_yxml: string -> string
-  val string_of_state: Toplevel.state -> string
-
   (* FILE INFORMATION *)
   val start_thy_of: string -> theory
   val final_thy_of: string -> theory
@@ -51,10 +48,6 @@ end;
 
 structure Get: GET =
 struct
-
-val string_of_yxml = YXML.parse_body #> XML.content_of;
-
-val string_of_state = Toplevel.pretty_state #> Pretty.chunks #> Pretty.string_of;
 
 
 (** FILE INFORMATION **)
@@ -107,13 +100,15 @@ fun state_transitions thy0 thy_file =
 fun user_state {break_lines=breaking} state =
   let
     val base_string = if breaking 
-    then string_of_state state
+    then Toplevel.pretty_state state
+      |> Pretty.chunks
+      |> Pretty.string_of
     else Toplevel.pretty_state state
       |> Pretty.separate " " 
       |> Pretty.block 
       |> Pretty.unbreakable
       |> Pretty.string_of
-  in string_of_yxml base_string end;
+  in Print.yxml_to_string base_string end;
 
 fun minor_keywords thy = Scan.dest_lexicon (Keyword.minor_keywords (Thy_Header.get_keywords thy));
 
