@@ -52,13 +52,7 @@ type step = {
 
 fun is_at_proof' (step:step) = Toplevel.is_proof (#st step);
 
-fun no_subgoals' step = 
-  if not (is_at_proof' step) then false else
-  let
-    val thm = #goal (Proof.goal (Toplevel.proof_of (#st step)))
-    val prop = Thm.prop_of thm;
-    val (As, _) = Logic.strip_horn prop;
-  in null As end;
+fun no_subgoals' step = Pred.no_subgoals (#st step);
 
 fun make_one (
     n: int,

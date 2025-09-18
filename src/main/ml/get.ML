@@ -23,7 +23,7 @@ sig
   val command_keywords: theory -> string list
   val grouped_commands: theory -> (string * string list) list
   val deps: theory -> thm list -> (Thm_Name.T * thm) list
-  val tokens: Proof.context -> string -> Token.T list
+  val tokens: {filtered:bool} -> Proof.context -> string -> Token.T list
   val methods: Proof.context -> string list
 
   (* THEOREM INFORMATION *)
@@ -126,8 +126,10 @@ fun grouped_commands thy =
             else (kind, cmnds) :: add_command cmnd kcmndss;
   in fold add_command (Keyword.dest_commands kwrds) [] end;
 
-(* TODO: check if at right level *)
-fun tokens ctxt = Token.explode (Thy_Header.get_keywords' ctxt) Position.none;
+fun tokens {filtered=filtering} ctxt str =
+  let
+    val toks = Token.explode (Thy_Header.get_keywords' ctxt) Position.none str;
+  in if filtering then filter Token.is_proper toks else toks end
 
 fun methods ctxt = Name_Space.get_names (Method.method_space (Context.Proof ctxt));
 
@@ -194,7 +196,7 @@ fun filtered_thms filters ctxt =
 
 fun thms ctxt name =
   let
-    val toks = tokens ctxt (name ^ " ")
+    val toks = tokens {filtered=false} ctxt (name ^ " ")
     val refs_toks = (fst o Parse.thms1) toks;
     val thms = Attrib.eval_thms ctxt refs_toks
   in thms end;

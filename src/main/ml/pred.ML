@@ -18,6 +18,8 @@ sig
   val starts_with: string -> string -> bool
   val ends_with: string -> string -> bool
   val contains: string -> string -> bool
+  val no_subgoals_at_proof: Proof.state -> bool
+  val no_subgoals: Toplevel.state -> bool
   val is_dynamic: Proof.context -> string * thm list -> bool
   val cons_if: ('a -> bool) -> 'a -> 'a list -> 'a list
   val find_first: ('a -> bool) -> 'a list -> 'a option
@@ -32,6 +34,7 @@ sig
   val take_while: ('a -> bool) -> 'a list -> 'a list
   val drop_while: ('a -> bool) -> 'a list -> 'a list
   val bifurcate_ifL: ('a -> bool) -> 'a list -> 'a list * 'a list
+  val trisect: ('a -> bool) -> 'a list -> 'a list * 'a option * 'a list
   val split_whenL: ('a -> bool) -> 'a list -> 'a list list
   val find_files: (Path.T -> bool) -> Path.T -> Path.T list
 end;
@@ -67,6 +70,17 @@ fun ends_with str name = String.isSuffix str name;
 fun nth_letter_is n str name = nth_string name n = str;
 
 fun contains str name =  String.isSubstring str name;
+
+fun no_subgoals_at_proof prf_st =
+  let
+    val thm = #goal (Proof.goal prf_st)
+    val prop = Thm.prop_of thm;
+    val (As, _) = Logic.strip_horn prop;
+  in null As end;
+
+fun no_subgoals st =
+  if Toplevel.is_proof st then false else
+  no_subgoals_at_proof (Toplevel.proof_of st);
 
 fun is_dynamic ctxt (name:string, _: thm list) 
   = (#dynamic (Facts.retrieve (Context.Proof ctxt) (Proof_Context.facts_of ctxt) (name, Position.none)));
@@ -142,6 +156,13 @@ fun bifurcate_ifL _ [] = ([], [])
       else let 
         val (xs, ys) = bifurcate_ifL P cs
       in (c::xs, ys) end;
+
+fun trisect _ [] = ([], NONE, [])
+  | trisect P (c :: cs) =
+    if P c then ([], SOME c, cs)
+    else let 
+      val (pre, at, pos) = trisect P cs 
+    in (c :: pre, at, pos) end;
 
 fun split_whenL _ [] = []
   | split_whenL P (c :: cs) = 
