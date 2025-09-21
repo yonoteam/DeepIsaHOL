@@ -11,6 +11,7 @@ sig
   val linspan: int -> int -> int -> int list
   val last: 'a list -> 'a
   val intersp: 'a list -> 'a list -> 'a list
+  val enum_count_from: int -> 'a list -> int * (int * 'a) list
   val enumerate_from: int -> 'a list -> (int * 'a) list
   val enumerate: 'a list -> (int * 'a) list
   val range: int -> int -> 'a list -> 'a list
@@ -61,6 +62,12 @@ fun last [] = raise List.Empty
 
 fun intersp seps (x :: (xs as  _ :: _)) = (x :: seps) @ (intersp seps xs)
   | intersp _ xs = xs;
+
+fun enum_count_from _ [] = (0, [])
+  | enum_count_from n (x :: xs) = 
+    let 
+      val (m, ys) = enum_count_from (n + 1) xs;
+    in (m+1, (n, x) :: ys) end;
 
 fun enumerate_from _ [] = []
   | enumerate_from n (y::ys) = (n, y) :: (enumerate_from (n+1) ys);
