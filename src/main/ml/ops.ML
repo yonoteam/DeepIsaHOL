@@ -28,6 +28,7 @@ sig
   val segmentate_by: ''a list -> ''a list -> ''a list list
   val split_at: string -> string -> string list
   val replace_all: string -> string -> string -> string
+  val unprefix_unsufix: string -> string -> string
 
   (* System operations *)
   val apply_with_timeout: Time.time -> ('a -> 'b) -> 'a -> 'b Exn.result
@@ -190,6 +191,15 @@ fun replace_all str1 str2 txt =
     val cs2 = String.explode str2;
     fun replace subcs = if subcs = cs1 then cs2 else subcs;
   in String.concat (map (String.implode o replace) (segmentate_by cs1 chars)) end;
+
+fun unprefix_unsufix substr target_str =
+  (if Pred.starts_with substr target_str 
+  then Library.unprefix substr target_str 
+  else target_str
+  ) |> (fn mid_str => 
+  if Pred.ends_with substr mid_str 
+  then Library.unsuffix substr mid_str 
+  else mid_str);
 
 
 (** SYSTEM OPERATIONS **)
