@@ -6,6 +6,15 @@ Part of project DeepIsaHOL. Data structure for representing Isabelle's internal 
 
 signature DATA =
 sig
+  (* Data preparation *)
+  val theory_separators: theory -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list
+  val segmentate: Toplevel.state -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list 
+   -> Actions.T list -> (Toplevel.state * Actions.T) Sections.T
+  val segmentate_triplets: Toplevel.state 
+    -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list -> Actions.T list 
+    -> (Toplevel.state * Actions.T * Toplevel.state) Sections.T
+  val segmentate_stateless: theory -> Actions.T list -> Actions.T Sections.T
+
   (* Environment *)
   type env
   val s1_of: env -> Toplevel.state
@@ -38,6 +47,38 @@ end;
 
 structure Data: DATA =
 struct
+
+(** DATA PREPARATION **)
+
+fun theory_separators thy =
+  let 
+    val cmmnds = Get.grouped_commands thy;
+    val seps = Seps.make cmmnds
+  in map (fn (tag, starts, ends) => (tag, Actions.on_kind starts, Actions.on_kind ends)) seps end;
+
+fun segmentate state0 separators acts =
+  let
+    val init = if null acts then (state0, Actions.void) else (state0, hd acts);
+    fun iter a' (s, a) = (Actions.apply' a s, a');
+    val steps = Ops.log_fold iter init (tl acts)
+    fun lift f (_, a) = f a;
+    fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
+  in Sections.raw_segmentate (lift Actions.text_of) (map lifting separators) steps end;
+
+fun segmentate_triplets state0 separators acts =
+  let
+    val init = (state0, Actions.void, state0);
+    fun iter a (_, _, s) = (s, a, Actions.apply' a s);
+    val triplets = Ops.log_fold iter init acts
+    fun lift f (_, a, _) = f a;
+    fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
+  in Sections.raw_segmentate (lift Actions.text_of) (map lifting separators) triplets end;
+
+fun segmentate_stateless thy acts =
+  let
+    val separators = theory_separators thy
+  in Sections.raw_segmentate (Actions.text_of) separators acts end;
+
 
 (** ENVIRONMENT **)
 
@@ -205,7 +246,7 @@ fun extract_proofs thy0 thy_text =
     val proofs =
       thy_text
       |> Actions.make_filtered thy0
-      |> Actions.segmentate state0 (Actions.theory_separators thy0)
+      |> segmentate state0 (theory_separators thy0)
       |> Sections.get_topmost Sections.proof_tag
       |> map extract_proof;
   in proofs end;

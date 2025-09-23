@@ -15,6 +15,7 @@ sig
   val pos_of: T -> Position.T
   val on_text: (string -> 'a) -> T -> 'a
   val on_kind: (string -> 'a) -> T -> 'a
+  val does_something: theory -> T -> bool
   val make: theory -> string -> T list
   val make_one: theory -> string -> T
   val make_filtered: theory -> string -> T list
@@ -32,14 +33,6 @@ sig
   val timed_apply_all: {timeout_in_secs: int} 
       -> T list -> Toplevel.state
       -> (T * Toplevel.state * Runtime.error list) list
-
-  (* Data preparation *)
-  val theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list
-  val segmentate: Toplevel.state -> (string * (T -> bool) * (T -> bool)) list -> T list 
-    -> (Toplevel.state * T) Sections.T
-  val segmentate_triplets: Toplevel.state -> (string * (T -> bool) * (T -> bool)) list -> T list 
-    -> (Toplevel.state * T * Toplevel.state) Sections.T
-  val segmentate_stateless: theory -> T list -> T Sections.T
 end;
 
 
@@ -86,12 +79,11 @@ fun make thy0 thy_text =
 
 fun make_one thy0 thy_text = hd (make thy0 thy_text)
 
-fun make_filtered thy0 thy_text =
-  let
-    val does_something = on_kind (
-      Pred.is_not "<ignored>" 
-      andf Pred.neg (Seps.is_document_step (Get.grouped_commands thy0)))
-  in void :: (filter does_something (make thy0 thy_text)) end;
+fun does_something thy0 = on_kind (
+  Pred.is_not "<ignored>" 
+  andf Pred.neg (Seps.is_document_step (Get.grouped_commands thy0)));
+
+fun make_filtered thy0 thy_text = void :: (filter (does_something thy0) (make thy0 thy_text));
 
 fun make_upto thy_file line_num =
   if line_num <= 0 then raise Fail ("Invalid line number " ^ (Value.print_int line_num))
@@ -135,43 +127,5 @@ fun timed_apply_all {timeout_in_secs=t} acts st =
         Exn.Exn exn => (st, Runtime.exn_messages exn)
       | Exn.Res result => result;
   in Ops.log_fold (iter_next timeout_apply) (void, st, []) acts end;
-
-
-(** DATA PREPARATION **)
-
-(* theory_separators: theory -> (string * (T -> bool) * (T -> bool)) list *)
-fun theory_separators thy =
-  let 
-    val cmmnds = Get.grouped_commands thy;
-    val seps = Seps.make cmmnds
-  in map (fn (tag, starts, ends) => (tag, on_kind starts, on_kind ends)) seps end;
-
-(* segmentate: Toplevel.state -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list 
-  -> Actions.T list -> (Toplevel.state * Actions.T) Sections.T *)
-fun segmentate state0 separators acts =
-  let
-    val init = if null acts then (state0, void) else (state0, hd acts);
-    fun iter a' (s, a) = (apply' a s, a');
-    val steps = Ops.log_fold iter init (tl acts)
-    fun lift f (_, a) = f a;
-    fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
-  in Sections.raw_segmentate (lift text_of) (map lifting separators) steps end;
-
-(* segmentate_triplets: Toplevel.state -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list 
-  -> Actions.T list -> (Toplevel.state * Actions.T * Toplevel.state) Sections.T *)
-fun segmentate_triplets state0 separators acts =
-  let
-    val init = (state0, void, state0);
-    fun iter a (_, _, s) = (s, a, apply' a s);
-    val triplets = Ops.log_fold iter init acts
-    fun lift f (_, a, _) = f a;
-    fun lifting (tag, is_start, is_end) = (tag, lift is_start, lift is_end);
-  in Sections.raw_segmentate (lift text_of) (map lifting separators) triplets end;
-
-(* segmentate_stateless: theory -> Actions.T list -> Actions.T Sections.T *)
-fun segmentate_stateless thy acts =
-  let
-    val separators = theory_separators thy
-  in Sections.raw_segmentate (text_of) separators acts end;
 
 end;
