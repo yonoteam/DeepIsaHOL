@@ -23,7 +23,8 @@ sig
   val is_dynamic: Proof.context -> string * thm list -> bool
   val cons_if: ('a -> bool) -> 'a -> 'a list -> 'a list
   val find_first: ('a -> bool) -> 'a list -> 'a option
-  val split: ('a -> bool) -> 'a list -> 'a list list
+  val classify: ('a -> bool) -> 'a list -> 'a list * 'a list
+  val group_by: ('a -> bool) -> 'a list -> 'a list list
   val positions: ('a -> bool) -> 'a list -> int list
   val nhds: ('a -> bool) -> int -> 'a list -> ('a * 'a list) list
   val log_fold: ('b -> bool) -> ('a -> 'b -> 'b) -> 'a list -> 'b -> 'b list * 'a list
@@ -92,8 +93,14 @@ fun cons_if P x xs = if P x then x :: xs else xs;
 fun find_first _ [] = NONE
   | find_first P (x::xs) = if P x then SOME x else find_first P xs;
 
-fun split _ [] = []
-  | split P (x :: xs) =
+fun classify _ [] = ([], [])
+  | classify P (x :: xs) =
+    let
+      val (ps, not_ps) = classify P xs;
+    in if P x then (x :: ps, not_ps) else (ps, x :: not_ps) end;
+
+fun group_by _ [] = []
+  | group_by P (x :: xs) =
   let
     fun decide y (b, []) = if P y = b then (b, [[y]]) else (not b, [[y]])
       | decide y (b, ys :: yss) =  
