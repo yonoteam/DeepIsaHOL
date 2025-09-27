@@ -80,7 +80,7 @@ fun no_subgoals_at_proof prf_st =
   in null As end;
 
 fun no_subgoals st =
-  if Toplevel.is_proof st then false else
+  if not (Toplevel.is_proof st) then false else
   no_subgoals_at_proof (Toplevel.proof_of st);
 
 fun is_dynamic ctxt (name:string, _: thm list) 
