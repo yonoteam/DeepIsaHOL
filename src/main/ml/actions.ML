@@ -23,17 +23,13 @@ sig
   val make_upto: string -> int -> T list
 
   (* Application *)
+  type stact = T * Toplevel.state * Runtime.error list
   val apply: T -> Toplevel.state -> Toplevel.state * Runtime.error list
   val apply': T -> Toplevel.state -> Toplevel.state
   val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
-  val apply_all: T list -> Toplevel.state 
-      -> (T * Toplevel.state * Runtime.error list) list
-  val apply_while: (T * Toplevel.state * Runtime.error list -> bool)
-      -> T list -> Toplevel.state 
-      -> (T * Toplevel.state * Runtime.error list) list * T list
-  val timed_apply_all: {timeout_in_secs: int} 
-      -> T list -> Toplevel.state
-      -> (T * Toplevel.state * Runtime.error list) list
+  val apply_all: T list -> Toplevel.state -> stact list
+  val apply_while: (stact -> bool) -> T list -> Toplevel.state -> stact list * T list
+  val timed_apply_all: {timeout_in_secs: int} -> T list -> Toplevel.state -> stact list
 end;
 
 
@@ -100,6 +96,8 @@ fun make_upto thy_file line_num =
 
 
 (** APPLICATION **)
+
+type stact = T * Toplevel.state * Runtime.error list (* stateful actions *)
 
 fun apply (Action a) st = 
   let 
