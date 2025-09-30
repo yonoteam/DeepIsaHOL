@@ -251,6 +251,7 @@ end;
 
 fun proof_at thy thy_file line_num =
   Actions.make_upto thy thy_file line_num
+  |> filter (Actions.is_ml orf (Pred.neg (Actions.does_something thy)))
   |> (fn acts => Actions.apply_all acts (Toplevel.make_state NONE))
   |> rev
   |> Pred.take_while (fn (_, st, _) => Toplevel.is_proof st)
@@ -272,7 +273,7 @@ fun make_parseable txt =
   end;
 
 in
-  
+
 fun llm_proof_data thy thy_file line_num =
   let
     val stacts = proof_at thy thy_file line_num;
