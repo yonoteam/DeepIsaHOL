@@ -22,7 +22,7 @@ sig
   val pretty_step: bool -> int -> Proof.context -> Data.T -> Pretty.T
   val pretty_proof: bool -> int -> Data.env -> Data.T Sections.T -> Pretty.T
   val json_proof: (Data.env * Data.T Sections.T) -> string
-  val llm_proof_data: string -> int -> string
+  val llm_proof_data: theory -> string -> int -> string
 end;
 
 
@@ -249,8 +249,8 @@ in
 
 end;
 
-fun proof_at thy_file line_num =
-  Actions.make_upto thy_file line_num
+fun proof_at thy thy_file line_num =
+  Actions.make_upto thy thy_file line_num
   |> (fn acts => Actions.apply_all acts (Toplevel.make_state NONE))
   |> rev
   |> Pred.take_while (fn (_, st, _) => Toplevel.is_proof st)
@@ -273,9 +273,9 @@ fun make_parseable txt =
 
 in
   
-fun llm_proof_data thy_file line_num =
+fun llm_proof_data thy thy_file line_num =
   let
-    val stacts = proof_at thy_file line_num;
+    val stacts = proof_at thy thy_file line_num;
     val (_, st, _) = Ops.last stacts;
     val usr_st = 
       Get.user_state {break_lines=false} st

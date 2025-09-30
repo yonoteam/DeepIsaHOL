@@ -28,9 +28,9 @@ val _ =
     "quries a recommendation from a running llm"
     ((Parse.path -- Parse.int) >> (fn (file_str, line_num) => 
         Toplevel.keep (
-          fn _ => 
+          fn st => 
           let
-            val prf_data = Json_Maker.llm_proof_data file_str line_num;
+            val prf_data = Json_Maker.llm_proof_data (Toplevel.theory_of st) file_str line_num;
           in Output.writeln prf_data end))
     );
 
@@ -40,10 +40,10 @@ val _ =
     ((Parse.path -- Parse.int) 
       >> (fn (file_str, num) => 
         Toplevel.keep_proof (
-          fn _ => 
+          fn st => 
           let
             val _ = Client.connect_to_server 5006;
-            val prf_data = Json_Maker.llm_proof_data file_str num;
+            val prf_data = Json_Maker.llm_proof_data (Toplevel.theory_of st) file_str num;
             val _ = Client.communicate prf_data;
             val response = Client.get_last_response ();
             val _ = Client.disconnect ();

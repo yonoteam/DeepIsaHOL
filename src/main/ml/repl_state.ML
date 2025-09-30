@@ -148,10 +148,10 @@ fun undo state =
 fun reset state = Ops.last state |> Library.single;
 
 (* go_to: (theory * string * string) -> T *)
-fun go_to (thy, thy_path, act_txt) =
+fun go_to (thy, thy_file, act_txt) =
   let
-    val empty_err_mssg = "repl.go_to: empty actions for input " ^ act_txt ^ " on location " ^ thy_path
-    val thy_text = File.read (Path.explode thy_path);
+    val empty_err_mssg = "repl.go_to: empty actions for input " ^ act_txt ^ " on location " ^ thy_file
+    val thy_text = File.read (Get.os_agnostic_path thy_file);
     val acts = Actions.make_filtered thy thy_text;
     val pre_acts = Pred.take_until (Actions.on_text (Pred.contains act_txt)) acts;
     val act_st_errs = Actions.apply_all pre_acts (Toplevel.make_state (SOME thy));

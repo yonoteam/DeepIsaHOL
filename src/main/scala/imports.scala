@@ -256,7 +256,7 @@ object Imports extends OperationCollection {
       compileFunction[Theory, String, Option[Theory]](
       """fn (thy0, thy_file) => let
         |  val transitions =  
-        |    File.read (Path.explode thy_file)
+        |    File.read (Path.explode (ML_System.standard_path thy_file))
         |    |> Outer_Syntax.parse_text thy0 (K thy0) Position.start
         |    |> filter_out (fn tr => Toplevel.name_of tr = "<ignored>");
         |  val final_state = 

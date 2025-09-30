@@ -6,6 +6,8 @@ Part of project DeepIsaHOL. Utilities for retrieving data from Isabelle.
 
 signature GET =
 sig
+  val os_agnostic_path: string -> Path.T
+
   (* FILE INFORMATION *)
   val start_thy_of: string -> theory
   val final_thy_of: string -> theory
@@ -49,6 +51,7 @@ end;
 structure Get: GET =
 struct
 
+val os_agnostic_path = Path.explode o ML_System.standard_path
 
 (** FILE INFORMATION **)
 (* These functions assume that that target file is setup properly *)
@@ -73,7 +76,7 @@ fun transitions thy0 pos0 thy_text =
 
 fun state_transitions thy0 thy_file =
   let
-    val thy_path = Path.explode thy_file;
+    val thy_path = os_agnostic_path thy_file;
     val thy_text = File.read thy_path;
     val trs = transitions thy0 (Position.start) thy_text;
     val st0 = Toplevel.make_state NONE;

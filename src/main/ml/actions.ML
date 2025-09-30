@@ -20,7 +20,7 @@ sig
   val make: theory -> string -> T list
   val make_one: theory -> string -> T
   val make_filtered: theory -> string -> T list
-  val make_upto: string -> int -> T list
+  val make_upto: theory -> string -> int -> T list
 
   (* Application *)
   type stact = T * Toplevel.state * Runtime.error list
@@ -84,13 +84,12 @@ val is_malformed = on_kind (Pred.is "<malformed>");
 
 fun make_filtered thy0 thy_text = void :: (filter (does_something thy0) (make thy0 thy_text));
 
-fun make_upto thy_file line_num =
+fun make_upto thy0 thy_file line_num =
   if line_num <= 0 then raise Fail ("Invalid line number " ^ (Value.print_int line_num))
   else let
-    val thy0 = Get.start_thy_of thy_file;
     fun is_below n a = n < the (Position.line_of (Toplevel.pos_of (transition_of a)))
     val acts = 
-      make thy0 (File.read (Path.explode thy_file))
+      make thy0 (File.read (Get.os_agnostic_path thy_file))
       |> Pred.take_until' (is_below line_num)
   in acts end;
 

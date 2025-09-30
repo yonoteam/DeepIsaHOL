@@ -179,7 +179,7 @@ fun split_whenL _ [] = []
 fun find_files P path =
   let 
     fun sub_elems dir_path = File.read_dir dir_path
-      |> map (Path.append dir_path o Path.explode);
+      |> map (Path.append dir_path o Path.explode o ML_System.standard_path);
     fun conditionally_add elem so_fars =
       if File.is_dir elem then 
         let
