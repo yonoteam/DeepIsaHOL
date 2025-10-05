@@ -102,5 +102,3 @@ dependencies:
     - xformers==0.0.31.post1
     - xxhash==3.5.0
     - yarl==1.20.1
-
-prefix: "/home/huertjon/micromamba/envs/DeepIsaHOL"
