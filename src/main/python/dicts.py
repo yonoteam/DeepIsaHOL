@@ -9,7 +9,8 @@ import json
 import logging
 
 from pathlib import Path
-from typing import Union, Optional, List, IO
+from typing import Union, Optional, List, IO, Any
+from collections.abc import MutableMapping, MutableSequence
 
 def safe_load_json(file_obj: IO[str]) -> dict:
     """
@@ -59,14 +60,47 @@ def clean_linebreaks_in_quoted_strings(text: str) -> str:
 
     return re.sub(r'"(?:[^"\\]|\\.)*?"', replace_new_line, text, flags=re.DOTALL)
 
+def fix_missing_quotations(s: str) -> str:
+    """
+    Fixes strings with an odd number of quotation marks by appending one.
+
+    :param s: input string
+    """
+    double_quotes = s.count('"') % 2
+    if double_quotes:
+        s += '"'
+    return s
+
+def _recursively_fix_string_quotations(data: Any) -> Any:
+    """
+    Recursively applies fix_missing_quotations to all string values 
+    in a dictionary or list.
+    """
+    if isinstance(data, str):
+        return fix_missing_quotations(data)
+    elif isinstance(data, MutableMapping): # Dictionaries
+        return {k: _recursively_fix_string_quotations(v) for k, v in data.items()}
+    elif isinstance(data, MutableSequence): # Lists/Arrays
+        return [_recursively_fix_string_quotations(item) for item in data]
+    else: # int, float, bool, None
+        return data
+
 def fix_json_line_breaks(text: str) -> Optional[str]:
     cleaned = clean_linebreaks_in_quoted_strings(text)
     try:
         parsed = json.loads(cleaned)
     except json.JSONDecodeError as e:
-        logging.error(f"Error fixing JSON: {e}")
+        logging.error(f"Error fixing JSONs line breaks: {e}")
         return None
-    return parsed
+    
+    fixed_json = _recursively_fix_string_quotations(parsed)
+    try:
+        json.dumps(fixed_json)
+    except Exception as e:
+        logging.error(f"Error fixing JSONs quotes: {e}")
+        return None
+    
+    return fixed_json
 
 def fix_json_line_breaks_at(json_path: Path, backing_up: bool = True) -> Optional[str]:
     """
