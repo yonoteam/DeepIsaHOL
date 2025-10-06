@@ -19,6 +19,7 @@ dependencies:
     - aiosignal==1.4.0
     - annotated-types==0.7.0
     - attrs==25.3.0
+    - bitsandbytes==0.46.1
     - certifi==2025.8.3
     - charset-normalizer==3.4.2
     - cut-cross-entropy==25.1.1
@@ -44,6 +45,20 @@ dependencies:
     - multidict==6.6.3
     - multiprocess==0.70.16
     - networkx==3.3
+    - nvidia-cublas-cu12==12.8.3.14
+    - nvidia-cuda-cupti-cu12==12.8.57
+    - nvidia-cuda-nvrtc-cu12==12.8.61
+    - nvidia-cuda-runtime-cu12==12.8.57
+    - nvidia-cudnn-cu12==9.7.1.26
+    - nvidia-cufft-cu12==11.3.3.41
+    - nvidia-cufile-cu12==1.13.0.11
+    - nvidia-curand-cu12==10.3.9.55
+    - nvidia-cusolver-cu12==11.7.2.55
+    - nvidia-cusparse-cu12==12.5.7.53
+    - nvidia-cusparselt-cu12==0.6.3
+    - nvidia-nccl-cu12==2.26.2
+    - nvidia-nvjitlink-cu12==12.8.61
+    - nvidia-nvtx-cu12==12.8.55
     - pandas==2.3.1
     - peft==0.17.0
     - propcache==0.3.2
@@ -69,17 +84,20 @@ dependencies:
     - tiktoken==0.11.0
     - timm==1.0.19
     - tokenizers==0.21.4
-    - torch==2.7.1
-    - torchaudio==2.7.1
-    - torchvision==0.22.1
+    - torch==2.7.1+cu128
+    - torchaudio==2.7.1+cu128
+    - torchvision==0.22.1+cu128
     - tqdm==4.67.1
     - transformers==4.54.1
+    - triton==3.3.1
     - trl==0.20.0
     - typeguard==4.4.4
     - typing-inspection==0.4.1
     - typing_extensions==4.14.1
     - tyro==0.9.27
     - tzdata==2025.2
+    - unsloth==2025.8.1
+    - unsloth_zoo==2025.8.1
     - urllib3==2.5.0
     - xformers==0.0.31.post1
     - xxhash==3.5.0
