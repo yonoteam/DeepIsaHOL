@@ -180,6 +180,9 @@ class REPL:
     def last_proof(self):
         return self._repl.last_proof()
     
+    def save_last_proof(self, file_path, imports_list):
+        return self._repl.save_last_proof(file_path, imports_list)
+    
     def complete_step(self):
         self.apply("done")
         if self.last_error():

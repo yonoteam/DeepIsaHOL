@@ -17,6 +17,7 @@ import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 
 import isabelle_rl._
+import java.util.ArrayList
 
 class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
   // INITIALIZATION
@@ -131,6 +132,20 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
   def last_proof(): String = {
     minion.repl_last_proof_of(state)
   }
+
+  def save_last_proof(file_name: String, imports: ArrayList[String]): String = {
+    val save_path = Path.of(file_name)
+    val thy_name = if (file_name.contains("/")) {
+      file_name.split("/").last
+    } else {
+      file_name
+    } 
+    val header = "theory " + thy_name.stripSuffix(".thy") + "\nimports " + imports.toArray.mkString(" ") + "\nbegin\n\n"
+    val body = this.last_proof() + "\n"
+    val footer = "\n\nend"
+    Files.writeString(save_path, header + body + footer)
+    s"Wrote last proof to $save_path"
+  } 
 
   // def go_back(n: Int): Unit = {
   //   if (n < state_size()) {
