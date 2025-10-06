@@ -42,21 +42,30 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     val thy0 = current_thy_path match {
       case Some(path) => minion.imports.get_end_theory(path)
       case None => 
-        println(s"Warning: the minion did not find $thy_name. Defaulting to theory 'Main'.")
-        Theory("Main")
+        if (Imports.Ops.can_get_thy(thy_name).retrieveNow) {
+          Theory(thy_name)
+        } else {
+          println(s"Warning: the minion did not find $thy_name. Defaulting to theory 'Main'.")
+          Theory("Main")
+        }
     }
     state = minion.repl_init(thy0)
   }
 
   def go_to(thy_name: String, action_text: String): Unit = {
     current_thy_path = minion.get_theory_file_path(thy_name)
-    val thy0 = current_thy_path match {
+    current_thy_path match {
       case Some(path) => 
         val thy = minion.imports.get_start_theory(path)
         state = minion.repl_go_to(thy, path.toString(), action_text)
       case None => 
-        println(s"Warning: the minion did not find $thy_name. Defaulting to theory 'Main'.")
-        state = minion.repl_init(Theory("Main"))
+        val thy0 = if (Imports.Ops.can_get_thy(thy_name).retrieveNow) {
+          Theory(thy_name)
+        } else {
+          println(s"Warning: the minion did not find $thy_name. Defaulting to theory 'Main'.")
+          Theory("Main")
+        }
+        state = minion.repl_init(thy0)
     }
   }
 
