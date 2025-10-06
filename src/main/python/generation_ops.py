@@ -94,7 +94,7 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         # print(f"Generating...")
         predicts = generation_config["generator"](
             x, 
-            max_length=gen_length, 
+            max_new_tokens=gen_length, 
             num_return_sequences=num_return_sequences,
             num_beams=num_beams
         )
