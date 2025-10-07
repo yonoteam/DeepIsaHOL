@@ -130,7 +130,7 @@ def dfs(
         logging.warning(f"First prediction is None at pos={pos} for proof {prf['path']}")
     else:
         first_generation = predicts[0][:200]
-        logging.info(f"gemma successful prediction: {first_generation}")
+        logging.info(f"Successful prediction: {first_generation}")
     
     max_breadth = len(predicts)
 
