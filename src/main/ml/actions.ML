@@ -33,6 +33,9 @@ sig
   val apply_while: (stact -> bool) -> T list -> Toplevel.state -> stact list * T list
   val timed_apply_all: {timeout_in_secs: int} -> T list -> Toplevel.state -> stact list
   val apply_oops: Toplevel.state -> stact list
+  val report_acts: stact list -> string list
+  val extract_err: Runtime.error list -> string
+  val report_errs: stact list -> string list
   val proof_at: theory -> string -> int -> stact list
 end;
 
@@ -155,6 +158,20 @@ fun timed_apply_all {timeout_in_secs=t} acts st =
   in Ops.log_fold (iter_next timeout_apply) (void, st, []) acts end;
 
 fun apply_oops st = apply_all (make (Toplevel.theory_of st) "oops") st;
+
+fun report_acts (stacts: stact list) = map (fn (a, _, _) => text_of a) stacts
+
+fun make_error_str ((num, err), str_opt) =
+  let
+    val str1 = Value.print_int num ^ ": "
+    val str2 = (Print.yxml_to_string err)
+  in (case str_opt of
+    SOME txt => str1 ^ str2 ^ ", opt: " ^ (Print.yxml_to_string txt)
+    | NONE => str1 ^ str2) end;
+
+fun extract_err (mssgs:Runtime.error list) = String.concatWith " | " (map make_error_str mssgs);
+
+fun report_errs (stacts: stact list) = map (fn (_, _, e) => extract_err e) stacts
 
 fun proof_at thy thy_file line_num =
   make_upto thy thy_file line_num

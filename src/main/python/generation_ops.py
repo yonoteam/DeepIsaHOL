@@ -1,4 +1,7 @@
-
+# Mantainers: 
+# Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
+# 
+# Part of project DeepIsaHOL. Generic operations for prompting LLMs for proof generation.
 
 import re
 import logging
@@ -16,12 +19,14 @@ def using_unsloth():
 def get_model_type(config_dict):
     model_name = config_dict["model_name"]
     lower_case_model = model_name.lower()
-    if "t5" in lower_case_model:
+    if "ollama" in lower_case_model:
+        model_type = "ollama"
+    elif "t5" in lower_case_model:
         model_type = "t5"
     elif "gemma" in lower_case_model:
         model_type = "gemma"
     else:
-        raise ValueError(f"Unsupported model: {model_name}. Supported: T5, Gemma.")
+        raise ValueError(f"Unsupported model type: {model_name}. Supported: T5, Gemma, and Ollama.")
     logging.info(f"Model type set to {model_type} based on model name {model_name}.")
     return model_type
 
@@ -63,7 +68,7 @@ def load_tok_model(config_dict):
         print(f"Tokeinzer type = {type(tokenizer)}")
     return tokenizer, model
 
-def extract_gemma_suggestion(text: str) -> Optional[str]:
+def extract_suggestion(text: str) -> Optional[str]:
     pattern = r"<SUGGESTION>(.*?)</SUGGESTION>"
     match = re.search(pattern, text, re.DOTALL)
     if match:
@@ -91,14 +96,29 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
 
     if model_type == "t5":
         x = "isabelle next step: " + x if "finetune" in data_format else x  
-        # print(f"Generating...")
+        # print(f"Generating for prompt: '{x}'...")
         predicts = generation_config["generator"](
             x, 
             max_new_tokens=gen_length, 
             num_return_sequences=num_return_sequences,
             num_beams=num_beams
         )
+        # print(f"Generated {len(predicts)} sequences.")
         predicts = [p["generated_text"] for p in predicts]
+    elif model_type == "ollama":
+        response = generation_config["generator"].generate(
+            model=generation_config["ollama_model"],
+            prompt=tokops.llm_prompt.format(context=x),
+            options={
+                "num_predict": gen_length,
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "top_k": 64,
+            }
+        )
+        generated_text = response.get("response", "")
+        extracted_suggestion = extract_suggestion(generated_text)
+        predicts = [extracted_suggestion] if extracted_suggestion is not None else ["No suggestion generated."]
     elif model_type == "gemma":
         if using_unsloth:
             conversation = tokops.to_gemma_format(x, "")
@@ -113,18 +133,19 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
                 top_p = 0.95,
                 top_k = 64
             )
-            predicts = [extract_gemma_suggestion(p["generated_text"][1]["content"]) for p in predicts]
+            predicts = [extract_suggestion(p["generated_text"][1]["content"]) for p in predicts]
         else:
-            prompt = f"<start_of_turn>user\n{tokops.gemma_prompt.format(context=x)}<end_of_turn>\n<start_of_turn>model"
+            prompt = f"<start_of_turn>user\n{tokops.llm_prompt.format(context=x)}<end_of_turn>\n<start_of_turn>model"
             # print(f"Prompt to Gemma:\n{prompt}")
             predicts = generation_config["generator"](
                 prompt,
                 max_tokens=gen_length,
                 temperature=1.0,
                 top_p=0.95,
-                top_k=64
+                top_k=64,
+                echo=False
             )
-            predicts = [extract_gemma_suggestion(p["text"]) for p in predicts["choices"]]
+            predicts = [extract_suggestion(p["text"]) for p in predicts["choices"]]
 
     # print(f"Prediction from model:\n{predicts[0]}")
     return x, predicts

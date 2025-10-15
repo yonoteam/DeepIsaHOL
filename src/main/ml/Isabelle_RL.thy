@@ -85,9 +85,9 @@ val _ =
             val thy0 = Imports.start_thy_of work_path;
             val _ = Client.connect_to_server 5006;
             val prf_data = Actions.proof_at thy0 (Path.implode work_path) num;
-            val response = LLM.prove 5 prf_data;
+            val prfs = LLM.prove 3 prf_data;
             val _ = Client.disconnect ();
-            val _ =  Output.information (Active.sendback_markup_properties [] response)
+            val _ = map (Output.information o Active.sendback_markup_properties []) prfs;
           in () end))
     );
 \<close>

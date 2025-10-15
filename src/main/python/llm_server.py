@@ -1,6 +1,8 @@
-# llm_server.py
-# A cross-platform TCP server for hosting a local Hugging Face Transformers LLM.
-# Listens on localhost:5006 for newline-delimited JSON requests and returns JSON responses.
+# Mantainers: 
+# Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
+# 
+# Part of project DeepIsaHOL. A server hosting LLMs for proof generation.
+# Listens on localhost:5006 for <|eop|> delimited JSON requests and returns <|eop|> delimited responses.
 
 import os
 import time
@@ -9,6 +11,8 @@ import socket
 import logging
 import threading
 from typing import BinaryIO
+
+import ollama
 
 import dicts
 import proofs
@@ -36,21 +40,33 @@ def make_proof_info(mssg_dict, data_format):
 def prompt_llm(buffer, generation_config):
     end_of_prompt = b"<|eop|>" 
 
-    if end_of_prompt in buffer:
+    if end_of_prompt not in buffer:
+        return b"", buffer
+    
+    try:
         client_byte_mssg, remaining_buffer = buffer.split(end_of_prompt, 1)
         client_str_mssg = client_byte_mssg.decode("utf-8")
-        # print(f"Received this from client: {client_str_mssg}")
+        # print(f"Received this from client: {client_str_mssg}")
         fixed_newlines = dicts.fix_json_line_breaks(client_str_mssg)
         # print(f"This is the result of 'fixing': {fixed_newlines}")
         proof_info = make_proof_info(fixed_newlines, generation_config["data_format"])
-        # print(f"Prepared info is: {proof_info}")
+        print(f"Prepared client info is: {proof_info}")
         _, predicts = genops.generate_predicts(proof_info, generation_config)
-        response_text = predicts[0] if predicts and predicts[0] is not None else "No prediction generated."
-        # print(f"The prepared response is: {response_text}")
+        # print(f"First raw predictions from model: {predicts[0] if predicts else 'None'}")
+        valid_predictions = [proofs.str_ops.fix_missing_quotations(p) for p in predicts if p is not None]
+        # print(f"First predictions after filtering: {valid_predictions[0] if valid_predictions else 'None'}")
+        if not valid_predictions:
+            response_text = "prompt_llm: No prediction generated."
+        else:
+            response_text = "<SEPARATOR>".join(valid_predictions)
+        print(f"The prepared response is: {response_text}")
         response_bytes = response_text.encode("utf-8") + end_of_prompt
         return response_bytes, remaining_buffer
 
-    return b"", buffer
+    except Exception as e:
+        logging.error(f"Error in prompt_llm: {e}", exc_info=True)
+        error_msg = f"Error processing request: {str(e)}"
+        return error_msg.encode("utf-8") + end_of_prompt, b""
 
 def echo_input(buffer):
     end_of_prompt = b"<|eop|>" 
@@ -101,12 +117,14 @@ def handle_client(conn: BinaryIO, addr: tuple, generation_config):
 def configure_generation(config_dict):
     model_type = genops.get_model_type(config_dict)
     data_format = config_dict["data_format"]
-    tokenizer, model = genops.load_tok_model(config_dict)
 
+    logging.info(f"Configuring generation for model type: {model_type}")
     if model_type == "t5":
         generation_task = "text2text-generation"
     elif model_type == "gemma":
         generation_task = "text-generation"
+    else:
+        generation_task = None # ollama uses its own API
 
     generation_config = config_dict.get("generation_config", {}).copy()
     generation_config["data_format"] = data_format
@@ -115,12 +133,28 @@ def configure_generation(config_dict):
 
     if generation_config["use_unsloth"] or model_type == "t5":
         from transformers import pipeline # after genops including unsloth
+        tokenizer, model = genops.load_tok_model(config_dict)
         generation_config["generator"] = pipeline(
             generation_task,
             model=model,
             tokenizer=tokenizer
         )
+        print(f"Loaded {model_type} model with HF pipeline")
+        
+    elif model_type == "ollama":
+        ollama_model = config_dict["model_name"].removeprefix("ollama/")
+        generation_config["generator"] = ollama.Client()
+        generation_config["ollama_model"] = ollama_model
+
+        try:
+            models_list = generation_config["generator"].list()
+            print(f"Connected to Ollama server. Total available models: {len(models_list['models'])}")
+        except Exception as e:
+            print(f"Could not verify Ollama connection: {e}")
+            
+        logging.info(f"Configured Ollama client for model: {ollama_model}")
     else:
+        tokenizer, model = genops.load_tok_model(config_dict)
         generation_config["generator"] = model
     return generation_config
 
@@ -130,12 +164,13 @@ def launch_server(config_dict):
     server_socket_global = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket_global.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    # handle Ctrl-C begin
+    # handle Ctrl+C begin
     def shutdown_signal_handler(sig, frame):
+        logging.info("Shutdown (Ctrl+C) signal received")
         shutdown_event.set()
         time.sleep(0.1)
     signal.signal(signal.SIGINT, shutdown_signal_handler) 
-    # handle Ctrl-C end
+    # handle Ctrl+C end
 
     try:
         server_socket_global.bind((LOCAL_HOST, PORT))
@@ -175,7 +210,10 @@ def launch_server(config_dict):
         if server_socket_global:
             logging.info("Closing LLM server socket.")
             server_socket_global.close()
-        logging.info("LLM server has shut down.")
+        for thread in active_threads:
+            thread.join(timeout=2.0)
+            
+        logging.info("Server shutdown complete")
 
 
 if __name__ == "__main__":

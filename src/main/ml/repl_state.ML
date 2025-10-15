@@ -18,7 +18,6 @@ sig
   val last_state: T -> string
   val last_error: T -> string
   val size: T -> int
-  val extract_err: Runtime.error list -> string
 
   val init: theory -> T
   val read: string * T -> T
@@ -61,16 +60,6 @@ fun make_one (
     e: string) 
   = ({num=n, act=a, st=s, err=e}:step)
 
-fun make_error_str ((num, err), str_opt) =
-  let
-    val str1 = Value.print_int num ^ ": "
-    val str2 = (Print.yxml_to_string err)
-  in (case str_opt of
-    SOME txt => str1 ^ str2 ^ ", opt: " ^ (Print.yxml_to_string txt)
-    | NONE => str1 ^ str2) end;
-
-fun extract_err (mssgs:Runtime.error list) = String.concatWith " | " (map make_error_str mssgs);
-
 
 (* DEFINITION *)
 
@@ -105,7 +94,7 @@ fun read (txt, state) =
     val new_act_sts = Actions.timed_apply_all {timeout_in_secs=10} acts st
     fun convert (act, st, e) =
       let
-        val err = extract_err e;
+        val err = Actions.extract_err e;
       in make_one (n+1, act, st, err) end;
     val state' = map convert new_act_sts
   in rev state' end;
@@ -157,7 +146,7 @@ fun go_to (thy, thy_file, act_txt) =
     val act_st_errs = Actions.apply_all pre_acts (Toplevel.make_state (SOME thy));
     val (act, st', e) = if null act_st_errs then raise Fail empty_err_mssg
       else Ops.last act_st_errs;
-    val err = extract_err e;
+    val err = Actions.extract_err e;
   in [make_one(0, act, st', err)] end;
 
 

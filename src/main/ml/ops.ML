@@ -27,6 +27,7 @@ sig
   val bifurcate_at: ''a -> ''a list -> ''a list * ''a * ''a list
   val segmentate_by: ''a list -> ''a list -> ''a list list
   val split_at: string -> string -> string list
+  val split_without: string -> string -> string list
   val replace_all: string -> string -> string -> string
   val unprefix_unsufix: string -> string -> string
 
@@ -182,7 +183,13 @@ fun segmentate_by [] ys = [ys]
            else [not_x @ coincidences @ hd xss] @ (tl xss) end;
      in result end;
 
-fun split_at split_str target_str = space_explode split_str target_str;
+fun split_at split_str target_str = 
+  segmentate_by (String.explode split_str) (String.explode target_str)
+  |> map String.implode;
+
+fun split_without split_str target_str = 
+  split_at split_str target_str
+  |> filter_out (fn s => Pred.is split_str s);
 
 fun replace_all str1 str2 txt =
   let

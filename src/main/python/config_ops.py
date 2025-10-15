@@ -92,6 +92,7 @@ pretrain_model = "pretrain_model"
 finetune_model = "finetune_model"
 eval_model = "eval_model"
 dfs_eval = "dfs_eval"
+deploy_server = "deploy_server"
 
 EXAMPLE_CONFIG_DICT = {
     "task": pretrain_model,
