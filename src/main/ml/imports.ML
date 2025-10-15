@@ -10,15 +10,24 @@ structure Path_Graph = Graph(type key = Path.T val ord = string_ord o apply2 Pat
 
 signature IMPORTS =
 sig
+  (* LOCATING *)
+  val locate_in: Path.T list -> string -> Path.T option
+  val locate_as_file: string -> Path.T option
+  val isa_find_import: string -> Path.T option
+  val isa_can_load_thy: string -> bool
+  val isa_load_import: string -> Path.T option
+  val find_import: Path.T list -> string -> Path.T option
   val get_work_path: unit -> Path.T
   val to_string: unit -> string
   val init_for: Path.T -> unit
   val load_upto_start_of: Path.T -> unit
   val load_upto_end_of: Path.T -> unit
   val load_all: unit -> unit
-  val to_local_list: unit -> Path.T list
   val start_thy_of: Path.T -> theory
   val final_thy_of: Path.T -> theory
+  val list_all: unit -> Path.T list
+  val to_local_list: unit -> Path.T list
+  val is_at_end: Path.T -> bool
 end;
 
 structure Imports: IMPORTS =
@@ -27,10 +36,14 @@ struct
 
 (* IMPORTS TYPE *)
 
+type entry = {theory: theory, at_end: bool};
+
+fun make_entry thy at_end = {theory=thy, at_end=at_end}: entry;
+
 type T = {
   work_path: Path.T,
   thy_paths: Path.T list,
-  graph: (theory* bool) option Path_Graph.T
+  graph: entry option Path_Graph.T
   } Synchronized.var
 
 fun work_path_of (imports: T) = #work_path (Synchronized.value (imports));
@@ -40,7 +53,7 @@ fun string_of imports = "Imports(" ^ (Path.implode (work_path_of imports)) ^ ")"
 val abs_imports: T = Synchronized.var "Imports_Graph" {
     work_path = File.absolute_path Path.current,
     thy_paths = []: Path.T list,
-    graph = Path_Graph.empty: (theory* bool) option Path_Graph.T
+    graph = Path_Graph.empty: entry option Path_Graph.T
   };
 
 (* val _ = ML_system_pp (fn _ => fn _ => ML_Pretty.str o string_of); *)
@@ -58,46 +71,98 @@ fun upd_graph g = change_to {
 
 
 
-(* LOCATION *)
+(* LOCATING *)
+
+local
+
+fun looks_pathy import_str = Pred.contains "/" import_str;
+
+fun looks_namy import_str = Pred.contains "." import_str 
+  andalso not (looks_pathy import_str)
+  andalso not (Pred.ends_with ".thy" import_str);
+
+fun is_thy_path import_str = looks_pathy import_str 
+  andalso Pred.ends_with ".thy" import_str;
+
+fun get_file_name import_str =
+  if looks_namy import_str then (Long_Name.base_name import_str) ^ ".thy"
+  else if is_thy_path import_str then Path.implode (Path.base (Path.explode import_str))
+  else if looks_pathy import_str then Path.implode (Path.base (Path.explode (import_str ^ ".thy")))
+  else if Pred.ends_with ".thy" import_str then import_str
+  else import_str ^ ".thy";
+
+in 
 
 fun locate_in paths import_str =
   let
-    val get_name = Path.base #> Path.implode
-    val name_of_import =
-      if Pred.contains "." import_str
-        andalso not (Pred.contains "/" import_str)
-      then (Long_Name.base_name import_str) ^ ".thy"
-      else if Pred.contains "/" import_str
-      then import_str |> Path.explode |> get_name
-      else import_str ^ ".thy"
-    fun has_import_name path = Pred.is name_of_import (get_name path)
-    val opt_result = Pred.find_first has_import_name paths;
+    val possible_ending = get_file_name import_str;
+    fun ends_as_import path = Pred.ends_with possible_ending (Path.implode path)
+    val opt_result = Pred.find_first ends_as_import paths;
   in opt_result end;
 
-fun find_import paths import_str = 
-  case Resources.find_theory_file import_str of
-    SOME path => path
-    | NONE => (case locate_in paths import_str of
-      SOME path => path
-      | NONE => raise Fail ("find_import: Could not find path for: " ^ import_str));
+fun locate_as_file import_str =
+  let val file_path = Path.explode (import_str ^ ".thy") in
+  if File.is_file file_path
+  then SOME file_path
+  else NONE end;
+
+end;
+
+fun isa_find_import import_str = 
+  if Basics.can Resources.find_theory_file import_str
+  then Resources.find_theory_file import_str
+  else NONE;
+
+val isa_can_load_thy = Basics.can Thy_Info.get_theory;
+
+fun isa_load_import import_str =
+  if isa_can_load_thy import_str 
+  then SOME (Path.explode ("ISA_FOUND="^import_str))
+  else NONE;
+
+infix 1 else_try;
+
+fun (opt_x else_try opt_y) =
+  (case opt_x of SOME y => SOME y | NONE => opt_y); 
+
+fun find_import paths import_str =
+  isa_load_import import_str
+  else_try isa_find_import import_str
+  else_try locate_in paths import_str
+  else_try locate_as_file import_str;
 
 
 (* INITIALIZATION *)
+
+fun init_found found_str =
+  let
+    val key = Library.unprefix "ISA_FOUND=" found_str;
+    val thy = Thy_Info.get_theory key;
+  in (the (isa_find_import key), SOME (make_entry thy true)) end;
+
+fun init_entry paths import_str =
+  (case find_import paths import_str of
+    SOME path => 
+      let val path_str = Path.implode path in 
+      if Pred.starts_with "ISA_FOUND=" path_str
+      then init_found path_str
+      else (path, NONE) end
+    | NONE => 
+      (Output.warning ("Did not find import: " ^ import_str);
+      (Path.explode import_str, NONE))
+  )
 
 fun init_deps paths =
   let
     fun add_ancesters path graph =
       if is_some (Path_Graph.get_node graph path) then graph
       else let
-        fun init_entry import_str =
-          case Basics.try Thy_Info.get_theory import_str of
-            SOME thy => (Path.explode ("ISA_FOUND=" ^ import_str), SOME (thy, true))
-            | NONE => (find_import paths import_str, NONE);
+        (* val _ = Output.tracing ("Adding path" ^ (Path.implode path)); *)
         val imports = path
           |> File.read
           |> Thy_Header.read Position.none
           |> #imports
-          |> map (init_entry o fst);
+          |> map (init_entry paths o fst);
         fun add_next parent graph = 
           let 
             val parent_key = fst parent; 
@@ -143,9 +208,9 @@ fun upd_with_start_thy thy_path graph =
     val header = Thy_Header.read Position.none thy_text;
     val parents = 
       Path_Graph.immediate_succs graph thy_path
-      |> map (fst o the o Path_Graph.get_node graph)
+      |> map (#theory o the o Path_Graph.get_node graph)
     val thy0 = Resources.begin_theory (Path.dir thy_path) header parents;
-  in Path_Graph.map_node thy_path (fn _ => SOME (thy0, false)) graph end;
+  in Path_Graph.map_node thy_path (fn _ => SOME (make_entry thy0 false)) graph end;
 
 (* it assumes that all parent theories are defined in the graph *)
 fun upd_with_final_thy thy_path graph =
@@ -154,12 +219,12 @@ fun upd_with_final_thy thy_path graph =
     val header = Thy_Header.read Position.none thy_text;
     val parents = 
       Path_Graph.immediate_succs graph thy_path
-      |> map (fst o the o Path_Graph.get_node graph)
+      |> map (#theory o the o Path_Graph.get_node graph)
     val thy0 = Resources.begin_theory (Path.dir thy_path) header parents;
-    val thyN = (case final_thy thy0 thy_text of
-      SOME thy => SOME (thy, true)
+    val new_entry = (case final_thy thy0 thy_text of
+      SOME thy => SOME (make_entry thy true)
       | NONE => NONE);
-  in Path_Graph.map_node thy_path (fn _ => thyN) graph end;
+  in Path_Graph.map_node thy_path (fn _ => new_entry) graph end;
 
 fun upd_ancesters_of thy_path graph =
   if not (Path_Graph.defined graph thy_path)
@@ -168,7 +233,7 @@ fun upd_ancesters_of thy_path graph =
     val ancesters = List.rev (tl (Path_Graph.all_succs graph [thy_path]));
     fun load_next ancester graph =
       (case Path_Graph.get_node graph ancester of
-        SOME (_, b) => if b then graph else upd_with_final_thy ancester graph
+        SOME entry => if #at_end entry then graph else upd_with_final_thy ancester graph
         | NONE => upd_with_final_thy ancester graph);
   in fold load_next ancesters graph end;
 
@@ -186,20 +251,16 @@ fun load_upto_end_of thy_path =
 fun load_upto_start_of thy_path =
   upd_graph (upd_upto_start_of thy_path (get_graph ()));
 
-fun upd_all graph =
-  let 
+fun all_keys graph =
+  let
     val eldests = Path_Graph.maximals graph;
     val ordered_keys = Path_Graph.all_preds graph eldests;
-  in fold upd_upto_end_of ordered_keys graph end;
+  in ordered_keys end;
+
+fun upd_all graph =
+  fold upd_upto_end_of (all_keys graph) graph;
 
 val load_all = upd_graph o upd_all o get_graph;
-
-fun to_local_list () =
-  let
-    fun eq_keys (p1, p2) = Pred.is (Path.implode p1) (Path.implode p2)
-    val eldests = Path_Graph.maximals (get_graph ());
-    val ordered_keys = Path_Graph.all_preds (get_graph ()) eldests;
-  in Library.inter eq_keys (get_thys ()) ordered_keys end;
 
 fun checking_inputs_of_do path f = 
   let val file_name = Path.implode path in
@@ -211,10 +272,27 @@ fun checking_inputs_of_do path f =
 
 fun start_thy_of thy_path =
   checking_inputs_of_do thy_path
-  (load_upto_start_of thy_path; fst (the (Path_Graph.get_node (get_graph ()) thy_path)));
+  (load_upto_start_of thy_path; #theory (the (Path_Graph.get_node (get_graph ()) thy_path)));
 
 fun final_thy_of thy_path =
   checking_inputs_of_do thy_path 
-  (load_upto_end_of thy_path; fst (the (Path_Graph.get_node (get_graph ()) thy_path)));
+  (load_upto_end_of thy_path; #theory (the (Path_Graph.get_node (get_graph ()) thy_path)));
+
+
+(* INFORMATION RETRIEVAL *)
+
+fun list_all () = all_keys (get_graph ());
+
+fun to_local_list () =
+  let
+    fun eq_keys (p1, p2) = Pred.is (Path.implode p1) (Path.implode p2)
+    val ordered_keys = all_keys (get_graph ());
+  in Library.inter eq_keys (get_thys ()) ordered_keys end;
+
+fun is_at_end thy_path =
+  checking_inputs_of_do thy_path 
+    (case Path_Graph.get_node (get_graph ()) thy_path of
+      SOME entry => #at_end entry
+      | NONE => false);
 
 end;

@@ -15,6 +15,7 @@ sig
   val pos_of: T -> Position.T
   val on_text: (string -> 'a) -> T -> 'a
   val on_kind: (string -> 'a) -> T -> 'a
+  val by_to_apply: Proof.context -> T -> string
   val does_something: theory -> T -> bool
   val is_malformed: T -> bool
   val is_ml: T -> bool
@@ -31,6 +32,8 @@ sig
   val apply_all: T list -> Toplevel.state -> stact list
   val apply_while: (stact -> bool) -> T list -> Toplevel.state -> stact list * T list
   val timed_apply_all: {timeout_in_secs: int} -> T list -> Toplevel.state -> stact list
+  val apply_oops: Toplevel.state -> stact list
+  val proof_at: theory -> string -> int -> stact list
 end;
 
 
@@ -59,6 +62,26 @@ fun pos_of (Action a) = Toplevel.pos_of (#transition a);
 fun on_text f act = f (text_of act);
 
 fun on_kind f act = f (kind_of act);
+
+fun by_to_apply ctxt act =  
+  let
+    val mk_toks = Get.tokens {filtered=true} ctxt;
+    val untoks = Print.coalesce_method_txt o map Token.unparse;
+    val no_by_txt = unprefix "by" (text_of act);
+    (* adding an `apply` at the end to make the parsers work correctly *)
+    val toks_to_parse = mk_toks (no_by_txt ^ " apply"); 
+    val untoked_txt = untoks toks_to_parse;
+    val opt_parsed = try (Method.parse -- Scan.option Method.parse) toks_to_parse;
+    val result = (case opt_parsed of 
+      SOME ((_, opt_m2), rest_toks) => (case opt_m2 of 
+        SOME _ => let
+            val m1_rest_txt = untoks (snd (Method.parse toks_to_parse));
+            val m2_txt = unsuffix (untoks rest_toks) m1_rest_txt;
+            val m1_txt = unsuffix m1_rest_txt untoked_txt;
+          in "apply " ^ m1_txt ^ "\n  apply " ^ m2_txt end
+        | NONE => "apply " ^ (unsuffix (untoks rest_toks) untoked_txt))
+      | NONE => "apply" ^ no_by_txt)
+  in result end;
 
 fun make thy0 thy_text =
   let
@@ -130,5 +153,15 @@ fun timed_apply_all {timeout_in_secs=t} acts st =
         Exn.Exn exn => (st, Runtime.exn_messages exn)
       | Exn.Res result => result;
   in Ops.log_fold (iter_next timeout_apply) (void, st, []) acts end;
+
+fun apply_oops st = apply_all (make (Toplevel.theory_of st) "oops") st;
+
+fun proof_at thy thy_file line_num =
+  make_upto thy thy_file line_num
+  |> filter_out (is_ml orf Pred.neg (does_something thy))
+  |> (fn acts => apply_all acts (Toplevel.make_state NONE))
+  |> rev
+  |> Pred.take_while (fn (_, st, _) => Toplevel.is_proof st)
+  |> rev;
 
 end;

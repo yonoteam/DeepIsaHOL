@@ -12,6 +12,8 @@ sig
   val string_of_type: Proof.context -> typ -> string
   val ast_of_term: term -> string
   val write_to_file: string -> string -> unit
+  val coalesce_method_txt: string list -> string
+  val make_parseable: string -> string
   val pretty_json_elem: string -> Pretty.T -> Pretty.T
   val pretty_json_attribs: bool -> string -> string -> int -> Pretty.T list -> Pretty.T
   val pretty_json_attrib: bool -> int -> string -> Pretty.T -> Pretty.T
@@ -41,6 +43,27 @@ fun write_to_file file_name str =
     val err = Exn.result TextIO.output (file, str ^ "\n");
     val _ = TextIO.closeOut(file)
   in Exn.release err end;
+
+fun make_parseable txt =
+  let
+    val backslash = "\\";
+    val new_line = "\n";
+    val quote = "\"";
+    val str_quote = backslash ^ quote;
+    val isa_quote = backslash ^ "<";
+  in Ops.replace_all quote (str_quote) txt
+    |> Ops.replace_all isa_quote (backslash ^ isa_quote)
+    |> Ops.replace_all new_line "\\n"
+    |> Library.enclose quote quote
+  end;
+
+fun coalesce_method_txt [] = ""
+  | coalesce_method_txt [s] = s
+  | coalesce_method_txt (s1 :: s2 :: ss) =
+      if Library.member (op =) ["(", "["] s1
+        orelse Library.member (op =) [")", "]", ":", ";"] s2
+      then s1 ^ coalesce_method_txt (s2 :: ss)
+      else s1 ^ " " ^ coalesce_method_txt (s2 :: ss);
 
 
 (** PRETTY PRINTING **)
