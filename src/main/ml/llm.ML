@@ -135,7 +135,7 @@ fun prove max_depth prf_so_far =
       |> map (filter (fn (a, _, _) => Actions.on_kind (Pred.is_not "<ignored>") a))
       |> map (map (fn (a, _, _) => Actions.text_of a ^ "\n  "));
     val pref = implode (map (fn (a, _, _) => Actions.text_of a) prf_so_far);
-  in map (Library.unprefix (pref ^ "\n") o implode) to_concats end;
+  in map (Ops.safe_unprefix (pref ^ "\n") o implode) to_concats end;
 
 
 end;
