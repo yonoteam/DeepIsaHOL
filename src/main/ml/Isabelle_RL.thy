@@ -28,7 +28,7 @@ ML_file "writer.ML"
 ML \<open>
 val _ =
   Outer_Syntax.command \<^command_keyword>\<open>llm_init\<close>
-    "quries a recommendation from a running llm"
+    "enables loading the right Isabelle context for the LLM"
     (Parse.path >> (fn file_str =>
       Toplevel.keep (fn _ =>
         let
@@ -41,7 +41,7 @@ val _ =
 
 val _ =
   Outer_Syntax.command \<^command_keyword>\<open>show_proof_at\<close>
-    "quries a recommendation from a running llm"
+    "shows the proof progress up to the input line"
     ((Parse.int) >> (fn line_num => 
         Toplevel.keep (
           fn _ => 
@@ -75,7 +75,7 @@ val _ =
 
 val _ =
   Outer_Syntax.command \<^command_keyword>\<open>llm_try_proof\<close>
-    "quries a recommendation from a running llm"
+    "attempts a proof by repeatedly calling a running llm"
     ((Parse.int) 
       >> (fn num => 
         Toplevel.keep_proof (
