@@ -6,6 +6,8 @@ begin
 declare [[ML_print_depth = 4000000]]
 ML_file "~/Programs/deepIsaHOL/src/main/ml/pred.ML"
 ML_file "~/Programs/deepIsaHOL/src/main/ml/ops.ML"
+ML_file "~/Programs/deepIsaHOL/src/main/ml/print.ML"
+ML_file "~/Programs/deepIsaHOL/src/main/ml/imports.ML"
 ML_file "~/Programs/deepIsaHOL/src/main/ml/get.ML"
 
 

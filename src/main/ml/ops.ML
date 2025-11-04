@@ -219,7 +219,7 @@ fun unprefix_unsufix substr target_str =
 (** SYSTEM OPERATIONS **)
 
 (* WARNING: potential slowdown due to overhead if too many calls to this method *)
-fun apply_with_timeout timeout f x  = 
+(* fun apply_with_timeout timeout f x  = 
   let
     val future_val = Future.fork (fn () => f x)
 
@@ -232,7 +232,9 @@ fun apply_with_timeout timeout f x  =
           else if so_far > timeout then (Future.cancel future_val; Exn.capture_body (fn () => raise Timeout.TIMEOUT so_far))
           else (OS.Process.sleep (Time.fromMilliseconds 100); wait_for_future start_time)
       end;
-  in wait_for_future (Time.now ()) end;
+  in wait_for_future (Time.now ()) end; *)
+
+fun apply_with_timeout timeout f x = Exn.result (Timeout.apply timeout f) x
 
 fun path_prefix_up_to parent_name path =
   let
