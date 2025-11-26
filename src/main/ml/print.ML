@@ -10,6 +10,7 @@ sig
   val string_of_pretty: Pretty.T -> string
   val string_of_term: Proof.context -> term -> string
   val string_of_type: Proof.context -> typ -> string
+  val string_of_sort: Proof.context -> sort -> string
   val ast_of_term: term -> string
   val write_to_file: string -> string -> unit
   val coalesce_method_txt: string list -> string
@@ -33,6 +34,10 @@ fun string_of_term ctxt t =
 
 fun string_of_type ctxt T = 
   Syntax.string_of_typ ctxt T
+  |> Protocol_Message.clean_output;
+
+fun string_of_sort ctxt T = 
+  Syntax.string_of_sort ctxt T
   |> Protocol_Message.clean_output;
 
 val ast_of_term = ML_Syntax.print_term;

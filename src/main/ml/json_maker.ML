@@ -216,6 +216,53 @@ in
         [act, usr_out, goal, hs, seen, vs, cs, Ts]
     in Print.pretty_json_attrib debug lvl "step" pretty_state end;
   
+  fun entry_to_jtype name key_to_str val_to_str (i, (k, vs)) =
+    let
+      val v = (Library.space_implode ", " (map val_to_str vs)) ^ " :: " ^ key_to_str k;
+    in (name ^ Value.print_int i, Json.JString v) end;
+
+  fun json_step ctxt0 data =
+    let
+      val st = Data.state_of data;
+      val ctxt0' = if Toplevel.is_proof st 
+        then Proof.context_of (Toplevel.proof_of st) 
+        else ctxt0
+      val ctxt = ctxt0'
+        |> Config.put show_sorts false
+        |> Config.put show_types false;
+      val act = Data.action_of data
+        |> Actions.text_of;
+      val usr_st = Get.user_state {break_lines=false} st;
+      val goal = Data.goal_of data
+        |> Print.string_of_term ctxt;
+      val hyps = Data.hyps_of data
+        |> Json.make_jtype_list "term" (Json.JString o Print.string_of_term ctxt);
+      val proven = Data.proven_of data
+        |> Json.make_jtype_list "proven" (Json.JString o Print.string_of_term ctxt);
+      val vs = Data.vars_of data
+        |> alist_by vars_info
+        |> Ops.enumerate
+        |> map (entry_to_jtype "Type" (Print.string_of_type ctxt) (Print.string_of_term ctxt));
+      val cs = Data.consts_of data
+        |> alist_by const_info
+        |> Ops.enumerate
+        |> map (entry_to_jtype "Type" (Print.string_of_type ctxt) (Print.string_of_term ctxt));
+      val Ts = Data.types_of data
+        |> alist_by types_info
+        |> Ops.enumerate
+        |> map (entry_to_jtype "Type" (Print.string_of_sort ctxt) (Print.string_of_type ctxt));
+    in Json.JObj [
+      ("action", Json.JString act),
+      ("user_state", Json.JString usr_st),
+      ("term", Json.JString goal),
+      ("hyps", Json.JList hyps),
+      ("proven", Json.JList proven),
+      ("variables", Json.JObj vs),
+      ("constants", Json.JObj cs),
+      ("type variables", Json.JObj Ts)
+    ]
+    end;
+
   (* pretty_json_proof: bool -> int -> Data.env -> Data.T Sections.T -> Pretty.T *)
   fun pretty_proof debug lvl env prf =
     let
