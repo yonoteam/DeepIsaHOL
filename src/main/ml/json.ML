@@ -53,13 +53,12 @@ fun upd (key, value) (JSON js) = JSON (AList.update (op =) (key, value) js);
 
 fun del key (JSON js) = JSON (AList.delete (op =) key js);
 
-fun get_or_else key to_val default (JSON js) =
-  (case get key (JSON js) of
-    SOME v => to_val v
-    | NONE => default);
-
-fun make_jtype_list name to_jtyp vs =
-  map (fn v => JObj [(name, to_jtyp v)]) vs;
+fun str_of_atom JNull = "null"
+  | str_of_atom (JBool b) = Value.print_bool b
+  | str_of_atom (JInt n) = Value.print_int n
+  | str_of_atom (JFloat r) = Value.print_real r
+  | str_of_atom (JString s) = Print.make_parseable s
+  | str_of_atom _ = raise Fail "Json.str_of_atom called on non-atom.";
 
 fun atoms idxs (JObj [(k, v)]) = atoms (JString k :: idxs) v
   | atoms idxs (JObj ((k, v) :: kvs')) = 
@@ -86,6 +85,70 @@ fun size jt =
     | _ => 1 + sum)
   in fold add_size jt 0 end;
 
+fun damply_via free lim jt =
+  let
+    fun add_to buff0 str =
+      let
+        val buff1 = buff0 ^ str
+        val buff2 = if String.size buff0 > lim 
+          then ((free buff1); "") else buff1
+      in buff2 end;
+    fun rec_add_to buff i jt  =
+      (case jt of
+        JList [] => add_to buff "[]" 
+        | JList js =>
+          let
+            val buff = add_to buff "[\n"
+            val indent = Symbol.spaces (i + 2)
+            fun add_next j (is_first, b) =
+              let
+                val b = if is_first then b else add_to b ",\n"
+                val b = add_to b indent
+                val b = rec_add_to b (i + 2) j
+              in (false, b) end
+            val (_, buff) = Basics.fold add_next js (true, buff)
+          in
+            add_to buff ("\n" ^ Symbol.spaces i ^ "]")
+          end
+        | JObj [] => add_to buff "{}"
+        | JObj kvs =>
+            let
+              val buff = add_to buff "{\n"
+              val indent = Symbol.spaces (i + 2)
+              fun add_next (k, v) (is_first, b) =
+                let
+                  val b = if is_first then b else add_to b ",\n"
+                  val b = add_to b (indent ^ Library.quote k ^ ": ")
+                  val b = rec_add_to b (i + 2) v
+                in (false, b) end
+              val (_, buff) = Basics.fold add_next kvs (true, buff)
+            in
+              add_to buff ("\n" ^ Symbol.spaces i ^ "}")
+            end
+      | atom => add_to buff (str_of_atom atom)
+    )
+  in
+    let 
+      val final_buff = rec_add_to "" 0 jt 
+    in free final_buff end
+  end;
+
+fun write_to file_path (JSON jt) =
+  let
+    val path = Get.os_agnostic_path file_path
+    fun write_to stream jt = damply_via (File_Stream.output stream) 4096 jt;
+  in
+    File_Stream.open_output (fn stream => write_to stream (JObj jt)) path
+  end;
+
+fun get_or_else key to_val default (JSON js) =
+  (case get key (JSON js) of
+    SOME v => to_val v
+    | NONE => default);
+
+fun make_jtype_list name to_jtyp vs =
+  map (fn v => JObj [(name, to_jtyp v)]) vs;
+
 fun str_of_list _ _ [] = ""
   | str_of_list to_str i [x] = Symbol.spaces i ^ (to_str x)
   | str_of_list to_str i (x :: xs) = 
@@ -108,60 +171,5 @@ fun to_string (JSON js) = str_of_jtype 0 (JObj js);
 
 val _ = ML_system_pp (fn _ => fn _  => ML_Pretty.str o to_string);
 
-fun print buff free lim i jt =
-  let
-    fun safely_add buff' str =
-      let
-        val buff'' = buff' ^ str
-        val result = if String.size buff' > lim 
-          then ((free buff''); "")
-          else buff''
-      in result end;
-    fun rec_print i buff (JList xs) =
-        let
-          val lead = "\n" ^ Symbol.spaces (i+2);
-          fun add_all [] buff' = buff'
-            | add_all [j] buff' = 
-              if size j > lim then 
-                (free (buff' ^ lead); rec_print (i+2) "" j)
-              else safely_add (buff' ^ lead) (str_of_jtype (i+2) j)
-            | add_all (j::js) buff' =
-              if size j > lim then 
-                (free (buff' ^ lead); add_all js ((rec_print (i+2) "" j) ^ ", "))
-              else add_all js (safely_add (buff' ^ lead) ((str_of_jtype (i+2) j) ^ ", "));
-          val result = if null xs then "[]" else 
-            let
-              val buff' = safely_add buff "[" |> add_all xs;
-            in safely_add buff' ("\n" ^ Symbol.spaces i ^ "]") end;
-        in result end
-      | rec_print i buff (JObj js) =
-        let
-          fun lead k = "\n" ^ Symbol.spaces (i+2) ^ Library.quote k ^ ": ";
-          fun add_all [] buff' = buff'
-            | add_all [(k,v)] buff' = 
-              if size v > lim then 
-                (free (buff' ^ lead k); rec_print (i+2) "" v)
-              else safely_add (buff' ^ lead k) (str_of_jtype (i+2) v)
-            | add_all ((k,v)::js) buff' =
-              if size v > lim then 
-                (free (buff' ^ lead k); add_all js ((rec_print (i+2) "" v) ^ ", "))
-              else add_all js (safely_add (buff' ^ lead k) ((str_of_jtype (i+2) v) ^ ", "));
-          val result = if null js then "{}" else 
-            let
-              val buff' = safely_add buff "{" |> add_all js;
-            in safely_add buff' ("\n" ^ Symbol.spaces i ^ "}") end;
-        in result end
-      | rec_print i buff (JString str) =
-        let
-          val pre_result = str_of_jtype i (JString str)
-          val result = if String.size pre_result > lim
-            then ((free buff); (free pre_result); "")
-            else safely_add buff (str_of_jtype i (JString str))
-        in result end
-      | rec_print i buff jt = safely_add buff (str_of_jtype i jt);
-  in free (rec_print i buff jt) end;
-
-fun write_to file_path (JSON jt)
-  = print "" (File.append (Get.os_agnostic_path file_path)) 10000 0 (JObj jt)
 
 end;
