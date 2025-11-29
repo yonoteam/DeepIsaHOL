@@ -51,16 +51,13 @@ fun write_to_file file_name str =
 
 fun make_parseable txt =
   let
-    val backslash = "\\";
-    val new_line = "\n";
-    val quote = "\"";
-    val str_quote = backslash ^ quote;
-    val isa_quote = backslash ^ "<";
-  in Ops.replace_all quote (str_quote) txt
-    |> Ops.replace_all isa_quote (backslash ^ isa_quote)
-    |> Ops.replace_all new_line "\\n"
-    |> Library.enclose quote quote
-  end;
+    fun escape #"\"" = "\\\""
+      | escape #"\\" = "\\\\"
+      | escape #"\n" = "\\n"
+      | escape #"\t" = "\\t"
+      | escape #"\r" = "\\r"
+      | escape c = String.str c
+  in "\"" ^ String.translate escape txt ^ "\"" end;
 
 fun coalesce_method_txt [] = ""
   | coalesce_method_txt [s] = s

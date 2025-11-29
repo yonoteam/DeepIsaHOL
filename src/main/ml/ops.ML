@@ -194,12 +194,21 @@ fun split_without split_str target_str =
   |> filter_out (fn s => Pred.is split_str s);
 
 fun replace_all str1 str2 txt =
-  let
-    val chars = String.explode txt;
-    val cs1 = String.explode str1;
-    val cs2 = String.explode str2;
-    fun replace subcs = if subcs = cs1 then cs2 else subcs;
-  in String.concat (map (String.implode o replace) (segmentate_by cs1 chars)) end;
+  if String.size str1 = 0 then txt
+  else let
+    fun rec_replace str1 str2 txt =
+      let
+        val len1 = String.size str1;
+        val len_txt = String.size txt;
+        fun extr (pos, opt) = String.extract (txt, pos, opt);
+        fun find_and_replace pos acc =
+          if pos >= len_txt then acc ^ (extr (pos, NONE))
+          else (case String.isPrefix str1 (extr (pos, NONE)) of
+            true => find_and_replace (pos + len1) (acc ^ str2)
+            | false => find_and_replace (pos + 1) (acc ^ (extr (pos,(SOME 1))))
+          )
+       in find_and_replace 0 "" end
+  in rec_replace str1 str2 txt end;
 
 fun safe_unprefix substr target_str =
   if Pred.starts_with substr target_str 

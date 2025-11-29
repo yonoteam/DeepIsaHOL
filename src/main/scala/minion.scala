@@ -96,31 +96,14 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   // MINION WRITING TASKS
   private object ML_writer {   
     val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
-    final val extract : MLFunction2[Theory, String, String] 
-      = compileFunction[Theory, String, String](s"${ml_writer}.extract_jsons")
     final val write_json_proofs : MLFunction3[String, Theory, String, Unit] 
       = compileFunction[String, Theory, String, Unit](s"${ml_writer}.write_json_proofs")
-    final val write_g2tac_proofs : MLFunction3[String, Theory, String, Unit] 
-      = compileFunction[String, Theory, String, Unit](s"${ml_writer}.write_g2tac_proofs")
-  }
-  
-  def extract (thy_file_path: Path): List[String] = {  
-    val thy0 = imports.get_start_theory(thy_file_path)
-    val thy_text = imports.get_file_text(thy_file_path)
-    val jsons = ML_writer.extract(thy0, thy_text)
-    jsons.retrieveNow.split(" ISA_RL_SEP ").toList
   }
 
   def write_json_proofs (write_dir: Path, thy_file_path: Path): Unit = {
     val thy0 = imports.get_start_theory(thy_file_path)
     val thy_text = imports.get_file_text(thy_file_path)
     ML_writer.write_json_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
-  }
-
-  def write_g2tac_proofs (write_dir: Path, thy_file_path: Path): Unit = {
-    val thy0 = imports.get_start_theory(thy_file_path)
-    val thy_text = imports.get_file_text(thy_file_path)
-    ML_writer.write_g2tac_proofs(write_dir.toString(), thy0, thy_text).retrieveNow
   }
 
   // MINION REPL TASKS

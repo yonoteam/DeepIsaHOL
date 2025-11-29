@@ -22,8 +22,6 @@ ML_file "llm.ML"
 
 ML_file "data.ML"
 ML_file "json.ML"
-ML_file "json_maker.ML"
-ML_file "g2tac_formatter.ML"
 ML_file "writer.ML"
 
 ML \<open>

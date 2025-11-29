@@ -50,15 +50,6 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
     }
   }
 
-  def get_proofs_data(file_path: Path): List[String] = {
-    Try(minion.extract(file_path)) match {
-        case Success(json_java_strs) => json_java_strs.map(_.replace("\\<", "\\\\<"))
-        case Failure(exception) =>
-        logger.severe(s"Failed to extract data from $file_path: ${exception.getMessage}")
-        List.empty
-    }
-  }
-
   // Write proof data from the corresponding file
   def write_data(file_name: String): Unit = {
     val read_file_path = minion.get_theory_file_path(file_name).get
@@ -69,17 +60,6 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
         Files.createDirectories(target_dir)
         Try {
           minion.write_json_proofs(target_dir, read_file_path)
-        } match {
-          case Failure(exception) =>
-            logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")
-          case Success(_) => ()
-        }
-      
-      case `g2tac` =>
-        val target_dir = Path.of(write_dir)
-        println(s"Writing to $target_dir")
-        Try {
-          minion.write_g2tac_proofs(target_dir, read_file_path)
         } match {
           case Failure(exception) =>
             logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")
