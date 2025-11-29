@@ -17,14 +17,12 @@ sig
   type T
   val build: (string * jtype) list -> T
   val build': string -> jtype -> T
+  val upd: string * jtype -> T -> T
+  val del: string -> T -> T
   val get: string -> T -> jtype option
   val get_or_else: string -> (jtype -> 'a) -> 'a -> T -> 'a
   val paths: T -> (jtype list * jtype) list
   val fold: (jtype list * jtype -> 'a -> 'a) -> jtype -> 'a -> 'a
-  val make_jtype_list: string -> ('a -> jtype) -> 'a list -> jtype list
-  val upd: string * jtype -> T -> T
-  val del: string -> T -> T
-  val size: jtype -> int
   val to_string: T -> string
   val write_to: string -> T -> unit
 end;
@@ -47,11 +45,16 @@ fun build js = JSON js;
 
 fun build' name jt = JSON [(name, jt)];
 
-fun get key (JSON js) = AList.lookup (op =) js key;
-
 fun upd (key, value) (JSON js) = JSON (AList.update (op =) (key, value) js);
 
 fun del key (JSON js) = JSON (AList.delete (op =) key js);
+
+fun get key (JSON js) = AList.lookup (op =) js key;
+
+fun get_or_else key to_val default (JSON js) =
+  (case get key (JSON js) of
+    SOME v => to_val v
+    | NONE => default);
 
 fun str_of_atom JNull = "null"
   | str_of_atom (JBool b) = Value.print_bool b
@@ -78,98 +81,92 @@ fun paths (JSON js) = atoms [] (JObj js);
 
 fun fold f jt s = Basics.fold f (atoms [] jt) s;
 
-fun size jt = 
-  let 
-    fun add_size (_, jatom) sum = (case jatom of 
-      (JString str) => String.size str + sum
-    | _ => 1 + sum)
-  in fold add_size jt 0 end;
-
-fun damply_via free lim jt =
+fun buffered_fold lim flush jt st =
   let
-    fun add_to buff0 str =
+    fun add_to (buff, st) str =
       let
-        val buff1 = buff0 ^ str
-        val buff2 = if String.size buff0 > lim 
-          then ((free buff1); "") else buff1
-      in buff2 end;
-    fun rec_add_to buff i jt  =
+        val buff' = buff ^ str
+        val result = if String.size buff' > lim 
+          then ("", flush buff' st)
+          else (buff', st)
+      in result end;
+    fun rec_add_to (buff, st) i jt  =
       (case jt of
-        JList [] => add_to buff "[]" 
+        JList [] => add_to (buff, st) "[]" 
         | JList js =>
           let
-            val buff = add_to buff "[\n"
+            val (buff, st) = add_to (buff, st) "[\n"
             val indent = Symbol.spaces (i + 2)
-            fun add_next j (is_first, b) =
+            fun add_next j (is_first, b, s) =
               let
-                val b = if is_first then b else add_to b ",\n"
-                val b = add_to b indent
-                val b = rec_add_to b (i + 2) j
-              in (false, b) end
-            val (_, buff) = Basics.fold add_next js (true, buff)
+                val (b, s) = if is_first then (b, s) else add_to (b, s) ",\n"
+                val (b, s) = add_to (b, s) indent
+                val (b, s) = rec_add_to (b, s) (i + 2) j
+              in (false, b, s) end
+            val (_, buff, st) = Basics.fold add_next js (true, buff, st)
           in
-            add_to buff ("\n" ^ Symbol.spaces i ^ "]")
+            add_to (buff, st) ("\n" ^ Symbol.spaces i ^ "]")
           end
-        | JObj [] => add_to buff "{}"
+        | JObj [] => add_to (buff, st) "{}"
         | JObj kvs =>
             let
-              val buff = add_to buff "{\n"
+              val (buff, st) = add_to (buff, st) "{\n"
               val indent = Symbol.spaces (i + 2)
-              fun add_next (k, v) (is_first, b) =
+              fun add_next (k, v) (is_first, b, s) =
                 let
-                  val b = if is_first then b else add_to b ",\n"
-                  val b = add_to b (indent ^ Library.quote k ^ ": ")
-                  val b = rec_add_to b (i + 2) v
-                in (false, b) end
-              val (_, buff) = Basics.fold add_next kvs (true, buff)
+                  val (b, s) = if is_first then (b, s) else add_to (b, s) ",\n"
+                  val (b, s) = add_to (b, s) (indent ^ Library.quote k ^ ": ")
+                  val (b, s) = rec_add_to (b, s) (i + 2) v
+                in (false, b, s) end
+              val (_, buff, st) = Basics.fold add_next kvs (true, buff, st)
             in
-              add_to buff ("\n" ^ Symbol.spaces i ^ "}")
+              add_to (buff, st) ("\n" ^ Symbol.spaces i ^ "}")
             end
-      | atom => add_to buff (str_of_atom atom)
+      | atom => add_to (buff, st) (str_of_atom atom)
     )
   in
     let 
-      val final_buff = rec_add_to "" 0 jt 
-    in free final_buff end
+      val (final_buff, final_st) = rec_add_to ("", st) 0 jt ;
+      val result = if final_buff = "" then final_st else flush final_buff final_st;
+    in result end
   end;
 
 fun write_to file_path (JSON jt) =
   let
-    val path = Get.os_agnostic_path file_path
-    fun write_to stream jt = damply_via (File_Stream.output stream) 4096 jt;
+    val path = Get.os_agnostic_path file_path;
+    fun flush_to stream = (fn str => fn () => File_Stream.output stream str);
+    fun write_to stream jt = buffered_fold 4096 (flush_to stream) jt ();
   in
     File_Stream.open_output (fn stream => write_to stream (JObj jt)) path
   end;
 
-fun get_or_else key to_val default (JSON js) =
-  (case get key (JSON js) of
-    SOME v => to_val v
-    | NONE => default);
+fun str_of_jtype max_depth jt =
+  let
+    fun str_list _ _ [] = ""
+      | str_list to_str i [x] = Symbol.spaces i ^ (to_str x)
+      | str_list to_str i (x :: xs) = 
+          Symbol.spaces i ^ (to_str x) ^ ",\n" ^ str_list to_str i xs;
+    fun rec_str depth i jt =
+      (case jt of 
+        JList [] => "[]"
+        | JList js => 
+          if depth >= max_depth then Library.enclose "[" "]" "..."
+          else let
+            val mid = str_list (rec_str (depth + 1) (i+2)) (i+2) js
+          in Library.enclose "[\n" ("\n" ^ Symbol.spaces i ^ "]") mid end
+        | JObj [] => "{}"
+        | JObj js => 
+          if depth >= max_depth then Library.enclose "{" "}" "..."
+          else let
+            fun to_str (k,v) = Library.quote k ^ ": " ^ (rec_str (depth + 1) (i+2) v);
+            val mid = str_list to_str (i+2) js
+          in Library.enclose "{\n" ("\n" ^ Symbol.spaces i ^ "}") mid end
+        | atom => str_of_atom atom
+      );
+  in rec_str 0 0 jt end
 
-fun make_jtype_list name to_jtyp vs =
-  map (fn v => JObj [(name, to_jtyp v)]) vs;
-
-fun str_of_list _ _ [] = ""
-  | str_of_list to_str i [x] = Symbol.spaces i ^ (to_str x)
-  | str_of_list to_str i (x :: xs) = 
-      Symbol.spaces i ^ (to_str x) ^ ",\n" ^ 
-      str_of_list to_str i xs;
-
-fun str_of_key_val to_str (k,v) = Library.quote k ^ ": " ^ to_str v
-
-fun str_of_jtype _ JNull = "null"
-  | str_of_jtype _ (JBool b) = Value.print_bool b
-  | str_of_jtype _ (JString str) = Print.make_parseable str
-  | str_of_jtype _ (JInt n) = Value.print_int n
-  | str_of_jtype _ (JFloat r) = Value.print_real r
-  | str_of_jtype i (JList xs) = (case xs of [] => "[]"
-    | _ => "[\n" ^ str_of_list (str_of_jtype (i+2)) (i+2) xs ^ "\n" ^ Symbol.spaces i ^ "]")
-  | str_of_jtype i (JObj js) = (case js of [] => "{}"
-    | _ => "{\n" ^ str_of_list (str_of_key_val (str_of_jtype (i+2))) (i+2) js ^ "\n" ^ Symbol.spaces i ^ "}");
-
-fun to_string (JSON js) = str_of_jtype 0 (JObj js);
+fun to_string (JSON js) = str_of_jtype 3 (JObj js);
 
 val _ = ML_system_pp (fn _ => fn _  => ML_Pretty.str o to_string);
-
 
 end;
