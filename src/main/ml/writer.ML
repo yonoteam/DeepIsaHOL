@@ -33,18 +33,15 @@ let
         else (key', names) :: register x kns end;
 in fold register xs [] end;
 
-(* const_info: term -> term * typ *)
 fun const_info t = (case t of 
   Const (_, T) => (t, T) 
   | _ => raise TERM("not a constant", [t]));
 
-(* vars_info: term -> term * typ *)
 fun vars_info t = (case t of 
   Var (_, T) => (t,T)  
   | Free (_, T) => (t, T) 
   | _ => raise TERM("not a var", [t]));
 
-(* types_info: typ -> typ * sort *)
 fun types_info T = (case T of 
   TVar (_, S) => (T, S) 
   | TFree (_, S) => (T, S) 
@@ -86,7 +83,7 @@ fun json_step ctxt0 data =
     val Ts = Data.types_of data
       |> alist_by types_info
       |> Ops.enumerate
-      |> map (entry_to_jtype "Type" (Print.string_of_sort ctxt) (Print.string_of_type ctxt));
+      |> map (entry_to_jtype "Sort" (Print.string_of_sort ctxt) (Print.string_of_type ctxt));
   in Json.JObj [
     ("action", Json.JString act),
     ("user_state", Json.JString usr_st),

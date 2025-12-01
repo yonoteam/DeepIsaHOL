@@ -36,40 +36,18 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
 
   def get_minion(): Isa_Minion = minion
 
-  // format
-  private var format: String = Writer.json_format
-  private val json = Writer.json_format
-  private val g2tac = Writer.g2tac_format
-
-  def set_format(new_format: String): Unit = {
-    new_format match {
-      case `json` => format = new_format
-      case `g2tac` => format = new_format
-      case _ =>
-        println(s"Undefined writing format $new_format, defaulting to $format")
-    }
-  }
-
   // Write proof data from the corresponding file
   def write_data(file_name: String): Unit = {
     val read_file_path = minion.get_theory_file_path(file_name).get
-    format match {
-      case `json` =>
-        val rel_path = Paths.get(read_dir).relativize(read_file_path).toString
-        val target_dir = Paths.get(write_dir, rel_path.toString().stripSuffix(".thy"))
-        Files.createDirectories(target_dir)
-        Try {
-          minion.write_json_proofs(target_dir, read_file_path)
-        } match {
-          case Failure(exception) =>
-            logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")
-          case Success(_) => ()
-        }
-
-      case some_other_format: String => 
-        val error_message = s"Unknown writing format: $some_other_format. Skipping $file_name."
-        logger.severe(error_message)
-        throw new IllegalArgumentException(error_message)
+    val rel_path = Paths.get(read_dir).relativize(read_file_path).toString
+    val target_dir = Paths.get(write_dir, rel_path.stripSuffix(".thy"))
+    Files.createDirectories(target_dir)
+    Try {
+      minion.write_json_proofs(target_dir, read_file_path)
+    } match {
+      case Failure(exception) =>
+        logger.severe(s"Error writing data from $read_file_path: ${exception.getMessage}")
+      case Success(_) => ()
     }
   }
 
@@ -80,8 +58,9 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
       Success(())
     } catch {
       case _: java.util.concurrent.TimeoutException =>
-        println(s"Writing the proof exceeded the timeout of $timeout_min minutes")
-        Failure(new Exception(s"Writing the proof exceeded the timeout of $timeout_min minutes"))
+        val msg = s"Writing the proof exceeded the timeout of $timeout_min minutes"
+        println(msg)
+        Failure(new Exception(msg))
       case e: Exception =>
         Failure(e)
     }
@@ -104,9 +83,4 @@ class Writer(val read_dir: String, val write_dir: String, val logic: String = "H
   def isabelle_exists(): Boolean = {
     !(minion.isabelle.isDestroyed)
   }
-}
-
-object Writer {
-  val json_format = "JSON"
-  val g2tac_format = "G2TAC"
 }

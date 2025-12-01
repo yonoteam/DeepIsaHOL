@@ -19,7 +19,6 @@ object Main {
   val root_rgx: Regex = Utils.root_rgx
   var main_read_dir = ""
   var main_write_dir = ""
-  var main_write_format = "JSON"
   var main_progress_file = ""
 
   def set_params(args: Array[String]): Unit = {
@@ -27,25 +26,14 @@ object Main {
       case 2 =>
         main_read_dir = args(0)
         main_write_dir = args(1)
-      case 3 =>
-        main_read_dir = args(0)
-        main_write_dir = args(1)
-        main_write_format = args(2)
-      case 4 =>
-        main_read_dir = args(0)
-        main_write_dir = args(1)
-        main_write_format = args(2)
       case _: Int =>
         val usage_message = """Usage: 
           1st input - read directory.
-          2nd input - write directory.
-          3rd input - write format. Options JSON and G2TAC. Default JSON.
-          4th input - logic. Not used if there is a ROOT file in the read directory. Otherwise default is HOL."""
+          2nd input - write directory."""
         println(usage_message)
         sys.exit(1)
-        return
     }
-    main_progress_file = main_write_dir + "/progress.txt"
+    main_progress_file = Paths.get(main_write_dir, "progress.txt").toString
   }
 
   def check_params(): Unit = {
@@ -69,13 +57,6 @@ object Main {
       println(s"The input $main_write_dir is not a valid directory.")
       sys.exit(1)
     }
-
-    // write format
-    val formats = Set(Writer.json_format, Writer.g2tac_format)
-    if (! formats(main_write_format)) {
-      println(s"Undefined writing format $main_write_format. Options are: ${formats.toString()}")
-      sys.exit(1)
-    }
   }
 
   def get_task_type(top_dir: File): String = {
@@ -88,7 +69,7 @@ object Main {
     } else if (all_files.exists(_.toPath.endsWith(".thy"))) {
       return "THY"
     } else {
-      println(s"Write directory $main_write_dir does not contain ROOT or .thy files, aborting.")
+      println(s"Read directory $top_dir does not contain (immediate) ROOT or .thy files, aborting.")
       sys.exit(1)
     }
   }
@@ -141,7 +122,6 @@ object Main {
 
     val result = writer_Try.flatMap { writer =>
       Try {
-        writer.set_format(main_write_format)
         writer.write_all()
       }.transform(
         res => {
