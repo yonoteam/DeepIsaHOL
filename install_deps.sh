@@ -2,6 +2,8 @@
 
 # --- install_deps.sh ---
 # Script to automatically install dependencies Isabelle, AFP, and scala-isabelle
+# Assumes that java is already installed
+# If you agree that these are safe operations, make this script executable: chmod +x install_deps.sh
 # If using your own configuration, make sure that this project ./src/main/scala/directories.scala
 # points to the correct locations of Isabelle and AFP
 
@@ -18,7 +20,11 @@ echo "Downloading and extracting AFP..."
 curl -sO https://www.isa-afp.org/release/afp-current.tar.gz         # downloading
 tar -xzf afp-current.tar.gz                                         # extracting
 rm afp-current.tar.gz                                               # removing compressed version
-mv afp_* afp                                                        # renaming the extraction
+mv afp* afp                                                         # renaming the extraction
+
+echo "Making Isabelle aware of the AFP..."
+ISABELLE="./Isabelle2025/bin/isabelle"                              # path to isabelle
+$ISABELLE components -u "./afp/thys/"
 
 echo "Downloading and installing scala-isabelle..."
 git clone https://github.com/dominique-unruh/scala-isabelle.git     # cloning the repository
@@ -29,12 +35,10 @@ then
     SBT="sbt"
 else
     echo "Scala compiler 'sbt' not found. Installing local version..."
-    SBT_DIR="../sbt"
-    mkdir -p $SBT_DIR                                               # create local sbt directory
     
-    curl -sL https://github.com/sbt/sbt/releases/download/v1.11.7/sbt-1.11.7.tgz | tar -xz -C $SBT_DIR                                                        # download and extract sbt
+    curl -sL https://github.com/sbt/sbt/releases/download/v1.11.7/sbt-1.11.7.tgz | tar -xz -C "../"                                                               # download and extract sbt
     
-    SBT="$SBT_DIR/bin/sbt"                                          # set SBT command
+    SBT="../sbt/bin/sbt"                                            # set SBT command
 
     if [ ! -x $SBT ]; then
         echo "ERROR: Failed to find or install local sbt launcher." >&2
