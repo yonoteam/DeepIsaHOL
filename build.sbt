@@ -1,6 +1,6 @@
 name := "Isabelle-RL"
 
-scalaVersion := "2.13.14"
+scalaVersion := "2.13.18"
 
 
 lazy val root = project
@@ -10,7 +10,7 @@ lazy val root = project
     version := "0.1.0-SNAPSHOT",
 
     libraryDependencies += "de.unruh" %% "scala-isabelle" % "master-SNAPSHOT", // do `sbt publishLocal` in scala-isabelle first
-    resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
+    resolvers += Resolver.sonatypeCentralSnapshots,
 
     // https://mvnrepository.com/artifact/io.circe
     scalacOptions += "-deprecation",
