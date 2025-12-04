@@ -7,11 +7,17 @@ Main entrypoint
 
 package isabelle_rl
 
-import java.io.{File, FileOutputStream, PrintWriter, BufferedWriter}
-import java.nio.file.{Path, Files, Paths}
+import java.io.{File, RandomAccessFile}
+import java.nio.channels.FileLock
+import java.nio.file.{Path, Paths, Files}
+import java.util.concurrent.{Executors, ConcurrentLinkedQueue}
+import java.util.logging.{FileHandler, Formatter, Level, LogRecord, Logger}
+import scala.concurrent.{ExecutionContext, Future, Await}
+import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
+import scala.jdk.CollectionConverters._
 
 import isabelle_rl._
 
@@ -20,27 +26,52 @@ object Main {
   var main_read_dir = ""
   var main_write_dir = ""
   var main_progress_file = ""
+  var num_threads = 1
+
+  var main_logger: Logger = _
 
   def set_params(args: Array[String]): Unit = {
-    args.length match {
-      case 2 =>
-        main_read_dir = args(0)
-        main_write_dir = args(1)
-      case _: Int =>
-        val usage_message = """Usage: 
+    if (args.length >= 2) {
+      main_read_dir = args(0)
+      main_write_dir = args(1)
+      if (args.length >= 3) {
+        num_threads = args(2).toInt
+      }
+    } else {
+      val usage_message = """Usage: 
           1st input - read directory.
-          2nd input - write directory."""
-        println(usage_message)
-        sys.exit(1)
+          2nd input - write directory.
+          3rd input (optional) - number of concurrent writers (default 1)."""
+      println(usage_message)
+      sys.exit(1)
     }
     main_progress_file = Paths.get(main_write_dir, "progress.txt").toString
+  }
+
+  def setup_main_logger(): Unit = {
+    val log_path = Paths.get(main_write_dir, "main_writer.log")
+    main_logger = Logger.getLogger("Main_Writer_Logger")
+    
+    // Clear previous handlers
+    for (h <- main_logger.getHandlers) main_logger.removeHandler(h)
+
+    val fh = new FileHandler(log_path.toString, true)
+    fh.setFormatter(new Formatter {
+      override def format(record: LogRecord): String = {
+        val date = new java.util.Date(record.getMillis)
+        s"[$date] [${record.getLevel}] ${formatMessage(record)}\n"
+      }
+    })
+    main_logger.addHandler(fh)
+    main_logger.setLevel(Level.INFO)
+    main_logger.setUseParentHandlers(true) // print to stdout to see progress
   }
 
   def check_params(): Unit = {
     // read directory
     val read_dir = new File(main_read_dir)
     if (!read_dir.exists() || !read_dir.isDirectory()) {
-      println(s"Read directory $main_read_dir does not exist or is not a directory.")
+      println(s"Error: read directory $main_read_dir does not exist or is not a directory.")
       sys.exit(1)
     }
 
@@ -60,41 +91,60 @@ object Main {
   }
 
   def get_task_type(top_dir: File): String = {
-    val all_files = top_dir.listFiles().filter(file => file.isFile).toSet
+    val all_files = top_dir.listFiles().filter(_.isFile).toSet
+    val file_names = all_files.map(_.getName)
+
     val root_files = all_files.filter(file => file.getName.startsWith("ROOT")).map(_.getName())
-    if (root_files("ROOTS")) {
-      return "ROOTS"
-    } else if (root_files("ROOT")) {
-      return "ROOT"
-    } else if (all_files.exists(_.toPath.endsWith(".thy"))) {
-      return "THY"
-    } else {
-      println(s"Read directory $top_dir does not contain (immediate) ROOT or .thy files, aborting.")
+    if (file_names.contains("ROOTS")) "ROOTS"
+    else if (file_names.contains("ROOT")) "ROOT"
+    else if (file_names.exists(_.endsWith(".thy"))) "THY"
+    else {
+      val err_mssg = s"Read directory $top_dir does not contain (immediate) ROOT, ROOTS, or .thy files, aborting."
+      if (main_logger != null) main_logger.severe(err_mssg)
+      else println(err_mssg)
       sys.exit(1)
     }
   }
 
-  // load progress from progress file
+  // load progress from progress file with shared lock
   def load_progress(): Set[String] = {
     val progress_file = new File(main_progress_file)
     if (progress_file.exists()) {
-      Source.fromFile(progress_file).getLines().toSet
+      val raf = new RandomAccessFile(progress_file, "r")
+      val channel = raf.getChannel
+      var lock: FileLock = null
+      try {
+        lock = channel.lock(0, Long.MaxValue, true)
+        val is = java.nio.channels.Channels.newInputStream(channel)
+        Source.fromInputStream(is).getLines().filter(_.trim.nonEmpty).toSet
+      } catch {
+        case e: Exception =>
+          main_logger.warning(s"Could not load progress: ${e.getMessage}")
+          Set.empty[String]
+      } finally {
+        if (lock != null) lock.release()
+        channel.close()
+        raf.close()
+      }
     } else {
       Set.empty[String]
     }
   }
 
-  // save progress to progress file
-  def save_progress(sub_dir: String): Unit = {
-    val writer = new BufferedWriter(
-      new PrintWriter(
-        new FileOutputStream(
-          new File(main_progress_file), true
-    )))
+  // save progress to progress file with exclusive lock
+  def save_progress(sub_dir: String): Unit = synchronized{
+    val progress_file = new File(main_progress_file)
+    val raf = new RandomAccessFile(progress_file, "rw")
+    val channel = raf.getChannel
+    var lock: FileLock = null
     try {
-      writer.write(sub_dir + "\n")
+      lock = channel.lock()
+      raf.seek(raf.length())
+      raf.writeBytes(sub_dir + "\n")
     } finally {
-      writer.close()
+      if (lock != null) lock.release()
+      channel.close()
+      raf.close()
     }
   }
 
@@ -114,9 +164,8 @@ object Main {
     }
   }
 
-  def write_all(read_dir: String, write_dir: String, logic: String): Unit = {
+  def launch_writer(read_dir: String, write_dir: String, logic: String)(implicit ec: ExecutionContext): Unit = {
     val writer_Try = Try {
-      println(s"\nInitialising writer with read_dir = $read_dir \nand write_dir = $write_dir")
       new Writer(read_dir, write_dir, logic)
     }
 
@@ -136,43 +185,73 @@ object Main {
     }
 
     result.failed.foreach { exception =>
-      println(s"Error writing data from $read_dir to $write_dir:\n ${exception.getMessage}")
+      main_logger.severe(s"Error writing data from $read_dir to $write_dir:\n ${exception.getMessage}")
     }
   }
 
   def do_roots_task (top_read_dir: File, top_write_dir: File): Unit = {
     val processed = load_progress()
-    top_read_dir.listFiles().filter(_.isDirectory).foreach { sub_dir =>
-      // if the sub_dir has not been processed according to progress file
-      if (! processed.contains(sub_dir.getName)) {
-        val root_file = new File(sub_dir, "ROOT")
-        if (root_file.exists()) {
-          find_logic(root_file) match {
-            case Some(logic) =>
-              val read_dir = sub_dir.getAbsolutePath()
-              val write_dir = new File(top_write_dir, s"${sub_dir.getName}").getAbsolutePath()
-              write_all(read_dir, write_dir, logic)
-              save_progress(sub_dir.getName)
-              println(s"Processed: ${sub_dir.getName}\n")
-            case None =>
-              println(s"No logic found in ROOT file for ${sub_dir.getName}")
+    val sub_dirs = top_read_dir.listFiles().filter(_.isDirectory)
+
+    val to_process = sub_dirs.filterNot(d => processed.contains(d.getName)).toList
+    if (to_process.isEmpty) {
+      main_logger.info("All subdirectories already processed.")
+      return
+    }
+
+    main_logger.info(s"Found ${sub_dirs.length} directories. ${processed.size} processed. ${to_process.size} remaining.")
+    val workQueue = new ConcurrentLinkedQueue[File](to_process.asJava)
+
+    val executor = Executors.newFixedThreadPool(num_threads)
+    implicit val ec = ExecutionContext.fromExecutorService(executor)
+
+    val workerFutures = (1 to num_threads).map { num =>
+      Future {
+        var active = true
+        while (active) {
+          val sub_dir = workQueue.poll()
+          if (sub_dir == null) { active = false }
+          else {
+            main_logger.info(s"[Thread-$num] picked up: ${sub_dir.getName}")
+            val root_file = new File(sub_dir, "ROOT")
+            if (!root_file.exists()) {
+              main_logger.warning(s"[Thread-$num] No ROOT file found in ${sub_dir.getName}")
+            } else {
+              find_logic(root_file) match {
+                case Some(logic) =>
+                  val read_dir = sub_dir.getAbsolutePath()
+                  val write_dir = new File(top_write_dir, s"${sub_dir.getName}").getAbsolutePath()
+                  launch_writer(read_dir, write_dir, logic)
+                  save_progress(sub_dir.getName)
+                  main_logger.info(s"[Thread-$num] Processed: ${sub_dir.getName}")
+                case None =>
+                  main_logger.warning(s"[Thread-$num] No logic found in ROOT file for ${sub_dir.getName}")
+              }
+            }
           }
-        } else {
-          println(s"No ROOT file found in ${sub_dir.getName}")
         }
-      } else {
-        println(s"Skipping already processed sub_dir: ${sub_dir.getName}")
       }
+    }
+    try {
+      Await.result(Future.sequence(workerFutures), Duration.Inf)
+      main_logger.info("Finished all writing tasks.")
+    } finally {
+      executor.shutdown()
     }
   }
 
   def main (args: Array[String]): Unit = {
     set_params(args)
     check_params()
+    setup_main_logger()
+    main_logger.info(s"Params checked. Read: $main_read_dir, Write: $main_write_dir, Threads: $num_threads")
 
     val top_read_dir = new File(main_read_dir)
     val top_write_dir = new File(main_write_dir)
     val task = get_task_type(top_read_dir)
+    main_logger.info(s"Writing task based on detected file: $task")
+
+    implicit val ec: ExecutionContext = ExecutionContext.global // do_roots_task handles its own ec
 
     task match {
       case "ROOTS" => do_roots_task(top_read_dir, top_write_dir)
@@ -183,15 +262,16 @@ object Main {
           case Some(logic) =>
             val read_dir = top_read_dir.getAbsolutePath()
             val write_dir = top_write_dir.getAbsolutePath()
-            write_all(read_dir, write_dir, logic)
+            launch_writer(read_dir, write_dir, logic)
           case None =>
-            println(s"No logic found in ROOT file ${root_file.getAbsolutePath()}")
+            main_logger.severe(s"No logic found in ROOT file ${root_file.getAbsolutePath()}")
         }
       
       case "THY" => 
         val read_dir = top_read_dir.getAbsolutePath()
         val write_dir = top_write_dir.getAbsolutePath()
-        write_all(read_dir, write_dir, args(3))
+        val logic = if (args.length > 3) args(3) else "HOL"
+        launch_writer(read_dir, write_dir, args(3))
     }
   }
 }
