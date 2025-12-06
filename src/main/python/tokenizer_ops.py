@@ -7,6 +7,7 @@ import logging
 
 from transformers import AutoTokenizer
 
+import json
 import dicts
 import config_ops
 import save_ops
@@ -43,9 +44,9 @@ def get_gemma_context_length(mode):
 
 # TRAINING FROM SCRATCH
 
-def get_tokenizer_corpus(json_data_dir, readable=False):
+def get_tokenizer_corpus(json_data_dir):
     for proof in proofs.data_dir.generate_from(json_data_dir):
-        yield proofs.str_ops.string_from(proof, readable)
+        yield json.dumps(proof)
 
 def train_tokenizer(model_name, data_dir):
     try:

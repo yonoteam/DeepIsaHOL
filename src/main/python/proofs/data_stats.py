@@ -3,6 +3,7 @@
 # 
 # Utility for reading JSONs of proofs
 
+import json
 import logging
 import statistics
 
@@ -22,7 +23,7 @@ def get_approx_tokens(token_counter, proof_json):
     :returns: updated token counter
     :rtype: collections.Counter
     """
-    proof_str = str_ops.string_from(proof_json)
+    proof_str = json.dumps(proof_json)
     proof_tokens = proof_str.split()
     for token in proof_tokens:
         token_counter[token] += 1

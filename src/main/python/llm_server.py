@@ -30,12 +30,13 @@ def make_proof_info(mssg_dict, data_format):
     proof_json = mssg_dict
     if not isinstance(proof_json, dict):
         logging.error(f"Make proof info received a None dictionary")
-        proof_json = {} 
-    return {
+        proof_json = {}
+    step_dict = {
         "proof_so_far": proof_json.get("proof_so_far", ""),
         "last_usr_state": proof_json.get("user_state", ""),
-        "proof_data": proofs.str_ops.add_spk_data(proof_json, [], data_format=data_format)
+        "proof_data": proofs.str_ops.add_spk_data(proof_json, {}, data_format=data_format)
     }
+    return step_dict
 
 def prompt_llm(buffer, generation_config):
     end_of_prompt = b"<|eop|>" 

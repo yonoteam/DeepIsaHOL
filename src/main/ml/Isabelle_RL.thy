@@ -16,12 +16,12 @@ ML_file "sections.ML"
 ML_file "seps.ML"
 ML_file "actions.ML"
 
+ML_file "json.ML"
 ML_file "repl_state.ML"
 ML_file "client.ML"
 ML_file "llm.ML"
 
 ML_file "data.ML"
-ML_file "json.ML"
 ML_file "writer.ML"
 
 ML \<open>

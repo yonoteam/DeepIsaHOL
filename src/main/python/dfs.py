@@ -271,7 +271,7 @@ def load_proof(data_format, prf_num, prf_path, thy_name, logic):
     proof = dicts.load_json(prf_path)
     prf_start = proofs.orig_objective_of(proof)
     prf_start = proofs.str_ops.fix_missing_quotations(prf_start)
-    prf_data = proofs.str_ops.add_spk_data(proof, [], data_format=data_format)
+    prf_data = proofs.str_ops.add_spk_data(proof, {}, data_format=data_format)
     return {
         "num": prf_num,          # proof number inside the theory file
         "path": prf_path,        # path to the proof JSON file

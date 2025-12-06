@@ -21,9 +21,6 @@ sig
   val log_fold: ('a -> 'b -> 'b) -> 'b -> 'a list -> 'b list
   
   (* Grouping lists *)
-  val split_into: int -> 'a list -> 'a list list
-  val chop_and_tag: string -> ('a -> string) -> ('a -> bool) -> ('a -> bool) 
-    -> 'a list -> (string * 'a list) list
   val bifurcate_at: ''a -> ''a list -> ''a list * ''a * ''a list
   val segmentate_by: ''a list -> ''a list -> ''a list list
   val split_at: string -> string -> string list
@@ -37,10 +34,6 @@ sig
   val apply_with_timeout: Time.time -> ('a -> 'b) -> 'a -> 'b Exn.result
   val path_prefix_up_to: string -> Path.T -> Path.T option
   val file_exists: string -> bool
-  val is_directory: string -> bool
-  val create_directory: {force: bool} -> string -> unit
-  val create_file: {force: bool} -> string -> string -> string -> unit
-  val read_file: string -> string
 end;
 
 
@@ -105,48 +98,6 @@ fun log_fold _ _ [] = []
 
 
 (** GROUPING LISTS **)
-
-fun split_into 1 xs = [xs]
-  | split_into n xs = 
-  let 
-    val total = length xs;
-  in if total >= n andalso n > 1 then
-    let
-      val batch_size = total div n
-      fun do_next x (m, ys, batches, count) =
-        if m > 0 then (m-1, x::ys, batches, count)
-        else if count < n then (batch_size-1, [x], (rev ys) :: batches, count+1)
-        else (batch_size, x::ys, batches, count)
-      val (_, remainder, rev_batches, _) = fold do_next xs (batch_size, [], [], 1);
-      in rev (rev remainder :: rev_batches) end
-  else raise Fail "Ops.split_into: non-positive split size or larger than list" end;
-
-fun chop_and_tag tag get_text is_start is_end xs =
-  let
-    fun add_one x =
-      if is_start x then ([()], [(tag, [x])])
-      else ([], [("other", [x])]);
-    (* lhs is unit stack indicating whether a block is still open *)
-    fun add_new x (_, []) = add_one x
-      | add_new x (buf, (name, chunks) :: rest) =
-        if not (null buf) then
-          if is_start x then
-            (() :: buf, (name, x :: chunks) :: rest)
-          else if is_end x then
-            (tl buf, (name, x :: chunks) :: rest)
-          else
-            (buf, (name, x :: chunks) :: rest)
-        else 
-          if is_start x then
-            (() :: buf, (tag, [x]) :: (name, chunks) :: rest)
-          else if is_end x then
-            raise Fail ("unopened "^ tag ^" for: " ^ (get_text x))
-          else if name = "other" then
-            (buf, (name, x :: chunks) :: rest)
-          else ([], ("other", [x]) :: (name, chunks) :: rest);
-     val rev_result = fold add_new xs ([], []);
-     val _ = if not (null (fst rev_result)) then raise Fail ("unbalanced" ^ tag) else ();
-   in rev (map (fn (name, chunk) => (name, rev chunk)) (snd rev_result)) end;
 
 fun bifurcate_at a [] = ([], a, [])
   | bifurcate_at a (c :: cs) = 
@@ -227,22 +178,6 @@ fun unprefix_unsufix substr target_str =
 
 (** SYSTEM OPERATIONS **)
 
-(* WARNING: potential slowdown due to overhead if too many calls to this method *)
-(* fun apply_with_timeout timeout f x  = 
-  let
-    val future_val = Future.fork (fn () => f x)
-
-    fun wait_for_future start_time =
-      let
-        val curr_time = Time.now ();
-        val so_far = curr_time - start_time;
-      in if Future.is_finished future_val 
-          then Future.get_result future_val
-          else if so_far > timeout then (Future.cancel future_val; Exn.capture_body (fn () => raise Timeout.TIMEOUT so_far))
-          else (OS.Process.sleep (Time.fromMilliseconds 100); wait_for_future start_time)
-      end;
-  in wait_for_future (Time.now ()) end; *)
-
 fun apply_with_timeout timeout f x = Exn.result (Timeout.apply timeout f) x
 
 fun path_prefix_up_to parent_name path =
@@ -262,50 +197,6 @@ fun path_prefix_up_to parent_name path =
 
 fun file_exists file_dir 
   = OS.FileSys.access (file_dir, [OS.FileSys.A_READ]) handle OS.SysErr _ => false;
-
-fun is_directory dir 
-  = OS.FileSys.isDir dir handle OS.SysErr _ => false;
-
-fun create_directory {force=forced} dir =
-  if is_directory dir then ()
-  else let
-    val dirs = map (String.implode) (Pred.split_whenL (fn c => str c = "/") (String.explode dir));
-    val _ = if null dirs orelse not (hd dirs = "/") 
-      then raise Fail "Ops.create_directory: only accepts absolute paths starting with \"/\"" 
-      else ()
-    fun make dir_str = OS.FileSys.mkDir dir_str
-      handle OS.SysErr (cause, err) => (
-        raise (Fail ("Ops.create_directory: could not create directory:\n")); 
-        Exn.reraise (OS.SysErr (cause, err))
-      );
-    fun iter str dir_so_far = 
-      let
-        val new_dir = dir_so_far ^ str;
-        val result = if is_directory new_dir orelse not forced then new_dir
-          else let val _ = make new_dir in new_dir end;
-      in result end;
-    val _ = fold iter dirs "";
-  in () end;
-
-fun create_file {force=forced} dir name content =
-  let
-    val _ = create_directory {force=forced} dir
-        handle Fail txt => Exn.reraise (Fail txt);
-    val filepath = OS.Path.joinDirFile {dir=dir, file=name};
-  in
-    if file_exists filepath andalso not forced then () else
-      let val outstream = TextIO.openOut filepath; in
-        TextIO.output (outstream, content);
-        TextIO.closeOut outstream end
-  end;
-
-fun read_file fname = 
-  let 
-    val IO_instream = TextIO.openIn fname;
-    val err = Exn.result TextIO.inputAll IO_instream;
-    val _ = TextIO.closeIn IO_instream;
-    val result = Exn.release err
-  in result end;
 
 
 end;

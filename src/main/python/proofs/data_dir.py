@@ -9,10 +9,11 @@ of "proof*.json" files.
 import os
 import re
 import json
+import random
 
 from tqdm import tqdm
 from pathlib import Path
-from typing import Union, List, Iterator, Callable
+from typing import List, Union, Iterator, Callable, Optional
 
 import dicts
 
@@ -161,44 +162,68 @@ SPLITS = {
 
 def generate_dataset_paths(
         json_data_dir: PathLike, 
-        split:str = SPLITS["NONE"]
-    ) -> Iterator[str]:
+        split: str = SPLITS["NONE"], 
+        max_paths: Optional[int] = None, 
+        seed: Optional[int] = None
+    ) -> Iterator[PathLike]:
     """
-    Yields file paths to 'proof*.json' files in the input directory 
-    according to a specified dataset split (train/valid/test/none).
-
-    If 'none' is specified (default), yields all proof files. 
-    Otherwise, yields a split: 64% train, 16% valid, and 20% test.
+    Yields the paths of the 'proof*.json' files in the dataset
+    with splitting, limits, and randomized session traversal.
 
     :param json_data_dir: path to the data directory with 'proof*.json's
     :param split: one of the values of the SPLITS dictionary
-    :yield: full path to a proof file from the dataset split
-    :raises Exception: if the directory is invalid or split is unrecognized
+    :param max_paths: maximum number of paths to yield. If None, yields all.
+    :param seed: seed for randomizing directory traversal order. If None, uses alphabetical order.
     """
+    # checks
     if not is_valid(json_data_dir):
-        raise Exception(f"Error: bad input {json_data_dir} is not an existing directory or does not contain a proofN.json.")
+        raise ValueError(f"Input {json_data_dir} is not an existing directory or does not contain a 'proof*.json'.")
+    if split not in SPLITS.values():
+        raise ValueError(f"Split must be one of {set(SPLITS.values())}")
 
-    for subdir, _, files in os.walk(json_data_dir):
-        json_files = [file for file in files if file.startswith("proof") and file.endswith(".json")]
-        json_files = [os.path.join(subdir, file) for file in sorted(json_files)]
+    # vars
+    rng = random.Random(seed) if seed is not None else None # local random to not affect global random
+    paths_yielded_count = 0 # for max_paths tracking
+    
+    for root, dirs, files in os.walk(json_data_dir, topdown=True): # to modify dirs in-place
+        # randomising top dirs in-place
+        if rng:
+            dirs.sort()
+            rng.shuffle(dirs)
 
-        if split == SPLITS["NONE"]:
-            yield from json_files
-        else:
-            total_proofs = len(json_files)
-            train_size = int(total_proofs * 0.64)
-            valid_size = int(total_proofs * 0.16)
-            if split == SPLITS["TRAIN"]:
-                train_split = json_files[:train_size]
-                yield from train_split
-            elif split == SPLITS["VALID"]:
-                valid_split = json_files[train_size:train_size + valid_size]
-                yield from valid_split
-            elif split == SPLITS["TEST"]:
-                test_split = json_files[train_size + valid_size:]
-                yield from test_split
-            else:
-                raise Exception(f"Error: bad input {split}, expected one of {SPLITS.values()}.")
+        # finding and sorting current 'proof*.json'
+        proof_files = [f for f in files if f.startswith("proof") and f.endswith(".json")]
+        if not proof_files:
+            continue
+        try:
+            # sort numerically (2 < 10) not lexicographically ("10" < "2")
+            proof_files.sort(key=lambda f: int(re.search(r'proof(\d+)\.json', f).group(1))) 
+        except AttributeError:
+            proof_files.sort()
+
+        # applying `split` Logic
+        total_proofs = len(proof_files)
+        train_size = int(total_proofs * 0.64)
+        valid_size = int(total_proofs * 0.16)
+        valid_idx = train_size + valid_size
+        if split == "train":
+            split_files = proof_files[:train_size]
+        elif split == "valid":
+            split_files = proof_files[train_size:valid_idx]
+        elif split == "test":
+            split_files = proof_files[valid_idx:]
+        else: # "none"
+            split_files = proof_files
+        if not split_files: # e.g. test and only 1 proof
+            continue
+
+        # yielding paths
+        for proof_file in split_files:
+            if max_paths is not None and paths_yielded_count >= max_paths:
+                return
+            proof_path = os.path.join(root, proof_file)
+            yield proof_path
+            paths_yielded_count += 1
             
 def group_paths_by_logic(
         json_data_dir: PathLike, 

@@ -4,13 +4,13 @@
 # Part of project DeepIsaHOL. Generic operations for prompting LLMs for proof generation.
 
 import re
+import json
 import logging
 from typing import Optional
 
 import torch
 import eval_t5
 
-import proofs
 import tokenizer_ops as tokops
 
 def using_unsloth():
@@ -84,15 +84,11 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
     num_beams = generation_config.get("num_beams", 1)
     using_unsloth = generation_config["use_unsloth"]
 
-    usr_sep = proofs.str_ops.Separator["user_state"]
-    xs = [
-        prf_info.get("proof_so_far", ""), 
-        usr_sep, 
-        prf_info.get("last_usr_state", "")
-    ]
-    xs.extend(prf_info.get("proof_data", ""))
-
-    x = " ".join(xs)
+    x_dict = {}
+    x_dict["proof_so_far"] = prf_info.get("proof_so_far", "")
+    x_dict["last_usr_state"] = prf_info.get("last_usr_state", "")
+    x_dict.update(prf_info.get("proof_data", {}))
+    x = json.dumps(x_dict)
 
     if model_type == "t5":
         x = "isabelle next step: " + x if "finetune" in data_format else x  

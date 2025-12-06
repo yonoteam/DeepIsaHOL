@@ -4,7 +4,7 @@
 Part of project DeepIsaHOL. Internal representation of JSONs as association lists.
 *)
 
-signature JSON =
+signature JAVA_SCRIPT_OBJ_NOTAT =
 sig
   datatype jtype = 
     JNull
@@ -23,11 +23,12 @@ sig
   val get_or_else: string -> (jtype -> 'a) -> 'a -> T -> 'a
   val paths: T -> (jtype list * jtype) list
   val fold: (jtype list * jtype -> 'a -> 'a) -> jtype -> 'a -> 'a
+  val buffered_fold: int -> (string -> 'a -> 'a) -> jtype -> 'a -> 'a
   val to_string: T -> string
   val write_to: string -> T -> unit
 end;
 
-structure Json: JSON =
+structure JSON: JAVA_SCRIPT_OBJ_NOTAT =
 struct
 
 datatype jtype = 
@@ -81,7 +82,7 @@ fun paths (JSON js) = atoms [] (JObj js);
 
 fun fold f jt s = Basics.fold f (atoms [] jt) s;
 
-fun buffered_fold lim flush jt st =
+fun buffered_fold lim (flush:string -> 'a -> 'a) jt st =
   let
     fun add_to (buff, st) str =
       let

@@ -6,7 +6,6 @@ Part of project DeepIsaHOL. Operations interacting with an LLM
 
 signature LARGE_LANG_MODEL =
 sig
-  val json_text: Actions.stact list -> string
   val json_text_at: theory -> string -> int -> string
   val prove: int -> Actions.stact list -> string list
 end;
@@ -15,23 +14,21 @@ end;
 structure LLM: LARGE_LANG_MODEL =
 struct
 
-fun json_text stacts =
-  if null stacts then raise Fail "llm.json_text received null input"
+fun to_json stacts =
+  if null stacts then raise Fail "llm.to_json received null input"
   else let
     val (_, st, _) = Ops.last stacts;
-    val prf_so_far_att = stacts
+    val prf_so_far = stacts
       |> map (fn (a,_,_): Actions.stact => Actions.text_of a)
       |> Library.space_implode " "
-      |> Print.make_parseable
-      |> Pretty.str |> Print.pretty_json_elem "proof_so_far";
-    val usr_st_att = 
+      |> JSON.JString;
+    val usr_st = 
       Get.user_state {break_lines=false} st
-      |> Print.make_parseable
-      |> Pretty.str |> Print.pretty_json_elem "user_state";
-    val prf_data =
-      Print.pretty_json_attribs false "{" "}" 0 [usr_st_att, prf_so_far_att]
-      |> Print.string_of_pretty;
-  in prf_data end;
+      |> JSON.JString;
+  in JSON.JObj [("user_state", usr_st), ("proof_so_far", prf_so_far)] end;
+
+fun json_text stacts = to_json stacts
+  |> (fn j => JSON.buffered_fold 2048 (curry (op ^)) j "");
 
 fun json_text_at thy thy_file line_num =
   Actions.proof_at thy thy_file line_num

@@ -52,7 +52,7 @@ in
 fun entry_to_jtype name key_to_str val_to_str (i, (k, vs)) =
   let
     val v = (Library.space_implode ", " (map val_to_str vs)) ^ " :: " ^ key_to_str k;
-  in (name ^ Value.print_int i, Json.JString v) end;
+  in (name ^ Value.print_int i, JSON.JString v) end;
 
 fun json_step ctxt0 data =
   let
@@ -69,9 +69,9 @@ fun json_step ctxt0 data =
     val goal = Data.goal_of data
       |> Print.string_of_term ctxt;
     val hyps = Data.hyps_of data
-      |> map (fn v => Json.JObj [("term", Json.JString (Print.string_of_term ctxt v))]);
+      |> map (fn v => JSON.JObj [("term", JSON.JString (Print.string_of_term ctxt v))]);
     val proven = Data.proven_of data
-      |> map (fn v => Json.JObj [("proven", Json.JString (Print.string_of_term ctxt v))]);
+      |> map (fn v => JSON.JObj [("proven", JSON.JString (Print.string_of_term ctxt v))]);
     val vs = Data.vars_of data
       |> alist_by vars_info
       |> Ops.enumerate
@@ -84,15 +84,15 @@ fun json_step ctxt0 data =
       |> alist_by types_info
       |> Ops.enumerate
       |> map (entry_to_jtype "Sort" (Print.string_of_sort ctxt) (Print.string_of_type ctxt));
-  in Json.JObj [
-    ("action", Json.JString act),
-    ("user_state", Json.JString usr_st),
-    ("term", Json.JString goal),
-    ("hyps", Json.JList hyps),
-    ("proven", Json.JList proven),
-    ("variables", Json.JObj vs),
-    ("constants", Json.JObj cs),
-    ("type variables", Json.JObj Ts)
+  in JSON.JObj [
+    ("action", JSON.JString act),
+    ("user_state", JSON.JString usr_st),
+    ("term", JSON.JString goal),
+    ("hyps", JSON.JList hyps),
+    ("proven", JSON.JList proven),
+    ("variables", JSON.JObj vs),
+    ("constants", JSON.JObj cs),
+    ("type variables", JSON.JObj Ts)
     ]
   end;
 
@@ -106,34 +106,34 @@ fun json_proof (env, prf) =
     val trace = Sections.recover_trace prf;
     val steps = map (json_step ctxt) trace;
     val ms = Data.mthds_of env
-      |> map (fn str => Json.JString str);
+      |> map (fn str => JSON.JString str);
     
     val cmnds = Data.grp_cmmnds_of env;
     val is_apply = Seps.is_apply_step cmnds orf Pred.is "proof"
     val is_isar = Seps.is_isar_step cmnds;
     val kwrds = maps snd cmnds;
     val applys = filter is_apply kwrds
-      |> map (fn str => Json.JString str);
+      |> map (fn str => JSON.JString str);
     val isars = filter is_isar kwrds
-      |> map (fn str => Json.JString str);
+      |> map (fn str => JSON.JString str);
     
-    fun wrap_dep ((name, i), thm) = Json.JObj [
-      ("name", Json.JString (Thm_Name.print (name, i))), 
-      ("term", Json.JString (Print.string_of_pretty (Thm.pretty_thm ctxt thm)))]
+    fun wrap_dep ((name, i), thm) = JSON.JObj [
+      ("name", JSON.JString (Thm_Name.print (name, i))), 
+      ("term", JSON.JString (Print.string_of_pretty (Thm.pretty_thm ctxt thm)))]
     val deps = Data.deps_of env
       |> map wrap_dep
-  in Json.build [
-    ("proof", Json.JList steps),
-    ("apply_kwrds", Json.JList applys),
-    ("isar_kwrds", Json.JList isars),
-    ("methods", Json.JList ms),
-    ("deps", Json.JList deps)
+  in JSON.build [
+    ("proof", JSON.JList steps),
+    ("apply_kwrds", JSON.JList applys),
+    ("isar_kwrds", JSON.JList isars),
+    ("methods", JSON.JList ms),
+    ("deps", JSON.JList deps)
     ]
   end;
 
 fun write_json_proof file_path proof = if Ops.file_exists file_path 
   then warning ("write_proof: File " ^ file_path ^ " already exists (skipping)")
-  else json_proof proof |> Json.write_to file_path;
+  else json_proof proof |> JSON.write_to file_path;
 
 fun write_json_proofs (write_dir, thy0, thy_text) =
   let 
