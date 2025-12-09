@@ -4,8 +4,8 @@
 # Script to automatically create and activate the Python environment
 # Requires Conda or Mamba to be installed. Mamba is recommended for speed.
 
-ENV_NAME="DeepIsaHOL"
-YML_FILE="./src/main/python/environment.yml"
+ENV_NAME="IsaGeneration"
+YML_FILE="./src/main/python/isa_generation.yml"
 MAMBA_CMD="mamba" # Default to mamba
 
 # --- 1. Check for Mamba/Conda ---
