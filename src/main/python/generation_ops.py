@@ -25,8 +25,12 @@ def get_model_type(config_dict):
         model_type = "t5"
     elif "gemma" in lower_case_model:
         model_type = "gemma"
+    elif "gpt" in lower_case_model or "openai" in lower_case_model:
+        model_type = "openai"
+    elif "gemini" in lower_case_model:
+        model_type = "gemini"
     else:
-        raise ValueError(f"Unsupported model type: {model_name}. Supported: T5, Gemma, and Ollama.")
+        raise ValueError(f"Unsupported model type: {model_name}. Supported: T5, Gemma, Ollama, OpenAI and Gemini.")
     logging.info(f"Model type set to {model_type} based on model name {model_name}.")
     return model_type
 
@@ -69,10 +73,39 @@ def load_tok_model(config_dict):
     return tokenizer, model
 
 def extract_suggestion(text: str) -> Optional[str]:
+    if not text:
+        return None
+    logging.info(f"Raw LLM output: {text}")
+
+    # standard case
     pattern = r"<SUGGESTION>(.*?)</SUGGESTION>"
     match = re.search(pattern, text, re.DOTALL)
     if match:
-        return match.group(1)
+        suggestion = match.group(1).strip()
+        suggestion = suggestion.replace("```isar", "").replace("```", "").strip()
+        return suggestion
+
+    # truncated case
+    pattern_open = r"<SUGGESTION>(.*)"
+    match_open = re.search(pattern_open, text, re.DOTALL)
+    if match_open:
+        logging.warning("Found <SUGGESTION> but no closing tag. Returning partial content.")
+        suggestion = match_open.group(1).strip()
+        suggestion = suggestion.replace("```isar", "").replace("```", "").strip()
+        return suggestion
+
+    # markdown fallback: looking for code blocks if tags are missing
+    code_block = r"```(?:isar)?\n(.*?)```"
+    match_code = re.search(code_block, text, re.DOTALL)
+    if match_code:
+        logging.warning("No tags found. Returning Markdown code block content.")
+        return match_code.group(1).strip()
+        
+    # last fallback
+    if text.strip():
+        logging.warning("No structure found. Returning raw text.")
+        return text.strip()
+
     logging.warning(f"No suggestion found in generated text: {text}")
     return None
 
@@ -142,6 +175,32 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
                 echo=False
             )
             predicts = [extract_suggestion(p["text"]) for p in predicts["choices"]]
+    elif model_type == "openai":
+        prompt = tokops.llm_prompt2.format(context=x)
+        response = generation_config["generator"].chat.completions.create(
+            model=generation_config["model_name"],
+            messages=[{"role": "user", "content": prompt}],
+            max_completion_tokens=gen_length,
+            n=num_return_sequences,
+            temperature=1.0
+        )
+        predicts = [extract_suggestion(choice.message.content) for choice in response.choices]
+    elif model_type == "gemini":
+        prompt = tokops.llm_prompt2.format(context=x)
+        response = generation_config["generator"].models.generate_content(
+            model=generation_config["model_name"],
+            contents=prompt,
+            config=generation_config["gen_config"]
+        )
+        if not response.candidates:
+            logging.error("Gemini returned no candidates.")
+            predicts = [None]
+        elif not response.candidates[0].content.parts:
+            finish_reason = response.candidates[0].finish_reason
+            logging.error(f"Gemini returned empty content. Finish Reason: {finish_reason}")
+            predicts = [None]
+        else:
+            predicts = [extract_suggestion(response.text)]
 
     # print(f"Prediction from model:\n{predicts[0]}")
     return x, predicts

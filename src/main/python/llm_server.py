@@ -53,7 +53,7 @@ def prompt_llm(buffer, generation_config):
         proof_info = make_proof_info(fixed_newlines, generation_config["data_format"])
         print(f"Prepared client info is: {proof_info}")
         _, predicts = genops.generate_predicts(proof_info, generation_config)
-        # print(f"First raw predictions from model: {predicts[0] if predicts else 'None'}")
+        # print(f"First raw predictions from model: {predicts[0] if predicts else 'None'}")
         valid_predictions = [proofs.str_ops.fix_missing_quotations(p) for p in predicts if p is not None]
         # print(f"First predictions after filtering: {valid_predictions[0] if valid_predictions else 'None'}")
         if not valid_predictions:
@@ -154,6 +154,25 @@ def configure_generation(config_dict):
             print(f"Could not verify Ollama connection: {e}")
             
         logging.info(f"Configured Ollama client for model: {ollama_model}")
+    
+    elif model_type == "openai":
+        from openai import OpenAI
+        generation_config["generator"] = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        generation_config["model_name"] = config_dict["model_name"]
+        logging.info(f"Configured OpenAI client for model: {generation_config['model_name']}")
+
+    elif model_type == "gemini":
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+        generation_config["generator"] = client
+        generation_config["model_name"] = config_dict["model_name"]
+        generation_config["gen_config"] = types.GenerateContentConfig(
+            candidate_count=1,
+            max_output_tokens=config_dict.get("generation_config", {}).get("gen_length", 4096),
+            temperature=1.0
+        )
+        logging.info(f"Configured Gemini client for model: {config_dict['model_name']}")
     else:
         tokenizer, model = genops.load_tok_model(config_dict)
         generation_config["generator"] = model
@@ -177,7 +196,9 @@ def launch_server(config_dict):
         server_socket_global.bind((LOCAL_HOST, PORT))
         server_socket_global.listen(5)
         server_socket_global.settimeout(1.0) # check `shutdown_event` every 1 second
-        logging.info(f"LLM server listening on {LOCAL_HOST}:{PORT}")
+        mssg = f"LLM server with model '{config_dict['model_name']}' listening on {LOCAL_HOST}:{PORT}"
+        print(mssg)
+        logging.info(mssg)
 
         active_threads = []
         while not shutdown_event.is_set():

@@ -183,29 +183,24 @@ def check_params(config_dict):
         if not isinstance(task, str):
             raise ValueError(f"Input for task must be a string")
         
-        data_dir = config_dict["data_dir"]
         _ = config_dict["model_name"]
-        models_dir = config_dict["models_dir"]
-        tokenizers_dir = config_dict["tokenizers_dir"]
         data_format = config_dict["data_format"]
 
-        train_args = config_dict["hf_train_args"]
-        if not isinstance(train_args, dict):
-            raise ValueError(f"Input for hf_train_args must be a dictionary.")
     except KeyError as e:
         raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
     except Exception as e:
         raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
     except ValueError as e:
         raise ValueError(f"Error extracting parameter from configuration dictionary: {e}")
-
-    check_valid_proof_data_dir(data_dir)
-    check_has_parent(models_dir)
-    check_has_parent(tokenizers_dir)
-    check_valid_format(data_format)
     
     if task == pretrain_model or task == finetune_model:
         try:
+            data_dir = config_dict["data_dir"]
+            models_dir = config_dict["models_dir"]
+            tokenizers_dir = config_dict["tokenizers_dir"]
+            train_args = config_dict["hf_train_args"]
+            if not isinstance(train_args, dict):
+                raise ValueError(f"Input for hf_train_args must be a dictionary.")
             _ = int(config_dict["num_epochs"])
             _ = int(train_args["per_device_train_batch_size"])
         except KeyError as e:
@@ -215,8 +210,18 @@ def check_params(config_dict):
         except Exception as e:
             raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
 
+        check_valid_proof_data_dir(data_dir)
+        check_has_parent(models_dir)
+        check_has_parent(tokenizers_dir)
+        check_valid_format(data_format)
     if task == eval_model:
         try:
+            data_dir = config_dict["data_dir"]
+            models_dir = config_dict["models_dir"]
+            tokenizers_dir = config_dict["tokenizers_dir"]
+            train_args = config_dict["hf_train_args"]
+            if not isinstance(train_args, dict):
+                raise ValueError(f"Input for hf_train_args must be a dictionary.")
             _ = int(train_args["per_device_eval_batch_size"])
         except KeyError as e:
             raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
@@ -224,6 +229,11 @@ def check_params(config_dict):
             raise ValueError(f"Error extracting parameter from configuration dictionary: {e}")
         except Exception as e:
             raise Exception(f"Error extracting parameter from configuration dictionary: {e}")
+        
+        check_valid_proof_data_dir(data_dir)
+        check_has_parent(models_dir)
+        check_has_parent(tokenizers_dir)
+        check_valid_format(data_format)
 
 def parse_path(
         tool_explanation: str = "Does something as specified in the config path."

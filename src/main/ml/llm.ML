@@ -115,7 +115,6 @@ fun llm_dfs max_depth (proved, depth, prf_so_far) =
     val prf_data = json_text prf_so_far;
     val last_st = #2 (Ops.last prf_so_far);
     val _ = Client.communicate prf_data;
-    val _ = OS.Process.sleep (Time.fromSeconds 1)
     val llm_response = Client.get_last_response ();
     val result = (case llm_response of
       SOME response =>
