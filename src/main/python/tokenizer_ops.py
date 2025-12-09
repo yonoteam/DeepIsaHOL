@@ -170,7 +170,7 @@ def t5_tokked_model_inputs(tokenizer, json_data_dir, split=SPLITS["NONE"], data_
 llm_prompt = """Recommend the next Isabelle proof step given the context below. Enclose the suggestion in <SUGGESTION>-</SUGGESTION> tags. Only return the suggestion, do not include any other text.
 {context}
 """
-llm_prompt2 = """Complete the proof of the JSON below with an Isar proof given the context provided. This JSON was produced by Isabelle which means its parser accepts the syntactic parts. Enclose the final suggested Isabelle code in <SUGGESTION>-</SUGGESTION> tags. Do not provide lengthy explanations, the Isar code explains itself.
+llm_prompt2 = """Complete the proof of the JSON below with an Isar proof given the context provided. This JSON was produced by Isabelle which means its parser accepts the syntactic parts. Enclose the final suggested Isabelle code in <SUGGESTION>-</SUGGESTION> tags. Do not provide lengthy explanations, the Isar code explains itself. Do not repeat in the suggestion the initial string of the already started proof, only start the suggestion from the point where the proof is incomplete.
 {context}
 """
 

@@ -25,10 +25,23 @@ fun to_json stacts =
     val usr_st = 
       Get.user_state {break_lines=false} st
       |> JSON.JString;
-  in JSON.JObj [("user_state", usr_st), ("proof_so_far", prf_so_far)] end;
+    val mthds = Get.methods (Toplevel.context_of st)
+      |> map (fn str => JSON.JString str);
+    val cmnds = Get.grouped_commands (Toplevel.theory_of st);
+    val is_isar = Seps.is_isar_step cmnds;
+    val kwrds = maps snd cmnds;
+    val isars = filter is_isar kwrds
+      |> map (fn str => JSON.JString str);
+  in JSON.JObj [
+    ("user_state", usr_st), 
+    ("proof_so_far", prf_so_far),
+    ("methods", JSON.JList mthds),
+    ("isar_kwrds", JSON.JList isars),
+    ("deps", JSON.JList [])
+    ] end;
 
 fun json_text stacts = to_json stacts
-  |> (fn j => JSON.buffered_fold 2048 (curry (op ^)) j "");
+  |> (fn j => JSON.buffered_fold 2048 (fn buff => fn so_far => so_far ^ buff) j "");
 
 fun json_text_at thy thy_file line_num =
   Actions.proof_at thy thy_file line_num
