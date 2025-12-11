@@ -16,7 +16,7 @@ sig
   val isa_find_import: string -> Path.T option
   val isa_can_load_thy: string -> bool
   val isa_load_import: string -> Path.T option
-  val find_import: Path.T list -> string -> Path.T option
+  val find_import: Path.T * Path.T list -> string -> Path.T option
   val get_work_path: unit -> Path.T
   val to_string: unit -> string
   val init_for: Path.T -> unit
@@ -28,6 +28,11 @@ sig
   val list_all: unit -> Path.T list
   val to_local_list: unit -> Path.T list
   val is_at_end: Path.T -> bool
+
+  type entry
+  val init_entry: Path.T * Path.T list -> string -> Path.T * entry option
+  val init_deps: Path.T list -> entry option Path_Graph.T
+  val checking_inputs_of_do: Path.T -> theory -> theory
 end;
 
 structure Imports: IMPORTS =
@@ -120,14 +125,69 @@ fun isa_load_import import_str =
   then SOME (Path.explode ("ISA_FOUND="^import_str))
   else NONE;
 
+local
+
+fun directory_has_thy path = File.read_dir path
+  |> List.exists (Pred.ends_with ".thy");
+
+fun find_root_file path =
+  let
+    val dir_path = if File.is_dir path then path else Path.dir path
+    val root_candidate = Path.append dir_path (Path.basic "ROOT")
+  in
+    if File.is_file root_candidate then SOME root_candidate
+    else
+      if not (directory_has_thy dir_path) then NONE
+      else
+        let
+          val parent = Path.dir dir_path
+        in 
+          if File.eq (dir_path, parent) then NONE
+          else find_root_file parent
+        end
+  end;
+
+fun find_sessions root_file = File.read root_file
+  |> Ops.split_at "session "
+  |> Pred.drop_until (Pred.contains "session ")
+  |> filter_out (Pred.is "session ")
+  |> map (hd o (Library.space_explode " ") o (Ops.replace_all "\"" ""));
+
+in
+
+fun locate_via_importer importer_path import_str =
+  case find_root_file importer_path of
+    NONE => NONE
+  | SOME root_path =>
+    let
+      val sessions = find_sessions root_path
+      val results = sessions
+        |> map (fn name => isa_find_import (name ^ "." ^ import_str))
+        |> filter is_some
+      val final = 
+        if null results then NONE
+        else if length results > 1 
+        then 
+          let
+            val part1 = "Imports.locate_via_session_root: found two candidate sessions for ";
+            val part2 = " and '"
+            val part3 = "'. Returning first one."
+            val mssg = part1 ^ import_str ^ part2 ^ (Path.implode importer_path) ^ part3
+          in (Output.warning mssg); hd results end
+        else hd results
+    in final end;
+
+end;
+
 infix 1 else_try;
 
 fun (opt_x else_try opt_y) =
   (case opt_x of SOME y => SOME y | NONE => opt_y); 
 
-fun find_import paths import_str =
+fun find_import (importer, paths) import_str =
   isa_load_import import_str
   else_try isa_find_import import_str
+  else_try locate_via_importer importer import_str
   else_try locate_in paths import_str
   else_try locate_as_file import_str;
 
@@ -140,8 +200,8 @@ fun init_found found_str =
     val thy = Thy_Info.get_theory key;
   in (the (isa_find_import key), SOME (make_entry thy true)) end;
 
-fun init_entry paths import_str =
-  (case find_import paths import_str of
+fun init_entry (importer, paths) import_str =
+  (case find_import (importer, paths) import_str of
     SOME path => 
       let val path_str = Path.implode path in 
       if Pred.starts_with "ISA_FOUND=" path_str
@@ -157,12 +217,12 @@ fun init_deps paths =
     fun add_ancesters path graph =
       if is_some (Path_Graph.get_node graph path) then graph
       else let
-        (* val _ = Output.tracing ("Adding path" ^ (Path.implode path)); *)
+        (* val _ = Output.tracing ("Adding path " ^ (Path.implode path)); *)
         val imports = path
           |> File.read
           |> Thy_Header.read Position.none
           |> #imports
-          |> map (init_entry paths o fst);
+          |> map (init_entry (path, paths) o fst);
         fun add_next parent graph = 
           let 
             val parent_key = fst parent; 
