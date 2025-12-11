@@ -28,11 +28,6 @@ sig
   val list_all: unit -> Path.T list
   val to_local_list: unit -> Path.T list
   val is_at_end: Path.T -> bool
-
-  type entry
-  val init_entry: Path.T * Path.T list -> string -> Path.T * entry option
-  val init_deps: Path.T list -> entry option Path_Graph.T
-  val checking_inputs_of_do: Path.T -> theory -> theory
 end;
 
 structure Imports: IMPORTS =
@@ -169,11 +164,18 @@ fun locate_via_importer importer_path import_str =
         else if length results > 1 
         then 
           let
-            val part1 = "Imports.locate_via_session_root: found two candidate sessions for ";
-            val part2 = " and '"
-            val part3 = "'. Returning first one."
-            val mssg = part1 ^ import_str ^ part2 ^ (Path.implode importer_path) ^ part3
-          in (Output.warning mssg); hd results end
+            (* val _ = map (fn opt_p => Output.tracing ("found double:" ^ (Path.implode (the opt_p)))) results *)
+            fun shares_importer_dir opt_p = 
+              String.isSubstring (Path.implode (Path.dir importer_path)) (Path.implode (the opt_p));
+            val shared = filter shares_importer_dir results;
+          in if null shared orelse length shared > 1 then 
+            let
+              val part1 = "Imports.locate_via_session_root: found two candidate sessions for ";
+              val part2 = " and '"
+              val part3 = "'. Returning first one."
+              val mssg = part1 ^ import_str ^ part2 ^ (Path.implode importer_path) ^ part3
+            in (Output.warning mssg); hd results end
+            else hd shared end
         else hd results
     in final end;
 
