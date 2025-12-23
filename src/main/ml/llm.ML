@@ -32,12 +32,18 @@ fun to_json stacts =
     val kwrds = maps snd cmnds;
     val isars = filter is_isar kwrds
       |> map (fn str => JSON.JString str);
+    val facts = Hammer.get_useful_facts 50 st;
+    val ctxt = Toplevel.context_of st;
+    fun wrap_fact (name, thm) = JSON.JObj [
+      ("name", JSON.JString name),
+      ("term", JSON.JString (Print.string_of_pretty (Thm.pretty_thm ctxt thm)))
+      ]
   in JSON.JObj [
     ("user_state", usr_st), 
     ("proof_so_far", prf_so_far),
     ("methods", JSON.JList mthds),
     ("isar_kwrds", JSON.JList isars),
-    ("deps", JSON.JList [])
+    ("deps", JSON.JList (map wrap_fact facts))
     ] end;
 
 fun json_text stacts = to_json stacts
@@ -144,7 +150,7 @@ fun prove max_depth prf_so_far =
       |> map (filter (fn (a, _, _) => Actions.on_kind (Pred.is_not "<ignored>") a))
       |> map (map (fn (a, _, _) => Actions.text_of a ^ "\n  "));
     val pref = implode (map (fn (a, _, _) => Actions.text_of a) prf_so_far);
-  in map (Ops.safe_unprefix (pref ^ "\n") o implode) to_concats end;
+  in map (Ops.unprefix (pref ^ "\n") o implode) to_concats end;
 
 
 end;

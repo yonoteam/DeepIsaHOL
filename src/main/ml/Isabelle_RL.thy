@@ -1,28 +1,13 @@
 theory Isabelle_RL
-  imports Pure
+  imports Main Libraries
   keywords "llm_recommend" :: diag
     and "show_proof_at" :: diag
     and "llm_try_proof" :: diag
     and "llm_init" :: diag
 begin
 
-ML_file "pred.ML"
-ML_file "ops.ML"
-ML_file "print.ML"
-ML_file "imports.ML"
-ML_file "get.ML"
-
-ML_file "sections.ML"
-ML_file "seps.ML"
-ML_file "actions.ML"
-
-ML_file "json.ML"
-ML_file "repl_state.ML"
-ML_file "client.ML"
+ML_file \<open>hammer.ML\<close>
 ML_file "llm.ML"
-
-ML_file "data.ML"
-ML_file "writer.ML"
 
 ML \<open>
 val _ =

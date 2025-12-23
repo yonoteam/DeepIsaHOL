@@ -23,12 +23,22 @@ sig
   (* Grouping lists *)
   val bifurcate_at: ''a -> ''a list -> ''a list * ''a * ''a list
   val segmentate_by: ''a list -> ''a list -> ''a list list
+
+  (* Strings *)
+  val unprefix: string -> string -> string
+  val unsuffix: string -> string -> string
+  val stripL: string -> string -> string
+  val stripR: string -> string -> string
+  val stripLR: string -> string -> string -> string
+  val strip: string -> string
   val split_at: string -> string -> string list
   val split_without: string -> string -> string list
   val replace_all: string -> string -> string -> string
-  val safe_unprefix: string -> string -> string
-  val safe_unsufix: string -> string -> string
   val unprefix_unsufix: string -> string -> string
+  val drop_untilL: string -> string -> string
+  val drop_untilR: string -> string -> string
+  val drop_untilL': string -> string -> string
+  val drop_untilR': string -> string -> string
 
   (* System operations *)
   val apply_with_timeout: Time.time -> ('a -> 'b) -> 'a -> 'b Exn.result
@@ -136,13 +146,99 @@ fun segmentate_by [] ys = [ys]
            else [not_x @ coincidences @ hd xss] @ (tl xss) end;
      in result end;
 
-fun split_at split_str target_str = 
-  segmentate_by (String.explode split_str) (String.explode target_str)
-  |> map String.implode;
 
-fun split_without split_str target_str = 
-  split_at split_str target_str
-  |> filter_out (fn s => Pred.is split_str s);
+(** STRINGS **)
+
+fun unprefix pref str =
+  if Pred.starts_with pref str then 
+    String.substring (str, size pref, size str - size pref)
+  else str;
+
+fun unsuffix suff str =
+  if Pred.ends_with suff str then 
+    String.substring (str, 0, size str - size suff)
+  else str;
+
+fun stripL chars str =
+  let
+    val ss = Substring.full str
+    fun should_drop c = Char.contains chars c
+    val dropped = Substring.dropl should_drop ss
+  in Substring.string dropped end;
+
+fun stripR chars str =
+  let
+    val ss = Substring.full str
+    fun should_drop c = Char.contains chars c
+    val dropped = Substring.dropr should_drop ss
+  in Substring.string dropped end;
+
+fun stripLR charsL charsR str =
+  let
+    val ss = Substring.full str
+    val ss_l = Substring.dropl (Char.contains charsL) ss
+    val ss_r = Substring.dropr (Char.contains charsR) ss_l
+  in Substring.string ss_r end;
+
+val strip = stripLR " " " ";
+
+fun split_via {delim=sep, full=including} str =
+  if sep = "" then [str] 
+  else 
+    let
+      val sep_size = String.size sep;
+      fun build_list sub buff =
+        if Substring.isEmpty sub then rev buff
+        else
+          let
+            val (prefix, suffix) = Substring.position sep sub
+          in if Substring.isEmpty suffix 
+            then rev (Substring.string prefix :: buff)
+            else
+              let
+                val rest = Substring.triml sep_size suffix
+                val buff' = if Substring.isEmpty prefix 
+                  then buff 
+                  else Substring.string prefix :: buff
+                val buff'' = if including 
+                  then sep :: buff' 
+                  else buff'
+              in build_list rest buff'' end
+          end
+    in build_list (Substring.full str) [] end;
+
+fun split_at split_str = split_via {full=true, delim=split_str}; 
+
+fun split_without split_str = split_via {full=false, delim=split_str};
+
+fun drop_via {to_drop=substr, including=incl, side=side_str} str =
+  if substr = "" then str
+  else
+    let
+      val ss = Substring.full str
+      val (prefix, suffix) = Substring.position substr ss
+      val final_substr =
+        if Substring.isEmpty suffix then ss
+        else if side_str = "L" then
+          if incl then
+            Substring.triml (String.size substr) suffix
+          else suffix
+        else if side_str = "R" then
+          if incl then
+            prefix
+          else 
+            (Substring.slice (suffix, 0, SOME (String.size substr)))
+            |> curry Substring.span prefix
+        else raise Fail ("Ops.drop_via: unkwown side (input): " ^ side_str);
+    in Substring.string final_substr end;
+
+fun drop_untilL sep = drop_via {including=false, side="L", to_drop=sep};
+
+fun drop_untilR sep = drop_via {including=false, side="R", to_drop=sep};
+
+fun drop_untilL' sep = drop_via {including=true, side="L", to_drop=sep};
+
+fun drop_untilR' sep = drop_via {including=true, side="R", to_drop=sep};
 
 fun replace_all str1 str2 txt =
   if String.size str1 = 0 then txt
@@ -157,23 +253,13 @@ fun replace_all str1 str2 txt =
           else (case String.isPrefix str1 (extr (pos, NONE)) of
             true => find_and_replace (pos + len1) (acc ^ str2)
             | false => find_and_replace (pos + 1) (acc ^ (extr (pos,(SOME 1))))
-          )
-       in find_and_replace 0 "" end
-  in rec_replace str1 str2 txt end;
-
-fun safe_unprefix substr target_str =
-  if Pred.starts_with substr target_str 
-  then Library.unprefix substr target_str 
-  else target_str;
-
-fun safe_unsufix substr target_str =
-  if Pred.ends_with substr target_str 
-  then Library.unsuffix substr target_str 
-  else target_str;
+          );
+      in find_and_replace 0 "" end;
+    in rec_replace str1 str2 txt end;
 
 fun unprefix_unsufix substr target_str =
-  safe_unprefix substr target_str
-  |> (fn mid_str => safe_unsufix substr mid_str);
+  unprefix substr target_str
+  |> (fn mid_str => unsuffix substr mid_str);
 
 
 (** SYSTEM OPERATIONS **)

@@ -3,12 +3,14 @@
 # 
 # Utility for reading JSONs of proofs
 
+import os
 import json
 import logging
 import statistics
 
 from collections import Counter
 
+import dicts
 from proofs import str_ops
 from proofs import data_dir
 
@@ -103,6 +105,39 @@ def compute_stats(accumulator, json_data_dir, **kwargs):
         "total_datapoints": len(x_lengths)
     }
 
+def extend_file(
+        path: data_dir.PathLike,
+        acc: dict
+    ) -> dict:
+    proof = dicts.load_json(path)
+    num_steps = max(0, len(proof.get("proof", [])) - 1)
+    proof["num_steps"] = num_steps
+    proof["num_deps"] = len(proof.get("deps", []))
+    dicts.save_as_json(proof, path)
 
+    data_dir = acc["data_dir"]
+    old_logic = acc["current_logic"]
+    new_logic = os.path.relpath(path, data_dir).split(os.sep)[0]
+    if new_logic != old_logic:
+        acc["current_logic"] = new_logic
+        acc["avgs"][old_logic] = acc["total_steps"] / acc["count"] if acc["count"] > 0 else 0
+        acc["total_steps"] = 0
+        acc["count"] = 0
+    else:
+        acc["total_steps"] += num_steps
+        acc["count"] += 1
+    return acc
 
-
+def extend_stats(
+        json_data_dir: data_dir.PathLike,
+        acc: dict = {
+            "current_logic": "",
+            "count": 0,
+            "total_steps": 0,
+            "avgs": {}
+        }
+    ) -> dict:
+    acc["data_dir"] = str(json_data_dir)
+    acc = data_dir.fold(data_dir.generate_dataset_paths(json_data_dir), extend_file, acc)
+    acc["avgs"][acc["current_logic"]] = acc["total_steps"] / acc["count"] if acc["count"] > 0 else 0
+    return acc

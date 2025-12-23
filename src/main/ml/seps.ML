@@ -20,7 +20,6 @@ sig
   val is_apply_step: (string * string list) list -> string -> bool
   val is_isar_step: (string * string list) list -> string -> bool
   val is_document_step: (string * string list) list -> string -> bool
-  val make: (string * string list) list -> (string * (string -> bool) * (string -> bool)) list
 end;
 
 
@@ -142,18 +141,7 @@ val document_rawN = "document_raw" (* i.e. text_raw *)
 val documentN = "document"
 
 fun is_document_step grpd_cmmnds = 
-  is_in_group_where grpd_cmmnds (Pred.contains documentN)
-
-
-(** DATA PREPARATION **)
-
-(* make: commands -> (string * (string -> bool) * (string -> bool)) list *)
-fun make cmmnds =
-  let 
-    val thy_seps = (Sections.theory_tag, begins_thy, ends_thy_section);
-    val thy_block_seps = (Sections.thy_block_tag, starts_thy_block cmmnds, ends_thy_block cmmnds);
-    val thy_proof_seps = (Sections.proof_tag, starts_proof cmmnds, ends_proof cmmnds); 
-  in [thy_proof_seps, thy_block_seps, thy_seps] end;
+  is_in_group_where grpd_cmmnds (Pred.contains documentN);
 
 
 end;

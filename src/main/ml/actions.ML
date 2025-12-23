@@ -28,7 +28,6 @@ sig
   type stact = T * Toplevel.state * Runtime.error list
   val apply: T -> Toplevel.state -> Toplevel.state * Runtime.error list
   val apply': T -> Toplevel.state -> Toplevel.state
-  val next_state: T Sections.T -> Toplevel.state -> Toplevel.state
   val apply_all: T list -> Toplevel.state -> stact list
   val apply_while: (stact -> bool) -> T list -> Toplevel.state -> stact list * T list
   val timed_apply_all: {timeout_in_secs: int} -> T list -> Toplevel.state -> stact list
@@ -136,8 +135,6 @@ fun apply (Action a) st =
   in (final_st, errs') end;
 
 fun apply' act st = fst (apply act st);
-
-val next_state = Sections.next_state apply';
 
 fun iter_next apply_fun act' (_: T, st: Toplevel.state, _: Runtime.error list) =
   let

@@ -13,7 +13,7 @@ import random
 
 from tqdm import tqdm
 from pathlib import Path
-from typing import List, Union, Iterator, Callable, Optional
+from typing import List, Union, Iterator, Callable, Optional, Generator, Any
 
 import dicts
 
@@ -224,6 +224,28 @@ def generate_dataset_paths(
             proof_path = os.path.join(root, proof_file)
             yield proof_path
             paths_yielded_count += 1
+
+def fold(
+        path_generator: Generator[PathLike, None, None],
+        f: Callable[[PathLike, Any], Any],
+        start: Any
+    ) -> Any:
+    """
+    Applies a function f cumulatively to the paths from the generator.
+    
+    :param path_generator: generator yielding PathLike objects
+    :param f: function to fold of type PathLike -> accumulator -> accumulator
+    :param start: the initial value of the accumulator
+    :return: The final value of the accumulator.
+    """
+    acc = start
+    for path in tqdm(path_generator):
+        try:
+            acc = f(path, acc)
+        except Exception as e:
+            print(f"Error processing path '{path}': {e}")
+            continue
+    return acc
             
 def group_paths_by_logic(
         json_data_dir: PathLike, 

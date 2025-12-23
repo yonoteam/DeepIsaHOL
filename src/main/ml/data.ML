@@ -7,6 +7,7 @@ Part of project DeepIsaHOL. Data structure for representing Isabelle's internal 
 signature DATA =
 sig
   (* Data preparation *)
+  val make_seps: (string * string list) list -> (string * (string -> bool) * (string -> bool)) list
   val theory_separators: theory -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list
   val segmentate: Toplevel.state -> (string * (Actions.T -> bool) * (Actions.T -> bool)) list 
    -> Actions.T list -> (Toplevel.state * Actions.T) Sections.T
@@ -50,10 +51,17 @@ struct
 
 (** DATA PREPARATION **)
 
+fun make_seps cmmnds =
+  let 
+    val thy_seps = (Sections.theory_tag, Seps.begins_thy, Seps.ends_thy_section);
+    val thy_block_seps = (Sections.thy_block_tag, Seps.starts_thy_block cmmnds, Seps.ends_thy_block cmmnds);
+    val thy_proof_seps = (Sections.proof_tag, Seps.starts_proof cmmnds, Seps.ends_proof cmmnds); 
+  in [thy_proof_seps, thy_block_seps, thy_seps] end;
+
 fun theory_separators thy =
   let 
     val cmmnds = Get.grouped_commands thy;
-    val seps = Seps.make cmmnds
+    val seps = make_seps cmmnds
   in map (fn (tag, starts, ends) => (tag, Actions.on_kind starts, Actions.on_kind ends)) seps end;
 
 fun segmentate state0 separators acts =

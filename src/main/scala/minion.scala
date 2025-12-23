@@ -16,7 +16,6 @@ import de.unruh.isabelle.mlvalue.{MLValue, MLValueWrapper, MLFunction, MLFunctio
 import de.unruh.isabelle.pure.{Theory}
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
-import isabelle_rl.{Directories, Utils}
 
 
 // MINION CLASS
@@ -57,7 +56,12 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   imports.start()
 
   // Isabelle/RL theory (Isabelle_RL.thy) for loading ML files
-  val isabelle_rl_thy : Theory = Theory(Path.of(Directories.isabelle_rl))
+  val isabelle_rl_path = Path.of(Directories.isabelle_rl)
+  val thy_path = isabelle_rl_path.resolve("src/main/ml/Libraries.thy")
+  if (!Files.exists(thy_path)) {
+    throw new Exception(s"Libraries.thy not found at ${thy_path} in /src/main/ml/")
+  }
+  val isabelle_rl_thy : Theory = Theory(thy_path)
   
   override def toString(): String = {
     "Minion(work_dir=" + work_dir + ", logic=" + logic + ", imports_dir=" + imports_dir + ")"
@@ -94,7 +98,7 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   }
 
   // MINION WRITING TASKS
-  private object ML_writer {   
+  private object ML_writer {
     val ml_writer = isabelle_rl_thy.importMLStructureNow("Writer")
     final val write_json_proofs : MLFunction3[String, Theory, String, Unit] 
       = compileFunction[String, Theory, String, Unit](s"${ml_writer}.write_json_proofs")
