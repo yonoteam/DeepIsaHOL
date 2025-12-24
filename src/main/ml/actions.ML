@@ -33,9 +33,11 @@ sig
   val timed_apply_all: {timeout_in_secs: int} -> T list -> Toplevel.state -> stact list
   val apply_oops: Toplevel.state -> stact list
   val report_acts: stact list -> string list
-  val extract_err: Runtime.error list -> string
-  val report_errs: stact list -> string list
+  val extract_error: Runtime.error list -> string
+  val report_errors: stact list -> string list
+  val no_errors: stact list -> bool
   val proof_at: theory -> string -> int -> stact list
+  val by_finishes: T -> Toplevel.state -> bool
 end;
 
 
@@ -166,9 +168,11 @@ fun make_error_str ((num, err), str_opt) =
     SOME txt => str1 ^ str2 ^ ", opt: " ^ (Print.yxml_to_string txt)
     | NONE => str1 ^ str2) end;
 
-fun extract_err (mssgs:Runtime.error list) = String.concatWith " | " (map make_error_str mssgs);
+fun extract_error (mssgs:Runtime.error list) = String.concatWith " | " (map make_error_str mssgs);
 
-fun report_errs (stacts: stact list) = map (fn (_, _, e) => extract_err e) stacts
+fun report_errors (stacts: stact list) = map (fn (_, _, e) => extract_error e) stacts;
+
+fun no_errors (stacts: stact list) = Pred.is "" (Library.space_implode "" (report_errors stacts));
 
 fun proof_at thy thy_file line_num =
   make_upto thy thy_file line_num
@@ -177,5 +181,16 @@ fun proof_at thy thy_file line_num =
   |> rev
   |> Pred.take_while (fn (_, st, _) => Toplevel.is_proof st)
   |> rev;
+
+fun by_finishes act st =
+  if not (on_kind (Pred.is "by") act)
+  then raise Fail ("Actions.by_finishes: received non-by action: " ^ text_of act)
+  else 
+    let
+      val thy = Toplevel.theory_of st;
+      val ctxt = Toplevel.context_of st;
+      val new_acts = make thy (by_to_apply ctxt act);
+      val stacts = timed_apply_all {timeout_in_secs=15} new_acts st;
+    in no_errors stacts andalso Pred.no_subgoals (#2 (Ops.last stacts)) end;
 
 end;

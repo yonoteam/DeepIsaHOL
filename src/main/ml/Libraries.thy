@@ -13,8 +13,6 @@ ML_file "actions.ML"
 
 ML_file "json.ML"
 
-ML_file "repl_state.ML"
-
 ML_file "client.ML"
 
 ML_file "sections.ML"

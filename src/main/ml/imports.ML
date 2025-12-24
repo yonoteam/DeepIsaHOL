@@ -148,11 +148,17 @@ fun find_sessions root_file = File.read root_file
   |> filter_out (Pred.is "session ")
   |> map (hd o (Library.space_explode " ") o (Ops.replace_all "\"" ""));
 
+fun maybe_find_in importer_path import_str =
+  let
+    val importer_dir = Path.dir importer_path;
+    val imported_path = Path.append importer_dir (Path.explode (import_str ^ ".thy"));
+  in if File.is_file imported_path then SOME imported_path else NONE end
+
 in
 
 fun locate_via_importer importer_path import_str =
   case find_root_file importer_path of
-    NONE => NONE
+    NONE => maybe_find_in importer_path import_str
   | SOME root_path =>
     let
       val sessions = find_sessions root_path
@@ -160,9 +166,9 @@ fun locate_via_importer importer_path import_str =
         |> map (fn name => isa_find_import (name ^ "." ^ import_str))
         |> filter is_some
       val final = 
-        if null results then NONE
+        if null results then maybe_find_in importer_path import_str
         else if length results > 1 
-        then 
+        then
           let
             (* val _ = map (fn opt_p => Output.tracing ("found double:" ^ (Path.implode (the opt_p)))) results *)
             fun shares_importer_dir opt_p = 

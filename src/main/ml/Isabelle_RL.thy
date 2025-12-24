@@ -6,7 +6,8 @@ theory Isabelle_RL
     and "llm_init" :: diag
 begin
 
-ML_file \<open>hammer.ML\<close>
+ML_file "hammer.ML"
+ML_file "repl_state.ML"
 ML_file "llm.ML"
 
 ML \<open>

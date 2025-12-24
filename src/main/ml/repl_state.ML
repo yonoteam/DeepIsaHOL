@@ -28,6 +28,7 @@ sig
   val undo: T -> T
   val reset: T -> T
   val go_to: (theory * string * string) -> T
+  val apply_hammer: (string * string) list -> T -> T
   val to_string: T -> string
   val pretty: T -> Pretty.T
   val proof_so_far: T -> string
@@ -69,22 +70,20 @@ type T = step list
 exception E_Repl_State of T (* Needed for scala-isabelle *)
 
 (* T -> _ *)
-fun get_num state = #num (hd state)
-fun get_st state = #st (hd state)
-fun get_act state = #act (hd state)
-fun get_err state = #err (hd state)
+fun get_num (state:T) = #num (hd state)
+fun get_st (state:T) = #st (hd state)
+fun get_act (state:T) = #act (hd state)
+fun get_err (state:T) = #err (hd state)
 
 
 (* BASIC OPERATIONS *)
 
-(* init: theory -> T *)
 fun init thy = [make_one(
   0,
   Actions.void,
   Toplevel.make_state (SOME thy),
   "")];
 
-(* read: string * T -> T *)
 fun read (txt, state) =
   let
     val n = get_num state;
@@ -94,15 +93,13 @@ fun read (txt, state) =
     val new_act_sts = Actions.timed_apply_all {timeout_in_secs=10} acts st
     fun convert (act, st, e) =
       let
-        val err = Actions.extract_err e;
+        val err = Actions.extract_error e;
       in make_one (n+1, act, st, err) end;
     val state' = map convert new_act_sts
-  in rev state' end;
+  in (rev state'):T end;
 
-(* eval: T * T -> T *)
-fun eval (new_sts, state) = new_sts @ state;
+fun eval (new_sts: T, state: T) = (new_sts @ state):T;
 
-(* str_of_one: step -> string *)
 fun str_of_one (step: step) =
   let
     val {num=n, st=s, act=a, err=e} = step
@@ -113,30 +110,24 @@ fun str_of_one (step: step) =
     val body = Library.commas [str_n, str_a, str_s, str_e]
   in Library.enclose "<" ">" body end;
 
-(* print: T -> string *)
-fun print state = str_of_one (hd state);
+fun print (state:T) = str_of_one (hd state);
 
-(* read_eval: string * T -> T *)
 fun read_eval (txt, state) = read (txt, state) 
   |> (fn state' => eval (state', state));
 
-(* repl: string * T -> string *)
 val repl = read_eval #> print
 
 
 (* MORE OPERATIONS *)
 
-(* undo: T -> T *)
 fun undo state = 
   let
     val n = get_num state;
     fun removable step = #num step = n andalso not (n = 0)
-  in Pred.drop_while removable state end;
+  in (Pred.drop_while removable state):T end;
 
-(* reset: T -> T *)
-fun reset state = Ops.last state |> Library.single;
+fun reset (state:T) = Ops.last state |> Library.single;
 
-(* go_to: (theory * string * string) -> T *)
 fun go_to (thy, thy_file, act_txt) =
   let
     val empty_err_mssg = "repl.go_to: empty actions for input " ^ act_txt ^ " on location " ^ thy_file
@@ -146,25 +137,52 @@ fun go_to (thy, thy_file, act_txt) =
     val act_st_errs = Actions.apply_all pre_acts (Toplevel.make_state (SOME thy));
     val (act, st', e) = if null act_st_errs then raise Fail empty_err_mssg
       else Ops.last act_st_errs;
-    val err = Actions.extract_err e;
-  in [make_one(0, act, st', err)] end;
+    val err = Actions.extract_error e;
+  in [make_one(0, act, st', err)]: T end;
+
+fun apply_hammer params (state:T) =
+  let
+    val st = get_st state;
+    val thy = Toplevel.theory_of st;
+    val n = get_num state;
+    val state' = if not (Toplevel.is_proof st)
+      then make_one (n+1, Actions.void, st, "No proof state") :: state
+      else
+        let
+          val proofs = Hammer.get_suggestions params st;
+          fun return_if_proved ((_, prf, _) :: ps) =
+            let
+              val acts = Actions.make thy prf;
+              val stacts = Actions.timed_apply_all {timeout_in_secs=15} acts st;
+              fun convert (act, st, e) =
+                let
+                  val err = Actions.extract_error e;
+                in make_one (n+1, act, st, err) end;
+              val state' = if Pred.starts_with "by" prf then 
+                  if Actions.by_finishes (hd acts) st 
+                  then (rev (map convert stacts)) @ state
+                  else return_if_proved ps
+                else if Actions.no_errors stacts 
+                  then (rev (map convert stacts)) @ state
+                else return_if_proved ps     
+            in state' end
+          | return_if_proved [] =
+            make_one (n+1, Actions.void, st, "No valid hammer proof") :: state
+        in return_if_proved proofs end;
+  in state':T end;
 
 
 (* INFORMATION RETRIEVAL *)
 
-(* size: T -> int *)
-fun size state = List.length state
+fun size (state:T) = List.length state
 
-(* T -> bool *)
-fun is_at_proof state = is_at_proof' (hd state)
-fun no_subgoals state = no_subgoals' (hd state)
+fun is_at_proof (state:T) = is_at_proof' (hd state)
+fun no_subgoals (state:T) = no_subgoals' (hd state)
 
-(* T -> string *)
 fun last_action state = Actions.text_of (get_act state)
 fun last_state state = Get.user_state {break_lines=false} (get_st state)
 fun last_error state = get_err state
 
-(* to_string: T -> string *)
 fun to_string (state:T) = 
   let
     val new_line = "\n"
@@ -172,14 +190,12 @@ fun to_string (state:T) =
     val pre_final = map do_one state
   in Library.commas pre_final end;
 
-(* pretty: T -> Pretty.T *)
 fun pretty (state:T) = Pretty.str (to_string state);
 
 (* (* T needs to be a simple type (e.g. datatype) in order to do this *)
 val _ =  ML_system_pp (fn _ => fn _ => Pretty.to_polyml o pretty) *)
 
-(* proof_so_far: T -> string *)
-fun proof_so_far state =
+fun proof_so_far (state:T) =
   let
     val err_message = "Repl_State.proof_so_far error: not in proof state."
     val result = if not (is_at_proof' (hd state)) 
@@ -190,7 +206,6 @@ fun proof_so_far state =
       in implode (Ops.intersp ["\n"] acts) end;
   in result end;
 
-(* last_proof_of: T -> string *)
 fun last_proof_of (state: T) =
   let
     fun find_proof (step :: step' :: steps) =

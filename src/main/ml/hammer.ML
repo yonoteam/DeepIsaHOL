@@ -69,7 +69,8 @@ fun get_suggestions params st =
       Sledgehammer_Fact.no_fact_override
       (silence_state (Toplevel.proof_of st));
     val suggestions = filter contains_time (Synchronized.value prover_outputs);
-  in map extract_proof suggestions end;
+    val sort_on_time = Library.sort (fn ((_, _, i),(_, _, j)) => Library.int_ord (i, j));
+  in sort_on_time (map extract_proof suggestions) end;
 
 fun get_useful_facts n st =
   let
@@ -89,6 +90,5 @@ fun get_useful_facts n st =
       |> Library.distinct (fn ((name1, _), (name2, _)) => name1 = name2)
       |> Library.take n;
   in facts end;
-
 
 end
