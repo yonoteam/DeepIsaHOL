@@ -124,6 +124,9 @@ class REPL:
     def undoN(self, n):
         return self._repl.undoN(n)
     
+    def call_hammer(self, goals):
+        return self._repl.call_hammer(goals)
+    
     def shutdown_isabelle(self):
         self._repl.shutdown_isabelle()
         print("Isabelle shut down.")

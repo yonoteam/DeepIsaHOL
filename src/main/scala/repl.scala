@@ -91,6 +91,12 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     }
   }
 
+  def call_hammer(goals: ArrayList[(String, String)]): String = {
+    val (new_state, output) = minion.repl_call_hammer(goals, state)
+    state = new_state
+    output
+  }
+
   def shutdown_isabelle(): Unit = {
     isabelle.destroy()
     println("Isabelle process destroyed.")

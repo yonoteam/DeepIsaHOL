@@ -13,11 +13,11 @@ import random
 
 from tqdm import tqdm
 from pathlib import Path
-from typing import List, Union, Iterator, Callable, Optional, Generator, Any
+from typing import List, Iterator, Callable, Optional, Generator, Any
 
 import dicts
+from dicts import PathLike
 
-PathLike = Union[str, os.PathLike]
 
 def is_valid(json_data_dir: PathLike) -> bool:
     """

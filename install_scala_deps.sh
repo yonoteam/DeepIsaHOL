@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# --- install_deps.sh ---
-# Script to automatically install dependencies Isabelle, AFP, and scala-isabelle
+# --- install_scala_deps.sh ---
+# Script to automatically install scala-isabelle
 # Assumes that java is already installed
-# If you agree that these are safe operations, make this script executable: chmod +x install_deps.sh
-# If using your own configuration, make sure that this project ./src/main/scala/directories.scala
-# points to the correct locations of Isabelle and AFP
+# If you agree that the operations below are safe, 
+# make this script executable: chmod +x install_scala_deps.sh
+# and run it: ./install_scala_deps.sh
 
 echo "Creating dependencies directory..."
 mkdir lib                                                    # create directory of dependencies

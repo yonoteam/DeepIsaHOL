@@ -1,14 +1,17 @@
 #!/bin/bash
 
-# --- setup_env.sh ---
+# --- install_py_env.sh ---
 # Script to automatically create and activate the Python environment
 # Requires Conda or Mamba to be installed. Mamba is recommended for speed.
+# If you agree that the operations below are safe, 
+# make this script executable: chmod +x install_py_env.sh
+# and run it: ./install_py_env.sh
 
 ENV_NAME="IsaGeneration"
 YML_FILE="./src/main/python/isa_generation.yml"
 MAMBA_CMD="mamba" # Default to mamba
 
-# --- 1. Check for Mamba/Conda ---
+# 1. Check for Mamba/Conda
 if command -v mamba &> /dev/null; then
     MAMBA_CMD="mamba"
 elif command -v conda &> /dev/null; then
@@ -21,14 +24,14 @@ fi
 
 echo "--- Using $MAMBA_CMD to manage environment ---"
 
-# --- 2. Check for environment.yml ---
+# 2. Check for environment.yml
 if [ ! -f "$YML_FILE" ]; then
     echo "ERROR: Environment file '$YML_FILE' not found."
     echo "Please ensure '$YML_FILE' is in the current directory."
     exit 1
 fi
 
-# --- 3. Create or Update Environment ---
+# 3. Create or Update Environment
 echo "--- Creating/Updating environment '$ENV_NAME' ---"
 # The 'mamba env create' command handles both creation and updates 
 # if the environment already exists.

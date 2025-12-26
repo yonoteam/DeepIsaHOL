@@ -106,7 +106,7 @@ def compute_stats(accumulator, json_data_dir, **kwargs):
     }
 
 def extend_file(
-        path: data_dir.PathLike,
+        path: dicts.PathLike,
         acc: dict
     ) -> dict:
     proof = dicts.load_json(path)
@@ -129,7 +129,7 @@ def extend_file(
     return acc
 
 def extend_stats(
-        json_data_dir: data_dir.PathLike,
+        json_data_dir: dicts.PathLike,
         acc: dict = {
             "current_logic": "",
             "count": 0,

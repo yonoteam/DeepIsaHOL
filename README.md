@@ -1,5 +1,5 @@
 # DeepIsaHOL
-This is the repository of the DeepIsaHOL project. It is supported by the DeepIsaHOL MSCA Fellowship (number: 101102608) titled Reinforcement learning to improve proof-automation in theorem proving. The project's long-term objective is to use the [Isabelle proof assistant](https://isabelle.in.tum.de/) as a reinforcement learning (RL) environment for training RL algorithms that ultimately serve as tools for Isabelle users.
+This is the repository of the DeepIsaHOL project. It was supported by the DeepIsaHOL MSCA Fellowship (number: 101102608) titled Reinforcement learning to improve proof-automation in theorem proving. The project's long-term objective is to use the [Isabelle proof assistant](https://isabelle.in.tum.de/) as a reinforcement learning (RL) environment for training RL algorithms that ultimately serve as tools for Isabelle users.
 
 The project currently offers:
   1. proof data retrieving capabilities from Isabelle libraries,
@@ -24,33 +24,32 @@ Additionally, generated data examples, weights of the `T5` models trained with t
 
 ## Instalation
 
-0. We now provide installers! The file `install_deps.sh` installs `sbt` `scala-isabelle`, `Isabelle` and the `AFP` to export data from Isabelle. The file `install_py_env.sh` allows one to install Python environments from any of the `.yml` files in `/src/main/python/`. The current configuration of the file is to install the environment `IsaGeneration` from `isa_generation.yml` to allow Isabelle to interact with locally hosted LLMs. The other `.yml` files are for training models with the HuggingFace library.
-1. Prerequisites:
-  * The [Isabelle2025](https://isabelle.in.tum.de/) proof assistant
-    - Optionally (see 6. below): Its [Archive of Formal Proofs](https://www.isa-afp.org/) (AFP)
-  * Dominique Unruh's [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) updated library for Isabelle2025 (see "Scala level" below).
+Depending on your usage, you will want to install different dependencies but all processes require the [Isabelle2025](https://isabelle.in.tum.de/) proof assistant. We provide the installer file `install_isabelle.sh` for it that also installs the [Archive of Formal Proofs](https://www.isa-afp.org/) (AFP). If you want to work with your own `.thy` files. For the tasks above, we provide specific instructions:
+
+0. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository.
+1. **LLMs in Isabelle**: You will need a [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) with the necessary Python packages installed. The fastest way to install them is via our installer `install_py_env.sh`. It already installs the Python packages for ChatGPT, Ollama, Gemini and HuggingFace models. If using [ChatGPT](https://platform.openai.com/docs/quickstart) or [Gemini](https://ai.google.dev/gemini-api/docs/api-key), remember to use your API keys. This [YouTube video](https://www.youtube.com/watch?v=Uq7I5sGaHo0) shows the environment installation process, the configuration of the models, and the command to call them.
+2. **Data extraction**: For this you need:
   * The [sbt](https://www.scala-sbt.org/) build tool for Java and Scala.
-  * A [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) with key packages and its dependencies. In particular:
-    - For connecting Python to Isabelle, this repository uses the [Py4J](https://www.py4j.org/install.html) library (see "Python level" below). 
-    - For training and evaluating models, it uses Hugging Face's openly available [Transformers](https://huggingface.co/docs/transformers/en/index) and [Accelerate](https://huggingface.co/docs/accelerate/en/index) libraries and [Unsloth](https://unsloth.ai/)'s libraries. All of them depend on [PyTorch](https://pytorch.org/).
-2. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository.
-3. Adapt this project's `build.sbt` file to your need (e.g. correct the location of `scala-isabelle`).
-4. Adapt this project's `directories.scala` to your needs. Specifically, you will need to update the location of this project's `src/main/ml/Isabelle_RL.thy` file and paste it to `isabelle_rl`, and the location of your Isabelle application to `isabelle_app`.
-5. [Compile](https://www.scala-sbt.org/1.x/docs/Running.html) this project's Scala sources. 
-6. If you wish to extract data from a specific AFP entry, ensure that:
-    - You can [make Isabelle aware of your AFP location](https://www.isa-afp.org/help/) 
-    - Your AFP entry (or Isabelle library) has a ROOT file (or ROOTS file), with a header resembling the snippet below (see [Isabelle's sessions and built management](https://isabelle.in.tum.de/dist/Isabelle2024/doc/system.pdf) in Isabelle's [documentation](https://isabelle.in.tum.de/documentation.html)).
-    ```sml
-    session logic_name (AFP) = "parent_logic" +
-      options [timeout = 1800]
-      theories (* these correspond to .thy files in the entry's directory *)
-        theory_file_name1 
-        theory_file_name2
-      document_files
-        "root.tex"
-        "root.bib"
-    ```
-    - Or call the project's functions from the location of your entry.
+  * Dominique Unruh's [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) updated library for Isabelle2025 (see "Scala level" below).
+A script installing and [compiling](https://www.scala-sbt.org/1.x/docs/Running.html) these is `install_scala_deps.sh`. After you have the dependencies, you will also need to adapt this project's `directories.scala`. Specifically, you will need to provide the full path to this project to `isabelle_rl`, and the location of your Isabelle application to `isabelle_app`.
+3. **Interaction with Isabelle in Python**: For this you need:
+  * The [sbt](https://www.scala-sbt.org/) build tool for Java and Scala.
+  * Dominique Unruh's [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle) updated library for Isabelle2025 (see "Scala level" below).
+  * A [Python environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) with the necessary Python packages installed. For connecting Python to Isabelle, this repository uses the [Py4J](https://www.py4j.org/install.html) library (see "Python level" below).
+See the previous installation instructions for specific installers.
+4. **Reproducing the training and evaluation of models**: This requires all the dependencies listed in the previous points. Before using `install_py_env.sh`, change the `.yml` file in the script to one suitable for your machine. These are located in `/src/main/python/`. For training and evaluating models, the project uses Hugging Face's [Transformers](https://huggingface.co/docs/transformers/en/index) and [Accelerate](https://huggingface.co/docs/accelerate/en/index) libraries and [Unsloth](https://unsloth.ai/)'s libraries. All of them depend on [PyTorch](https://pytorch.org/).
+5. If you wish to extract data from a specific AFP entry or work with your own `.thy` files, the project works best when you have specified an Isabelle session and you have [made Isabelle aware of its location](https://www.isa-afp.org/help/). That is, ensure that:
+  * Your AFP entry (or Isabelle library) has a ROOT file (or ROOTS file), with a header resembling the snippet below (see [Isabelle's sessions and built management](https://isabelle.in.tum.de/dist/Isabelle2025/doc/system.pdf) in Isabelle's [documentation](https://isabelle.in.tum.de/documentation.html)).
+  ```sml
+  session logic_name (AFP) = "parent_logic" +
+    options [timeout = 1800]
+    theories (* these correspond to .thy files in the entry's directory *)
+      theory_file_name1 
+      theory_file_name2
+    document_files
+      "root.tex"
+      "root.bib"
+  ```
 
 
 ## Data extraction
@@ -62,7 +61,7 @@ One can call this functionality via `sbt` from this repository's top directory:
 sbt "run /path/to/a/read/directory/ /path/to/a/writing/directory/"
 ```
 
-Alternatively, you can use `writer.scala` or `writer.python` for interactively extracting data via the corresponding REPLs.
+Alternatively, you can use `writer.scala` or `writer.python` for interactively extracting data via their corresponding REPLs.
 
 **Scala**:
 
@@ -184,8 +183,6 @@ REPL and minion initialized.
 
 The project has three levels: Isabelle, Scala and Python. They are linearly ordered with Isabelle being the lowest level, and Python being the highest. The Isabelle proof assistant is in charge of retrieving all data from its sources. The other 2 levels interact with functions, structures and/or methods from the level immediately below. Each level satisfies a need that the previous level cannot. Scala enables a programmatic interaction with Isabelle while also having more features than the `Isabelle/ML` programming language. Python enables the interaction with popular machine learning, deep learning, and reinforcement learning libaries.
 
-### How to explore?
-
 #### Isabelle level
 You can use Isabelle's jEdit prover IDE (PIDE) to experiment with this project's `ML` libraries. For instance, this project's file `get.ML` includes various functions for retrieving specific data from the proof assistant. You can open a `.thy` file (e.g. `Temp.thy`) with Isabelle and see the result of `get.ML` functions by giving arguments to them inside `Temp.thy` and seeing the result in the PIDE's output panel:
 
@@ -222,34 +219,45 @@ Finally, the project provides Python classes in `writer.py` and `repl.py` with t
 
 ```bash
 .
-├── README.md
 ├── build.sbt
+├── CITATION.cff
+├── README.md
+├── deepisahol_2025.pdf
+├── install_isabelle.sh
+├── install_py_env.sh
+├── install_scala_deps.sh
 └── src                           # sources for the above-listed implementations
     ├── main
     │   ├── ml
-    │   │   ├── Isabelle_RL.thy   # Theory importing this project's ML libraries
+    │   │   ├── Libraries.thy     # Theory importing this project's ML libraries (works from Isabelle/Pure)
+    │   │   ├── Isabelle_RL.thy   # Theory importing this project's ML libraries (works from Isabelle/HOL)
     │   │   ├── ROOT              # Corresponding ROOT file for this project
     │   │   ├── actions.ML        # Isabelle's top-level representation of user-actions
+    │   │   ├── client.ML
     │   │   ├── data.ML           # definition of Data.T grouping retrieved data
-    │   │   ├── g2tac_formatter.ML
     │   │   ├── get.ML            # methods for retrieving Isabelle data
+    │   │   ├── hammer.ML         # libraries to call Sledgehammer programmatically
     │   │   ├── imports.ML
-    │   │   ├── json_maker.ML     # methods formatting the generated JSON files
+    │   │   ├── json.ML           # model for JSON files
+    │   │   ├── llm.ML            # libraries interacting with models ran in server.py
     │   │   ├── ops.ML            # frequently used operations
     │   │   ├── pred.ML           # frequently used operations using predicates
     │   │   ├── print.ML          # data displying methods
     │   │   ├── repl_state.ML     # model for the REPLs' state
     │   │   ├── sections.ML       # methods for identifying sections of a .thy file
     │   │   ├── seps.ML           # .thy file section-delimiter methods based on keywords
-    │   │   ├── temp.ML
     │   │   └── writer.ML         # methods for writing the JSON objects
     │   ├── python
+    |   │   ├── environment_cuda.yml  # lists python packages that rely on CUDA
+    |   │   ├── environment.yml       # lists python packages for training without CUDA
+    |   │   ├── isa_generation.yml    # lists python packages for calling genAI models from Isabelle
     |   │   ├── config_ops.py     # for the configuration file of the training of models
-    │   │   ├── data_clumper.py
     │   │   ├── dfs.py            # depth-first-search loop for automated theorem proving
     │   │   ├── dicts.py          # operations manipulating Python dictionaries
     │   │   ├── distrib.py        # operations for distributed model training and evaluation
     │   │   ├── eval_t5.py        # evaluation loops for the LLMs
+    │   │   ├── generation_ops.py # frequently used model generation functions
+    │   │   ├── llm_server.py     # a server hosting a genAI model
     │   │   ├── ops.py            # frequently used operations
     │   │   ├── proofs.py
     │   │   │   ├── __init__.py   # methods for data-retrieval from the generated proof-JSONs
@@ -257,11 +265,11 @@ Finally, the project provides Python classes in `writer.py` and `repl.py` with t
     │   │   │   ├── data_stats.py # statistics from the generated proof-JSONs
     │   │   │   └── str_ops.py    # string operations on the generated proof-JSONs
     │   │   ├── repl.py           # implementation of the Python REPL
-    │   │   ├── requiremnts.txt   # dependencies for this project's Python scripts
     │   │   ├── save_ops.py       # methods for saving tokenizers, datasets, and models
     │   │   ├── tokenizer_ops.py  # frequently used tokenizer operations
-    │   │   ├── train_config.json # template of the input training configuration file
-    │   │   ├── train_t5.py       # training loop for the models
+    │   │   ├── train_t5.py       # training loop for the T5 models
+    │   │   ├── train_gemma.py    # training loop for the Gemma models with HuggingFace
+    │   │   ├── train_unsloth_gemma.py # loop for training the Gemma models with Unsloth
     │   │   └── writer.py         # interface with the data-extraction algorithm
     │   └── scala
     │       ├── directories.scala # register of important directories for this repository

@@ -1,12 +1,11 @@
 # Mantainers: 
 # Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
 # 
-# Draft for a loop evaluating the T5 model interation with the repl
+# A loop evaluating LLMs interation with the repl on proofs in the dataset
 
 import os
 import gc
 import time
-import fcntl
 import logging
 from itertools import takewhile
 
@@ -21,30 +20,6 @@ from repl import REPL
 from transformers import pipeline # after genops including unsloth
 
 # DFS OPERATIONS
-
-def update_repling_records(
-        new_metrics, 
-        filename="repling_records.json"
-    ):
-    if not os.path.exists(filename):
-        dicts.save_as_json({}, filename)
-    with open(filename, "r+") as f:
-        fcntl.flock(f, fcntl.LOCK_EX) # exclusive lock on file
-        try:
-            curr_data = dicts.safe_load_json(f)
-            for key, value in new_metrics.items():
-                if isinstance(value, float):
-                    curr_data[key] = curr_data.get(key, 0) + value
-                if isinstance(value, int):
-                    curr_data[key] = curr_data.get(key, 0) + value
-                elif isinstance(value, list):
-                    curr_data.setdefault(key, []).extend(value)
-                else:
-                    # TODO: decide other non-numerics handling if added
-                    curr_data[key] = value 
-            dicts.replace_in_opened(curr_data, f)
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
 
 def save_proof(repl, prf):
     thy_name = prf["thy_name"]
@@ -284,7 +259,6 @@ def load_proof(data_format, prf_num, prf_path, thy_name, logic):
 
 def attempt_proof(
         repl,
-        prf_count,
         prf_info,
         dfs_config
     ):
@@ -301,7 +275,7 @@ def attempt_proof(
             prf_info,
             dfs_config
         )
-        update_repling_records(metrics, "repling_records.json")
+        dicts.update_records(metrics, "repling_records.json")
     except Exception as e:
         logging.warning(f"Error processing proof at {prf_path} with REPL at {logic}.{thy_name}: {e}")
     finally:
@@ -309,35 +283,10 @@ def attempt_proof(
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        return prf_count + 1, repl
+        return repl
 
 
 # PROGRESS FILE AND LOGIC PROCESSING
-
-def create_progress_file():
-    progress_file = "progress.txt"
-    if not os.path.exists(progress_file):
-        with open(progress_file, "w", encoding="utf-8"):
-            pass
-    return progress_file
-
-def progress_logic_in(logic, progress_file):
-    # "progress" used both as adjective and verb
-    # made in this way for concurrency safety
-    with open(progress_file, "r+", encoding="utf-8") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            completed_logics = {line.strip() for line in f}
-            if logic in completed_logics:
-                return True
-            
-            f.seek(0, os.SEEK_END) # go to end of file
-            f.write(logic + "\n")
-            f.flush()              # ensure buffer written to OS
-            os.fsync(f.fileno())   # ensure OS writes to disk
-            return False
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
 
 def setup_logic_logging(logic_name):
     """
@@ -368,20 +317,26 @@ def max_attempts_reached(loop_state):
     return loop_state["prf_attempts_count"] >= max_attempts
 
 def process_logic(logic, thys, dfs_config, loop_state):
-    repl = loop_state["repl"]
-    prf_count = 0 # counter with respect to len_proofs
+    # logic proof counter
+    prf_count = 0
     len_proofs = sum(len(thy_proofs) for thy_proofs in thys.values())
+
+    # logic configuration
+    setup_logic_logging(logic)
+    logging.info(f"Processing logic {logic}")
+    repl = loop_state["repl"]
     if repl:
         repl.switch_to(logic)
     else:
         repl = REPL(logic)
-    setup_logic_logging(logic)
-    logging.info(f"Processing logic {logic}")
-    for thy_name in thys:
+    
+    # main loop for logic
+    for thy_name, thy_proofs in thys.items():
         if loop_state["max_attempts_reached"]:
             break
+
         logging.info(f"Processing theory {thy_name}")
-        for prf_num, prf_path in thys[thy_name]:
+        for prf_num, prf_path in thy_proofs:
             prf_info = load_proof(
                 dfs_config["data_format"],
                 prf_num,
@@ -390,15 +345,15 @@ def process_logic(logic, thys, dfs_config, loop_state):
                 logic
             )
             logging.info(f"Loaded proof at {prf_path}")
-            prf_count, loop_state["repl"] = attempt_proof(
+            loop_state["repl"] = attempt_proof(
                 repl, 
-                prf_count, 
                 prf_info, 
                 dfs_config
             )
-            logging.info(f"Processed proof {prf_count} of {len_proofs}: {prf_path}\n\n")
+            prf_count += 1
+            logging.info(f"Processed proof {prf_count} of {len_proofs} for logic '{logic}': {prf_path}\n\n")
             loop_state["prf_attempts_count"] += 1
-            # print(f"Proof attempts so far: {loop_state['prf_attempts_count']}")
+            
             if max_attempts_reached(loop_state):
                 loop_state["max_attempts_reached"] = True
                 break
@@ -447,7 +402,7 @@ def init_loop_state(dfs_config):
 def process_logics(config_dict):
     dfs_config = configure(config_dict) # llm-generator inside dfs_config
     loop_state = init_loop_state(dfs_config)
-    progress_file = create_progress_file()
+    progress_file = config_ops.create_progress_file(file_name="progress.txt")
     logics_dict = proofs.data_dir.group_paths_by_logic(
         config_dict["data_dir"], 
         config_dict["data_split"]
@@ -457,13 +412,10 @@ def process_logics(config_dict):
             if loop_state["max_attempts_reached"]:
                 print("Max attempts reached, stopping process.")
                 break
-            if progress_logic_in(logic, progress_file):
+            if config_ops.progress_item_in(logic, progress_file):
                 print(f"Skipping already processed logic: {logic}")
                 continue
-            # else: progress_logic_in(logic, progress_file)
-
             thys = logics_dict[logic]
-            
             loop_state = process_logic(logic, thys, dfs_config, loop_state)
     except Exception as e:
         logging.warning(f"Error processing {logic}: {e}")

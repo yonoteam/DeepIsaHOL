@@ -6,11 +6,14 @@
 import os
 import re
 import json
+import fcntl
 import logging
 
 from pathlib import Path
 from typing import Union, Optional, List, IO, Any
 from collections.abc import MutableMapping, MutableSequence
+
+PathLike = Union[str, os.PathLike]
 
 def safe_load_json(file_obj: IO[str]) -> dict:
     """
@@ -142,7 +145,11 @@ def replace_in_opened(data: dict, file: IO[str], indent: int = 4) -> None:
     file.truncate()
     json.dump(data, file, indent=indent)
 
-def save_as_json(data: dict, save_path: Union[str, os.PathLike], indent=4) -> None:
+def save_as_json(
+        data: dict, 
+        save_path: PathLike,
+        indent=4
+    ) -> None:
     """
     Saves a dictionary as a JSON file.
 
@@ -155,6 +162,58 @@ def save_as_json(data: dict, save_path: Union[str, os.PathLike], indent=4) -> No
             json.dump(data, json_file, indent=indent)
     except Exception as e:
         logging.error(f"Error saving dictionary to JSON '{save_path}': {e}")
+
+def synch_save(
+        data: dict, 
+        save_path: PathLike,
+        indent=4
+    ) -> None:
+    """
+    Synchronously replaces the content of the JSON file with the 
+    provided metrics dictionary using an exclusive lock.
+    """
+    # open in 'w' mode would truncate immediately, 
+    # so we open in 'r+' or 'a+' to lock before clearing.
+    mode = "r+" if os.path.exists(save_path) else "w+"
+    with open(save_path, mode) as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.seek(0)
+            json.dump(data, f, indent=indent)
+            f.truncate()
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+def update_records(
+        new_metrics: dict, 
+        filename: PathLike="records.json"
+    ) -> None:
+    """
+    Updates a JSON file with new metrics by aggregating numerical values
+    and extending lists. Non-numeric values are overwritten.
+
+    :param new_metrics: dictionary with new metrics to update
+    :param filename: path to the JSON file to update
+    """
+    if not os.path.exists(filename):
+        save_as_json({}, filename)
+    with open(filename, "r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX) # exclusive lock on file
+        try:
+            curr_data = safe_load_json(f)
+            for key, value in new_metrics.items():
+                if isinstance(value, float):
+                    curr_data[key] = curr_data.get(key, 0) + value
+                if isinstance(value, int):
+                    curr_data[key] = curr_data.get(key, 0) + value
+                elif isinstance(value, list):
+                    curr_data.setdefault(key, []).extend(value)
+                else:
+                    # TODO: decide other non-numerics handling if added
+                    curr_data[key] = value 
+            replace_in_opened(curr_data, f)
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 def get_keys(d: dict, prefix: str="") -> List[str]:
     """Recursively finds all key paths in the dictionary d

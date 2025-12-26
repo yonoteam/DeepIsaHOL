@@ -27,7 +27,7 @@ def user_proof_up_to(proof_json, i):
     return '\n'.join(proof_so_far)
 
 def count_steps(proof_json):
-    return len(proof_json['proof'])
+    return len(proof_json.get("proof", [])) - 1
 
 def print_proof(proof_json):
     for act in full_actions_of(proof_json):

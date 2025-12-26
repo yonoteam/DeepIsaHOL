@@ -7,18 +7,14 @@ the tokenizing, training, and evaluation parameters for the models.
 """
 
 import os
+import fcntl
 import logging
 import argparse
-from typing import Union
-
-import torch
 
 import dicts
 import proofs.data_dir
 from proofs.str_ops import FORMATS
 from proofs.data_dir import SPLITS
-
-PathLike = Union[str, os.PathLike]
 
 EXAMPLE_TRAINING_ARGS = {
     # operational
@@ -111,6 +107,7 @@ EXAMPLE_CONFIG_DICT = {
 }
 
 def get_torch_float_type(float_type_str):
+    import torch
     torch_type_mapping = {
         "float32": torch.float32,
         "float": torch.float32,
@@ -133,6 +130,31 @@ def get_torch_float_type(float_type_str):
             f"Unknown float type '{float_type_str}'. "
             f"Expected one of: {list(torch_type_mapping.keys())}"
         )
+    
+def create_progress_file(file_name: str = "progress.txt") -> str:
+    progress_file = file_name
+    if not os.path.exists(progress_file):
+        with open(progress_file, "w", encoding="utf-8"):
+            pass
+    return progress_file
+
+def progress_item_in(item, progress_file):
+    # "progress" used both as adjective and verb
+    # made in this way for concurrency safety
+    with open(progress_file, "r+", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            completed_items = {line.strip() for line in f}
+            if item in completed_items:
+                return True
+            
+            f.seek(0, os.SEEK_END) # go to end of file
+            f.write(item + "\n")
+            f.flush()              # ensure buffer written to OS
+            os.fsync(f.fileno())   # ensure OS writes to disk
+            return False
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 def ancester_dir_exists(path):
     """
@@ -182,9 +204,6 @@ def check_params(config_dict):
         task = config_dict["task"]
         if not isinstance(task, str):
             raise ValueError(f"Input for task must be a string")
-        
-        _ = config_dict["model_name"]
-        data_format = config_dict["data_format"]
 
     except KeyError as e:
         raise KeyError(f"Error extracting parameter from configuration dictionary: {e}")
@@ -195,6 +214,8 @@ def check_params(config_dict):
     
     if task == pretrain_model or task == finetune_model:
         try:
+            _ = config_dict["model_name"]
+            data_format = config_dict["data_format"]
             data_dir = config_dict["data_dir"]
             models_dir = config_dict["models_dir"]
             tokenizers_dir = config_dict["tokenizers_dir"]
@@ -216,6 +237,8 @@ def check_params(config_dict):
         check_valid_format(data_format)
     if task == eval_model:
         try:
+            _ = config_dict["model_name"]
+            data_format = config_dict["data_format"]
             data_dir = config_dict["data_dir"]
             models_dir = config_dict["models_dir"]
             tokenizers_dir = config_dict["tokenizers_dir"]

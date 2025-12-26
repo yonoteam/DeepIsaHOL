@@ -16,6 +16,7 @@ import de.unruh.isabelle.mlvalue.{MLValue, MLValueWrapper, MLFunction, MLFunctio
 import de.unruh.isabelle.pure.{Theory}
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
+import java.util.ArrayList
 
 
 // MINION CLASS
@@ -57,9 +58,9 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
 
   // Isabelle/RL theory (Isabelle_RL.thy) for loading ML files
   val isabelle_rl_path = Path.of(Directories.isabelle_rl)
-  val thy_path = isabelle_rl_path.resolve("src/main/ml/Libraries.thy")
+  val thy_path = isabelle_rl_path.resolve("src/main/ml/Isabelle_RL.thy")
   if (!Files.exists(thy_path)) {
-    throw new Exception(s"Libraries.thy not found at ${thy_path} in /src/main/ml/")
+    throw new Exception(s"Isabelle_RL.thy not found at ${thy_path} in /src/main/ml/")
   }
   val isabelle_rl_thy : Theory = Theory(thy_path)
   
@@ -121,9 +122,10 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
       override protected val mlType: String = s"$ml_repl_struct.T" 
       override protected val predefinedException: String = s"$ml_repl_struct.E_Repl_State"
       override protected def instantiate(mlValue: MLValue[Repl_State]): Repl_State = new Repl_State(mlValue)
-      
-      override protected def newOps(implicit isabelle: Isabelle): Ops = new Ops
-      protected class Ops(implicit isabelle: Isabelle) extends super.Ops {
+
+      override protected type Ops = REPL_Ops
+      override protected def newOps(implicit isabelle: Isabelle): REPL_Ops = new REPL_Ops
+      protected class REPL_Ops(implicit isabelle: Isabelle) extends super.Ops {
         lazy val size = compileFunction[Repl_State, Int](s"$ml_repl_struct.size")
         lazy val last_state = compileFunction[Repl_State, String](s"$ml_repl_struct.last_state")
         lazy val last_action = compileFunction[Repl_State, String](s"$ml_repl_struct.last_action")
@@ -139,6 +141,7 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
         lazy val undo = compileFunction[Repl_State, Repl_State](s"$ml_repl_struct.undo")
         lazy val reset = compileFunction[Repl_State, Repl_State](s"$ml_repl_struct.reset")
         lazy val go_to = compileFunction[Theory, String, String, Repl_State](s"$ml_repl_struct.go_to")
+        lazy val call_hammer = compileFunction[List[(String, String)], Repl_State, (Repl_State, String)](s"$ml_repl_struct.call_hammer")
       }
     }
   }
@@ -186,4 +189,7 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
 
   def repl_go_to (thy: Theory, file_path: String, act_txt: String) = 
     ML_repl.Repl_State.Ops.go_to(thy, file_path, act_txt).retrieveNow
+
+  def repl_call_hammer (goals: ArrayList[(String, String)], state: ML_repl.Repl_State) = 
+    ML_repl.Repl_State.Ops.call_hammer(goals.asScala.toList, state).retrieveNow
 }

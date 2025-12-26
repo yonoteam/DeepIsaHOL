@@ -28,7 +28,7 @@ sig
   val undo: T -> T
   val reset: T -> T
   val go_to: (theory * string * string) -> T
-  val apply_hammer: (string * string) list -> T -> T
+  val call_hammer: (string * string) list * T -> T * string
   val to_string: T -> string
   val pretty: T -> Pretty.T
   val proof_so_far: T -> string
@@ -140,13 +140,15 @@ fun go_to (thy, thy_file, act_txt) =
     val err = Actions.extract_error e;
   in [make_one(0, act, st', err)]: T end;
 
-fun apply_hammer params (state:T) =
+fun call_hammer (params, state:T) =
   let
     val st = get_st state;
     val thy = Toplevel.theory_of st;
     val n = get_num state;
-    val state' = if not (Toplevel.is_proof st)
-      then make_one (n+1, Actions.void, st, "No proof state") :: state
+    val result = if not (Toplevel.is_proof st)
+      then 
+        let val mssg = "No proof state"
+        in (make_one (n+1, Actions.void, st, mssg) :: state, mssg) end
       else
         let
           val proofs = Hammer.get_suggestions params st;
@@ -158,18 +160,22 @@ fun apply_hammer params (state:T) =
                 let
                   val err = Actions.extract_error e;
                 in make_one (n+1, act, st, err) end;
-              val state' = if Pred.starts_with "by" prf then 
+              val (state', mssg) = if Pred.starts_with "by" prf 
+                then 
                   if Actions.by_finishes (hd acts) st 
-                  then (rev (map convert stacts)) @ state
+                  then ((rev (map convert stacts)) @ state, "Used: '" ^ prf ^ "'")
                   else return_if_proved ps
                 else if Actions.no_errors stacts 
-                  then (rev (map convert stacts)) @ state
+                  then ((rev (map convert stacts)) @ state, "Used: '" ^ prf ^ "'")
                 else return_if_proved ps     
-            in state' end
+            in (state', mssg) end
           | return_if_proved [] =
-            make_one (n+1, Actions.void, st, "No valid hammer proof") :: state
+            let 
+              val mssg = "No valid hammer proof"
+              val state' = make_one (n+1, Actions.void, st, mssg) :: state;
+            in (state', mssg) end
         in return_if_proved proofs end;
-  in state':T end;
+  in result end;
 
 
 (* INFORMATION RETRIEVAL *)
