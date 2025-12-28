@@ -91,7 +91,7 @@ def configure_trainer_args(config_dict):
 
 def load_tok_data(config_dict, split):
     logging.info(f"Loading tokenizer and data.")
-    tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-it")
+    tokenizer = AutoTokenizer.from_pretrained(config_dict["model_name"])
     dataset = IterableDataset.from_generator(
         tokops.generate_gemma_inputs,
         gen_kwargs=dict(
