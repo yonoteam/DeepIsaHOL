@@ -183,6 +183,7 @@ def count_train_samples(config_dict):
         )
     
     total_samples = 0
+    logging.info(f"Starting to count from the split: {data_split}")
     for example_idx, example in enumerate(processed_dataset):
         if example_idx == 0:
             logging.info(f"The first example properties are:")

@@ -253,6 +253,7 @@ def compute_stats(config_dict):
     length_counters = {th: 0 for th in thresholds}
     gemma_iter = tokops.generate_gemma_inputs(data_dir, split, data_format)
 
+    print("Checkpoint 2: starting counting loop")
     for i, conversation in enumerate(gemma_iter):
         if max_steps is not None and i >= max_steps:
             logging.info(f"Reached max steps of {max_steps}. Stopping counting.")
@@ -316,6 +317,7 @@ if __name__ == "__main__":
     if task == config_ops.count_dataset:
         config_ops.setup_logging("gemma_data_stats.log")
         logging.info("Starting counting process.")
+        print("Checkpoint 1: configured logging")
         compute_stats(config_dict)
     else:
         config_ops.setup_logging("gemma_train.log")
