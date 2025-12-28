@@ -297,5 +297,6 @@ def setup_logging(log_file_name, log_level=logging.DEBUG, save_dir=os.getcwd()):
         filename=log_file,
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
+        force=True
     )
     logging.info("Logging configured. Writing logs to %s", log_file)
