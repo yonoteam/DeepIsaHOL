@@ -17,7 +17,7 @@ from repl import REPL
 def measure_hammer(prf_info, loop_state):
     repl = loop_state["repl"]
     metrics = loop_state["counters"]
-    metrics["attempted_proofs"] += 1
+    metrics["attempted_proofs_per_thy"] += 1
     try:
         repl.go_to(prf_info["thy_name"], prf_info["start_line"])
         start_time = time.time()
@@ -82,7 +82,8 @@ def should_skip(proof_dict: dict) -> bool:
 
 def reset_counters_for_thy(counters):
     counters["skipped_proofs"] = 0
-    counters["attempted_proofs"] = 0
+    counters["attempted_proofs_per_run"] += counters["attempted_proofs_per_thy"]
+    counters["attempted_proofs_per_thy"] = 0
     counters["successful_hammers"] = 0
     counters["failed_hammers"] = 0
     counters["finished_proofs"] = 0
@@ -102,7 +103,7 @@ def max_attempts_reached(loop_state):
     if max_attempts is None:
         return False
 
-    return loop_state["counters"]["attempted_proofs"] >= max_attempts
+    return loop_state["counters"]["attempted_proofs_per_run"] >= max_attempts
 
 def process_logic(logic, thys, loop_state):
     # logic proof counter
@@ -146,7 +147,7 @@ def process_logic(logic, thys, loop_state):
                 dicts.update_records(loop_state["counters"], "hammer_metrics.json")
                 break
         dicts.update_records(loop_state["counters"], "hammer_metrics.json")
-    mssg = f"Processed all theories in {logic} or processed {loop_state['counters']['attempted_proofs']} proofs out of {loop_state['max_prf_attempts']}."
+    mssg = f"Processed all theories in {logic} or processed {loop_state['counters']['attempted_proofs_per_run']} proofs out of {loop_state['max_prf_attempts']}."
     print(mssg)
     logging.info(mssg)
     return loop_state
@@ -161,7 +162,8 @@ def init_loop_state(config_dict):
         "hammer_params": config_dict.get("hammer_params", []),
         "counters": {
             "skipped_proofs": 0,
-            "attempted_proofs": 0,
+            "attempted_proofs_per_thy": 0,
+            "attempted_proofs_per_run": 0,
             "finished_proofs": 0,
             "successful_hammers": 0,
             "failed_hammers": 0,

@@ -41,12 +41,12 @@ def configure_trainer_args(config_dict):
     # pre_args["bf16"] = True if torch_dtype == torch.bfloat16 else False
     pre_args["max_steps"] = config_dict["num_epochs"] * batches_per_epoch
     pre_args["logging_dir"] = os.getcwd()
-    pre_args["logging_steps"] = max(1, batches_per_epoch // 100)
+    pre_args["logging_steps"] = max(1, batches_per_epoch // 10)
     pre_args["output_dir"] = config_dict["models_dir"]
     pre_args["overwrite_output_dir"] = True
     pre_args["save_strategy"] = "steps"
     pre_args["save_total_limit"] = 5
-    pre_args["save_steps"] = max(1, batches_per_epoch // 100)
+    pre_args["save_steps"] = max(1, batches_per_epoch // 10)
 
     # Overwriting
     # pre_args["learning_rate"] = 2e-4 # based on QLoRA paper
