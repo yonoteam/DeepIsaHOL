@@ -23,7 +23,7 @@ def measure_hammer(prf_info, loop_state):
         repl.go_to(prf_info["thy_name"], prf_info["start_line"])
         start_time = time.time()
         if repl.is_at_proof() and repl.without_subgoals():
-            logging.info(f"Does not need hammer '{repl.last_proof()}', skipping.")
+            logging.info(f"Does not need hammer '{repl.proof_so_far()}', skipping.")
             metrics["unnecessary_hammers"] += 1
             return loop_state
         result_msg = repl.call_hammer(loop_state["hammer_params"])
