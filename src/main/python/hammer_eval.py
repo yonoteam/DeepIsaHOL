@@ -134,6 +134,7 @@ def process_logic(logic, thys, loop_state):
             proof = dicts.load_json(prf_path)
             if should_skip(proof):
                 loop_state["thy_counters"]["skipped_proofs"] += 1
+                prf_count += 1
                 logging.info(f"Skipping {prf_path} (predicate returned True)")
                 continue
             prf_info = mk_prf_info(
