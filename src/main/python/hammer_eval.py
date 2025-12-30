@@ -108,7 +108,7 @@ def max_attempts_reached(loop_state):
     if max_attempts is None:
         return False
 
-    return loop_state["thy_counters"]["attempted_proofs_per_run"] >= max_attempts
+    return loop_state["attempted_proofs_per_run"] >= max_attempts
 
 def process_logic(logic, thys, loop_state):
     # logic proof counter
@@ -193,7 +193,7 @@ def eval_hammer_on_logics(config_dict):
             thys = logics_dict[logic]
             loop_state = process_logic(logic, thys, loop_state)
     except Exception as e:
-        logging.warning(f"Error processing {logic}: {e}")
+        logging.warning(f"Error processing logic '{logic}': {e}")
     finally:
         if loop_state["repl"]:
             loop_state["repl"].shutdown_gateway()
