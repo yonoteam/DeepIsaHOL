@@ -13,9 +13,9 @@ mkdir lib                                                    # create directory 
 cd lib                                                       # go to directory of dependencies
 
 echo "Downloading and extracting Isabelle 2025..."
-curl -sO https://isabelle.in.tum.de/dist/Isabelle2025_linux.tar.gz  # downloading
-tar -xzf Isabelle2025_linux.tar.gz                                  # extracting
-rm Isabelle2025_linux.tar.gz                                        # removing compressed version
+curl -sO https://isabelle.in.tum.de/dist/Isabelle2025-1_linux.tar.gz  # downloading
+tar -xzf Isabelle2025-1_linux.tar.gz                                  # extracting
+rm Isabelle2025-1_linux.tar.gz                                        # removing compressed version
 
 echo "Downloading and extracting AFP..."
 curl -sO https://www.isa-afp.org/release/afp-current.tar.gz         # downloading

@@ -407,21 +407,20 @@ def process_logics(config_dict):
         config_dict["data_dir"], 
         config_dict["data_split"]
     )
-    try:
-        for logic in logics_dict.keys():
-            if loop_state["max_attempts_reached"]:
-                print("Max attempts reached, stopping process.")
-                break
-            if config_ops.progress_item_in(logic, progress_file):
-                print(f"Skipping already processed logic: {logic}")
-                continue
+    for logic in logics_dict.keys():
+        if loop_state["max_attempts_reached"]:
+            print("Max attempts reached, stopping process.")
+            break
+        if config_ops.progress_item_in(logic, progress_file):
+            print(f"Skipping already processed logic: {logic}")
+            continue
+        try:
             thys = logics_dict[logic]
             loop_state = process_logic(logic, thys, dfs_config, loop_state)
-    except Exception as e:
-        logging.warning(f"Error processing {logic}: {e}")
-    finally:
-        if loop_state["repl"]:
-            loop_state["repl"].shutdown_gateway()
+        except Exception as e:
+            logging.warning(f"Error processing {logic}: {e}")
+    if loop_state["repl"]:
+        loop_state["repl"].shutdown_gateway()
 
 if __name__ == "__main__":
     info = "Evaluates a model via depth-first search proof exploration as specified in the input JSON configuration."

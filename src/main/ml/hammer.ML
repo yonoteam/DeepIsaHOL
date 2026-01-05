@@ -52,8 +52,18 @@ fun extract_proof s =
       end
   in (Substring.string prover, proof, Real.ceil time) end;
 
+fun silence_methods debug =
+  Config.put Metis_Tactic.verbose debug
+  #> not debug ? (fn ctxt =>
+      ctxt
+      |> Simplifier_Trace.disable
+      |> Context_Position.set_visible false
+      |> Config.put Unify.unify_trace false
+      |> Config.put Argo_Tactic.trace "none")
+
+(* from try0 Isabelle2025 *)
 val silence_state =
-  Proof.map_contexts (Try0.silence_methods false #> Config.put SMT_Config.verbose false);
+  Proof.map_contexts (silence_methods false #> Config.put SMT_Config.verbose false);
 
 fun get_suggestions params st =
   let
