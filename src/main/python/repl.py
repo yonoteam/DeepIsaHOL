@@ -79,7 +79,11 @@ class REPL:
         try:
             if self._gateway is None:
                 self._gateway = JavaGateway(
-                    gateway_parameters=GatewayParameters(port=self.port, auto_convert=True)
+                    gateway_parameters=GatewayParameters(
+                        port=self.port, 
+                        auto_convert=True,
+                        read_timeout=600.0
+                    )
                 )
             self._entrypoint = self._gateway.entry_point
             self._repl = self._entrypoint.get_repl(self.logic, self.thy_name)

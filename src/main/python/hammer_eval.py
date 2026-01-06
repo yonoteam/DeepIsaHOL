@@ -4,7 +4,9 @@
 # A loop evaluating sledgehammer on proofs in the dataset
 
 import os
+import sys
 import time
+import signal
 import logging
 
 import dicts
@@ -177,26 +179,54 @@ def init_loop_state(config_dict):
     }
 
 def eval_hammer_on_logics(config_dict):
+    # initialization
     loop_state = init_loop_state(config_dict)
     progress_file = config_ops.create_progress_file(file_name="hammer_progress.txt")
     logics_dict = proofs.data_dir.group_paths_by_logic(
         config_dict["data_dir"], 
         config_dict["data_split"]
     )
-    for logic in logics_dict.keys():
-        if max_attempts_reached(loop_state):
-            print("Max attempts reached, stopping process.")
-            break
-        if config_ops.progress_item_in(logic, progress_file):
-            print(f"Skipping already processed logic: {logic}")
-            continue
-        try:
-            thys = logics_dict[logic]
-            loop_state = process_logic(logic, thys, loop_state)
-        except Exception as e:
-            logging.warning(f"Error processing logic '{logic}': {e}")
-    if loop_state["repl"]:
-        loop_state["repl"].shutdown_gateway()
+
+    # handle Ctrl+C begin
+    def shutdown_all():
+        mssg = "Shutdown (Ctrl+C) signal received..."
+        print("\n[!]" + mssg)
+        logging.info(mssg)
+        if loop_state["repl"]:
+            try:
+                loop_state["repl"].shutdown_gateway()
+            except:
+                pass
+        sys.exit(0)
+    signal.signal(signal.SIGINT, lambda sig, frame: shutdown_all()) 
+    # handle Ctrl+C end
+    
+    try:
+        for logic in logics_dict.keys():
+            if max_attempts_reached(loop_state):
+                print("Max attempts reached, stopping process.")
+                break
+            if config_ops.progress_item_in(logic, progress_file):
+                print(f"Skipping already processed logic: {logic}")
+                continue
+            try:
+                thys = logics_dict[logic]
+                loop_state = process_logic(logic, thys, loop_state)
+            except Exception as e:
+                logging.warning(f"Error processing logic '{logic}': {e}")
+                if loop_state["repl"]:
+                    try:
+                        error_mssg = f"Attempting to shut down Isabelle for failed logic: {logic}"
+                        print(error_mssg)
+                        loop_state["repl"].shutdown_isabelle()
+                    except Exception as shutdown_err:
+                        logging.warning(f"Could not shut down Isabelle cleanly: {shutdown_err}")
+                loop_state["repl"] = None
+    except KeyboardInterrupt:
+        shutdown_all()
+    finally:
+        if loop_state["repl"]:
+            loop_state["repl"].shutdown_gateway()
 
 if __name__ == "__main__":
     info = "Evaluates Isabelle's Sledgehammer on proofs in the dataset."

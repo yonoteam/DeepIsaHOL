@@ -5,7 +5,9 @@
 
 import os
 import gc
+import sys
 import time
+import signal
 import logging
 from itertools import takewhile
 
@@ -400,6 +402,7 @@ def init_loop_state(dfs_config):
     }
 
 def process_logics(config_dict):
+    # initialization
     dfs_config = configure(config_dict) # llm-generator inside dfs_config
     loop_state = init_loop_state(dfs_config)
     progress_file = config_ops.create_progress_file(file_name="progress.txt")
@@ -407,20 +410,47 @@ def process_logics(config_dict):
         config_dict["data_dir"], 
         config_dict["data_split"]
     )
-    for logic in logics_dict.keys():
-        if loop_state["max_attempts_reached"]:
-            print("Max attempts reached, stopping process.")
-            break
-        if config_ops.progress_item_in(logic, progress_file):
-            print(f"Skipping already processed logic: {logic}")
-            continue
-        try:
-            thys = logics_dict[logic]
-            loop_state = process_logic(logic, thys, dfs_config, loop_state)
-        except Exception as e:
-            logging.warning(f"Error processing {logic}: {e}")
-    if loop_state["repl"]:
-        loop_state["repl"].shutdown_gateway()
+
+    # handle Ctrl+C begin
+    def shutdown_all():
+        mssg = "Shutdown (Ctrl+C) signal received..."
+        print("\n[!]" + mssg)
+        logging.info(mssg)
+        if loop_state["repl"]:
+            try:
+                loop_state["repl"].shutdown_gateway()
+            except:
+                pass
+        sys.exit(0)
+    signal.signal(signal.SIGINT, lambda sig, frame: shutdown_all()) 
+    # handle Ctrl+C end
+
+    try:
+        for logic in logics_dict.keys():
+            if loop_state["max_attempts_reached"]:
+                print("Max attempts reached, stopping process.")
+                break
+            if config_ops.progress_item_in(logic, progress_file):
+                print(f"Skipping already processed logic: {logic}")
+                continue
+            try:
+                thys = logics_dict[logic]
+                loop_state = process_logic(logic, thys, dfs_config, loop_state)
+            except Exception as e:
+                logging.warning(f"Error processing {logic}: {e}")
+                if loop_state["repl"]:
+                    try:
+                        error_mssg = f"Attempting to shut down Isabelle for failed logic: {logic}"
+                        print(error_mssg)
+                        loop_state["repl"].shutdown_isabelle()
+                    except Exception as shutdown_err:
+                        logging.warning(f"Could not shut down Isabelle cleanly: {shutdown_err}")
+                loop_state["repl"] = None
+    except KeyboardInterrupt:
+        shutdown_all()
+    finally:
+        if loop_state["repl"]:
+            loop_state["repl"].shutdown_gateway()
 
 if __name__ == "__main__":
     info = "Evaluates a model via depth-first search proof exploration as specified in the input JSON configuration."
