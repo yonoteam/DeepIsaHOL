@@ -418,7 +418,7 @@ def process_logics(config_dict):
         logging.info(mssg)
         if loop_state["repl"]:
             try:
-                loop_state["repl"].shutdown_gateway()
+                loop_state["repl"].shutdown()
             except:
                 pass
         sys.exit(0)
@@ -437,20 +437,15 @@ def process_logics(config_dict):
                 thys = logics_dict[logic]
                 loop_state = process_logic(logic, thys, dfs_config, loop_state)
             except Exception as e:
-                logging.warning(f"Error processing {logic}: {e}")
+                logging.warning(f"Error processing logic '{logic}': {e}")
                 if loop_state["repl"]:
-                    try:
-                        error_mssg = f"Attempting to shut down Isabelle for failed logic: {logic}"
-                        print(error_mssg)
-                        loop_state["repl"].shutdown_isabelle()
-                    except Exception as shutdown_err:
-                        logging.warning(f"Could not shut down Isabelle cleanly: {shutdown_err}")
+                    loop_state["repl"].disconnect()
                 loop_state["repl"] = None
     except KeyboardInterrupt:
         shutdown_all()
     finally:
         if loop_state["repl"]:
-            loop_state["repl"].shutdown_gateway()
+            loop_state["repl"].shutdown()
 
 if __name__ == "__main__":
     info = "Evaluates a model via depth-first search proof exploration as specified in the input JSON configuration."

@@ -98,8 +98,10 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
   }
 
   def shutdown_isabelle(): Unit = {
-    isabelle.destroy()
-    println("Isabelle process destroyed.")
+    if (!isabelle.isDestroyed) {
+      isabelle.destroy()
+      println("Isabelle process destroyed.")
+    }
   }
 
   

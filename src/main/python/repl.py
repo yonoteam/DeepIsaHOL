@@ -6,11 +6,11 @@
 import os
 import json
 import logging
+import fcntl
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
 class REPL:
     _gateway = None
-    _entrypoint = None
     _minion = None
     _repl = None
 
@@ -23,50 +23,44 @@ class REPL:
     def __init__(self, logic="HOL", thy_name="Scratch.thy"):
         self.logic = logic
         self.thy_name = thy_name
-        self.port = self._find_available_port()
+        self.port = self._acquire_port()
         if self.port is None:
-            raise RuntimeError("No available Py4j gateway found!")
-        self._mark_port_unavailable(self.port)
+            raise RuntimeError("REPL: No available Py4j gateway found!")
         self._initialize_repl()
 
         log_file = f'repl_error_{self.port}.log'
         logging.basicConfig(filename=log_file, level=logging.ERROR,
                             format='%(asctime)s - %(levelname)s - %(message)s')
         
-    def _find_available_port(self):
-        """Read gateway_registry.json and return an available Py4j port."""
+    def _acquire_port(self):
+        """Read gateway_registry.json, find available port, mark it busy, and return it. Thread-safe."""
         if not os.path.exists(self.PORTS_FILE):
             return None
         
-        with open(self.PORTS_FILE, "r") as f:
+        with open(self.PORTS_FILE, "r+") as f:
             try:
+                fcntl.flock(f, fcntl.LOCK_EX)
                 ports = json.load(f)
                 for port, available in ports.items():
                     if available:
                         print(f"Connecting to Py4j Gateway on port {port}")
+                        ports[port] = False
+                        f.seek(0)
+                        json.dump(ports, f)
+                        f.truncate()
                         return int(port)
             except json.JSONDecodeError:
-                pass  # handling it above
+                pass
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
         return None
     
-    def _mark_port_unavailable(self, port):
-        """Mark the selected port as unavailable."""
+    def _release_port(self, port):
+        """Mark the port as available again (for shutting down). Thread-safe."""
         if os.path.exists(self.PORTS_FILE):
             with open(self.PORTS_FILE, "r+") as f:
                 try:
-                    ports = json.load(f)
-                    ports[str(port)] = False
-                    f.seek(0)
-                    json.dump(ports, f)
-                    f.truncate()
-                except json.JSONDecodeError:
-                    pass
-    
-    def _mark_port_available(self, port):
-        """Mark the port as available again (for shutting down)."""
-        if os.path.exists(self.PORTS_FILE):
-            with open(self.PORTS_FILE, "r+") as f:
-                try:
+                    fcntl.flock(f, fcntl.LOCK_EX)
                     ports = json.load(f)
                     ports[str(port)] = True
                     f.seek(0)
@@ -74,6 +68,12 @@ class REPL:
                     f.truncate()
                 except json.JSONDecodeError:
                     pass
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+        else:
+            no_file_mssg = f"Ports file {self.PORTS_FILE} does not exist when trying to release port {port}."
+            print(no_file_mssg)
+            logging.error(no_file_mssg)
         
     def _initialize_repl(self):
         try:
@@ -82,11 +82,10 @@ class REPL:
                     gateway_parameters=GatewayParameters(
                         port=self.port, 
                         auto_convert=True,
-                        read_timeout=600.0
+                        read_timeout=3600.0
                     )
                 )
-            self._entrypoint = self._gateway.entry_point
-            self._repl = self._entrypoint.get_repl(self.logic, self.thy_name)
+            self._repl = self._gateway.entry_point.get_repl(self.logic, self.thy_name)
             self._minion = self._repl.get_minion()
             print(f"REPL and minion initialized on port {self.port} and logic {self.logic}.")
         except Exception as e:
@@ -95,8 +94,9 @@ class REPL:
     
     def switch_to(self, logic, thy_name="Scratch.thy"):
         self.shutdown_isabelle()
+        # gateway is still responsive, create new REPL
         print(f"Switching to logic {logic} and theory {thy_name}.")
-        self._repl = self._entrypoint.get_repl(logic, thy_name)
+        self._repl = self._gateway.entry_point.get_repl(logic, thy_name)
         self.logic = logic
         self.thy_name = thy_name
 
@@ -132,26 +132,39 @@ class REPL:
         return self._repl.call_hammer(goals)
     
     def shutdown_isabelle(self):
-        self._repl.shutdown_isabelle()
-        print("Isabelle shut down.")
-
-    def shutdown_gateway(self):
         try:
-            if self._repl:
-                self._repl.shutdown_isabelle()
-            
-            self._mark_port_available(self.port)
-            if self._entrypoint:
-                self._entrypoint.stop()
-                self._entrypoint = None
+            self._repl.shutdown_isabelle()
+            print("Isabelle shut down.")
+        except Exception as e:
+            logging.error(f"The REPL received an error shutting down Isabelle: {e}")      
 
-            # if self._gateway:
-            #     self._gateway.shutdown()
-            #     self._gateway = None
-            
-            print(f"REPL and gateway shut down on port {self.port}.")
+    def disconnect(self):
+        self.shutdown_isabelle()
+        try:
+            if self._gateway:
+                self._gateway.close()
+                self._gateway = None
+            print(f"REPL disconnected.")
         except Exception as e:
             logging.error(f"Error during gateway shutdown on port {self.port}: {e}")
+        finally:
+            self._release_port(self.port)
+            self._minion = None
+            self._repl = None
+
+    def shutdown(self):
+        self.shutdown_isabelle()
+        try:
+            if self._gateway:
+                self._gateway.entry_point.stop() # stops the Scala server
+        except Exception as e:
+            logging.error(f"Unknown error shutting down the REPL's gateway: {e}")
+        finally:
+            self._release_port(self.port)
+            self._gateway = None
+            self._minion = None
+            self._repl = None
+
 
     # INFORMATION RETRIEVAL
     def isabelle_exists(self):
