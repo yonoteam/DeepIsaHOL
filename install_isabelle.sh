@@ -24,5 +24,5 @@ rm afp-current.tar.gz                                               # removing c
 mv afp* afp                                                         # renaming the extraction
 
 echo "Making Isabelle aware of the AFP..."
-ISABELLE="./Isabelle2025/bin/isabelle"                              # path to isabelle
+ISABELLE="./Isabelle2025-1/bin/isabelle"                              # path to isabelle
 $ISABELLE components -u "./afp/thys/"
