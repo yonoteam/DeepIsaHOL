@@ -49,8 +49,9 @@ object Main {
   }
 
   def setup_main_logger(): Unit = {
-    val log_path = Paths.get(main_write_dir, "main_writer.log")
-    main_logger = Logger.getLogger("Main_Writer_Logger")
+    val pid = java.lang.management.ManagementFactory.getRuntimeMXBean.getName
+    val log_path = Paths.get(main_write_dir, s"main_writer_$pid.log")
+    main_logger = Logger.getLogger(s"Main_Writer_Logger_$pid")
     
     // Clear previous handlers
     for (h <- main_logger.getHandlers) main_logger.removeHandler(h)
@@ -106,25 +107,57 @@ object Main {
     }
   }
 
+  // Helper for blocking locks (read or write)
+  def run_with_lock_on[T](file: File, read_only: Boolean)(action: RandomAccessFile => T): T = {
+    val mode = if (read_only) "r" else "rw"
+    val raf = new RandomAccessFile(file, mode)
+    val channel = raf.getChannel
+    var lock: FileLock = null
+    try {
+      lock = channel.lock(0, Long.MaxValue, read_only)
+      action(raf)
+    } finally {
+      if (lock != null) lock.release()
+      channel.close()
+      raf.close()
+    }
+  }
+
+  // Helper for non-blocking exclusive lock
+  def run_with_try_lock_on[T](file: File)(action: => T): Option[T] = {
+    if (!file.exists()) {
+      try { file.createNewFile() } catch { case _: Exception => () }
+    }
+    val raf = new RandomAccessFile(file, "rw")
+    val channel = raf.getChannel
+    var lock: FileLock = null
+    try {
+      lock = channel.tryLock()
+      if (lock != null) {
+        Some(action)
+      } else {
+        None
+      }
+    } finally {
+      if (lock != null) lock.release()
+      channel.close()
+      raf.close()
+    }
+  }
+
   // load progress from progress file with shared lock
   def load_progress(): Set[String] = {
     val progress_file = new File(main_progress_file)
     if (progress_file.exists()) {
-      val raf = new RandomAccessFile(progress_file, "r")
-      val channel = raf.getChannel
-      var lock: FileLock = null
       try {
-        lock = channel.lock(0, Long.MaxValue, true)
-        val is = java.nio.channels.Channels.newInputStream(channel)
-        Source.fromInputStream(is).getLines().filter(_.trim.nonEmpty).toSet
+        run_with_lock_on(progress_file, read_only = true) { raf =>
+          val is = java.nio.channels.Channels.newInputStream(raf.getChannel)
+          Source.fromInputStream(is).getLines().filter(_.trim.nonEmpty).toSet
+        }
       } catch {
         case e: Exception =>
           main_logger.warning(s"Could not load progress: ${e.getMessage}")
           Set.empty[String]
-      } finally {
-        if (lock != null) lock.release()
-        channel.close()
-        raf.close()
       }
     } else {
       Set.empty[String]
@@ -134,17 +167,14 @@ object Main {
   // save progress to progress file with exclusive lock
   def save_progress(sub_dir: String): Unit = synchronized{
     val progress_file = new File(main_progress_file)
-    val raf = new RandomAccessFile(progress_file, "rw")
-    val channel = raf.getChannel
-    var lock: FileLock = null
     try {
-      lock = channel.lock()
-      raf.seek(raf.length())
-      raf.writeBytes(sub_dir + "\n")
-    } finally {
-      if (lock != null) lock.release()
-      channel.close()
-      raf.close()
+      run_with_lock_on(progress_file, read_only = false) { raf =>
+        raf.seek(raf.length())
+        raf.writeBytes(sub_dir + "\n")
+      }
+    } catch {
+      case e: Exception =>
+        main_logger.warning(s"Could not save progress: ${e.getMessage}")
     }
   }
 
@@ -164,11 +194,14 @@ object Main {
     }
   }
 
-  def launch_writer(read_dir: String, write_dir: String, logic: String)(implicit ec: ExecutionContext): Unit = {
+  def launch_writer(
+    read_dir: String, 
+    write_dir: String, 
+    logic: String
+  )(implicit ec: ExecutionContext): Try[Unit] = {
     val writer_Try = Try {
       new Writer(read_dir, write_dir, logic)
     }
-
     val result = writer_Try.flatMap { writer =>
       Try {
         writer.write_all()
@@ -183,13 +216,45 @@ object Main {
         }
       )
     }
-
     result.failed.foreach { exception =>
       main_logger.severe(s"Error writing data from $read_dir to $write_dir:\n ${exception.getMessage}")
+    }
+    result
+  }
+
+  def write_one_session(
+    id: Int, 
+    top_write_dir: File, 
+    sub_dir: File
+  )(implicit ec: ExecutionContext): Unit = {
+    val current_processed = load_progress()
+    if (current_processed.contains(sub_dir.getName)) {
+        main_logger.info(s"[Thread-$id] Already processed: ${sub_dir.getName}")
+    } else {
+      main_logger.info(s"[Thread-$id] picked up: ${sub_dir.getName}")
+      val root_file = new File(sub_dir, "ROOT")
+      if (!root_file.exists()) {
+        main_logger.warning(s"[Thread-$id] No ROOT file found in ${sub_dir.getName}")
+      } else {
+        find_logic(root_file) match {
+          case Some(logic) =>
+            val read_dir = sub_dir.getAbsolutePath()
+            val write_dir = new File(top_write_dir, s"${sub_dir.getName}").getAbsolutePath()
+            if (launch_writer(read_dir, write_dir, logic).isSuccess) {
+              save_progress(sub_dir.getName)
+              main_logger.info(s"[Thread-$id] Processed: ${sub_dir.getName}")
+            } else {
+              main_logger.warning(s"[Thread-$id] Failed: ${sub_dir.getName}")
+            }
+          case None =>
+            main_logger.warning(s"[Thread-$id] No logic found in ROOT file for ${sub_dir.getName}")
+        }
+      }
     }
   }
 
   def do_roots_task (top_read_dir: File, top_write_dir: File): Unit = {
+    // assess progress
     val processed = load_progress()
     val sub_dirs = top_read_dir.listFiles().filter(_.isDirectory)
 
@@ -198,10 +263,10 @@ object Main {
       main_logger.info("All subdirectories already processed.")
       return
     }
-
     main_logger.info(s"Found ${sub_dirs.length} directories. ${processed.size} processed. ${to_process.size} remaining.")
-    val workQueue = new ConcurrentLinkedQueue[File](to_process.asJava)
 
+    // concurrency setup
+    val subdirs_queue = new ConcurrentLinkedQueue[File](to_process.asJava)
     val executor = Executors.newFixedThreadPool(num_threads)
     implicit val ec = ExecutionContext.fromExecutorService(executor)
 
@@ -209,24 +274,19 @@ object Main {
       Future {
         var active = true
         while (active) {
-          val sub_dir = workQueue.poll()
+          val sub_dir = subdirs_queue.poll()
           if (sub_dir == null) { active = false }
           else {
-            main_logger.info(s"[Thread-$num] picked up: ${sub_dir.getName}")
-            val root_file = new File(sub_dir, "ROOT")
-            if (!root_file.exists()) {
-              main_logger.warning(s"[Thread-$num] No ROOT file found in ${sub_dir.getName}")
-            } else {
-              find_logic(root_file) match {
-                case Some(logic) =>
-                  val read_dir = sub_dir.getAbsolutePath()
-                  val write_dir = new File(top_write_dir, s"${sub_dir.getName}").getAbsolutePath()
-                  launch_writer(read_dir, write_dir, logic)
-                  save_progress(sub_dir.getName)
-                  main_logger.info(s"[Thread-$num] Processed: ${sub_dir.getName}")
-                case None =>
-                  main_logger.warning(s"[Thread-$num] No logic found in ROOT file for ${sub_dir.getName}")
+            val lock_file = new File(top_write_dir, sub_dir.getName + ".lock")
+            try {
+              run_with_try_lock_on(lock_file) {
+                write_one_session(num, top_write_dir, sub_dir)
+              } match {
+                case Some(_) => () // processed
+                case None => main_logger.info(s"[Thread-$num] Locked by another process: ${sub_dir.getName}")
               }
+            } catch {
+              case e: Exception => main_logger.severe(s"[Thread-$num] Error processing ${sub_dir.getName}: ${e.getMessage}")
             }
           }
         }
