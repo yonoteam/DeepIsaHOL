@@ -331,7 +331,7 @@ object Main {
         val read_dir = top_read_dir.getAbsolutePath()
         val write_dir = top_write_dir.getAbsolutePath()
         val logic = if (args.length > 3) args(3) else "HOL"
-        launch_writer(read_dir, write_dir, args(3))
+        launch_writer(read_dir, write_dir, logic)
     }
   }
 }
