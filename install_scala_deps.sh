@@ -7,24 +7,8 @@
 # make this script executable: chmod +x install_scala_deps.sh
 # and run it: ./install_scala_deps.sh
 
-echo "Creating dependencies directory..."
-mkdir lib                                                    # create directory of dependencies
-cd lib                                                       # go to directory of dependencies
-
-echo "Downloading and extracting Isabelle 2025..."
-curl -sO https://isabelle.in.tum.de/dist/Isabelle2025-1_linux.tar.gz  # downloading
-tar -xzf Isabelle2025-1_linux.tar.gz                                  # extracting
-rm Isabelle2025-1_linux.tar.gz                                        # removing compressed version
-
-echo "Downloading and extracting AFP..."
-curl -sO https://www.isa-afp.org/release/afp-current.tar.gz         # downloading
-tar -xzf afp-current.tar.gz                                         # extracting
-rm afp-current.tar.gz                                               # removing compressed version
-mv afp* afp                                                         # renaming the extraction
-
-echo "Making Isabelle aware of the AFP..."
-ISABELLE="./Isabelle2025-1/bin/isabelle"                              # path to isabelle
-$ISABELLE components -u "./afp/thys/"
+chmod +x install_isabelle.sh
+./install_isabelle.sh                                               # install Isabelle and AFP
 
 echo "Downloading and installing scala-isabelle..."
 git clone https://github.com/dominique-unruh/scala-isabelle.git     # cloning the repository

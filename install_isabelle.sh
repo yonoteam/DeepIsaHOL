@@ -12,10 +12,10 @@ echo "Creating dependencies directory..."
 mkdir lib                                                    # create directory of dependencies
 cd lib                                                       # go to directory of dependencies
 
-echo "Downloading and extracting Isabelle 2025..."
-curl -sO https://isabelle.in.tum.de/dist/Isabelle2025-1_linux.tar.gz  # downloading
-tar -xzf Isabelle2025-1_linux.tar.gz                                  # extracting
-rm Isabelle2025-1_linux.tar.gz                                        # removing compressed version
+echo "Downloading and extracting Isabelle 2025-2..."
+curl -sO https://isabelle.in.tum.de/dist/Isabelle2025-2_linux.tar.gz  # downloading
+tar -xzf Isabelle2025-2_linux.tar.gz                                  # extracting
+rm Isabelle2025-2_linux.tar.gz                                        # removing compressed version
 
 echo "Downloading and extracting AFP..."
 curl -sO https://www.isa-afp.org/release/afp-current.tar.gz         # downloading
@@ -24,5 +24,5 @@ rm afp-current.tar.gz                                               # removing c
 mv afp* afp                                                         # renaming the extraction
 
 echo "Making Isabelle aware of the AFP..."
-ISABELLE="./Isabelle2025-1/bin/isabelle"                              # path to isabelle
+ISABELLE="./Isabelle2025-2/bin/isabelle"                              # path to isabelle
 $ISABELLE components -u "./afp/thys/"
