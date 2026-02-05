@@ -5,7 +5,7 @@ The project currently offers:
   1. proof data retrieving capabilities from Isabelle libraries,
   2. a read-eval-print-loop interface for Isabelle in Scala and Python,
   3. Python training loops for Google's `T5` models (using [Hugging Face](https://huggingface.co/docs/transformers/en/index)) and `Gemma` models (using [Unsloth](https://unsloth.ai/)),
-  4. a simple depth-first (dfs) seacrch algorithm for evaluating the models ability to automatically prove Isabelle theorems,
+  4. a simple depth-first (dfs) search algorithm for evaluating the models ability to automatically prove Isabelle theorems,
   5. simple Python-server and Isabelle/ML-client structures for calling the models from Isabelle,
   6. Isabelle commands to interact with locally hosted models. Currently, there is support for ChatGPT, Gemini, Ollama and Hugging Face transformers.
   7. (optional) an application of some libraries from this repository to proof tools that appear in [`super_sketch_and_super_fix`](https://github.com/ChengsongTan/super_sketch_and_super_fix). The tools serve for making a proof sketch of a stated lemma and for automatically fixing broken proof-scripts due to continuous development in the formal verification process.

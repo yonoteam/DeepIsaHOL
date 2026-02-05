@@ -5,6 +5,8 @@
 # Listens on localhost:5006 for <|eop|> delimited JSON requests and returns <|eop|> delimited responses.
 
 import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
 import time
 import signal
 import socket
@@ -19,7 +21,6 @@ import proofs
 import config_ops
 import generation_ops as genops
 
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 LOCAL_HOST = "127.0.0.1"
 PORT = 5006
 RECV_BUFFER = 4096 # buffer size for socket recv
