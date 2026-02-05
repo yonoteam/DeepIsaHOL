@@ -128,8 +128,8 @@ class REPL:
     def undoN(self, n):
         return self._repl.undoN(n)
     
-    def call_hammer(self, goals):
-        return self._repl.call_hammer(goals)
+    def call_hammer(self, params):
+        return self._repl.call_hammer(params)
     
     def shutdown_isabelle(self):
         try:

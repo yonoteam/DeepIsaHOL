@@ -91,8 +91,8 @@ class REPL(val logic: String = "HOL", thy_name: String = "Scratch.thy") {
     }
   }
 
-  def call_hammer(goals: ArrayList[(String, String)]): String = {
-    val (new_state, output) = minion.repl_call_hammer(goals, state)
+  def call_hammer(params: ArrayList[(String, String)]): String = {
+    val (new_state, output) = minion.repl_call_hammer(params, state)
     state = new_state
     output
   }

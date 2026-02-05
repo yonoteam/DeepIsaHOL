@@ -190,6 +190,6 @@ class Isa_Minion (val work_dir: String, val logic: String, val imports_dir: Stri
   def repl_go_to (thy: Theory, file_path: String, act_txt: String) = 
     ML_repl.Repl_State.Ops.go_to(thy, file_path, act_txt).retrieveNow
 
-  def repl_call_hammer (goals: ArrayList[(String, String)], state: ML_repl.Repl_State) = 
-    ML_repl.Repl_State.Ops.call_hammer(goals.asScala.toList, state).retrieveNow
+  def repl_call_hammer (params: ArrayList[(String, String)], state: ML_repl.Repl_State) = 
+    ML_repl.Repl_State.Ops.call_hammer(params.asScala.toList, state).retrieveNow
 }
