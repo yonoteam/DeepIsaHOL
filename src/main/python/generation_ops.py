@@ -1,6 +1,6 @@
-# Mantainers: 
+# Mantainers:
 # Jonathan Julian Huerta y Munive huertjon[at]cvut[dot]cz
-# 
+#
 # Part of project DeepIsaHOL. Generic operations for prompting LLMs for proof generation.
 
 import re
@@ -100,7 +100,7 @@ def extract_suggestion(text: str) -> Optional[str]:
     if match_code:
         logging.warning("No tags found. Returning Markdown code block content.")
         return match_code.group(1).strip()
-        
+
     # last fallback
     if text.strip():
         logging.warning("No structure found. Returning raw text.")
@@ -124,11 +124,11 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
     x = json.dumps(x_dict)
 
     if model_type == "t5":
-        x = "isabelle next step: " + x if "finetune" in data_format else x  
-        # print(f"Generating for prompt: '{x}'...")
+        x = "isabelle next step: " + x if "finetune" in data_format else x
+        # print(f"Generating for prompt: '{x}'...")
         predicts = generation_config["generator"](
-            x, 
-            max_new_tokens=gen_length, 
+            x,
+            max_new_tokens=gen_length,
             num_return_sequences=num_return_sequences,
             num_beams=num_beams
         )
@@ -152,10 +152,10 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         if using_unsloth:
             conversation = tokops.to_gemma_format(x, "")
             generation_messages = [conversation["messages"][0]]
-            
+
             predicts = generation_config["generator"](
-                generation_messages, 
-                max_new_tokens=gen_length, 
+                generation_messages,
+                max_new_tokens=gen_length,
                 num_return_sequences=num_return_sequences,
                 num_beams=num_beams,
                 temperature = 1.0,
@@ -202,5 +202,73 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         else:
             predicts = [extract_suggestion(response.text)]
 
-    # print(f"Prediction from model:\n{predicts[0]}")
+    # print(f"Prediction from model:\n{predicts[0]}")
     return x, predicts
+
+
+def configure_generator(config_dict):
+    """Build a generation_config dict with 'generator' and metadata for any model type.
+
+    Shared by dfs.py (batch evaluation) and llm_server.py (socket server).
+    """
+    import os
+
+    model_type = get_model_type(config_dict)
+    data_format = config_dict["data_format"]
+
+    generation_config = config_dict.get("generation_config", {}).copy()
+    generation_config["data_format"] = data_format
+    generation_config["model_type"] = model_type
+    generation_config["use_unsloth"] = using_unsloth()
+
+    if generation_config["use_unsloth"] or model_type in ("t5", "gemma"):
+        from transformers import pipeline
+        tokenizer, model = load_tok_model(config_dict)
+        if model_type == "t5":
+            generation_task = "text2text-generation"
+        else:
+            generation_task = "text-generation"
+        generation_config["generator"] = pipeline(
+            generation_task,
+            model=model,
+            tokenizer=tokenizer
+        )
+        logging.info(f"Loaded {model_type} model with HF pipeline")
+
+    elif model_type == "ollama":
+        import ollama
+        ollama_model = config_dict["model_name"].removeprefix("ollama/")
+        generation_config["generator"] = ollama.Client()
+        generation_config["ollama_model"] = ollama_model
+        try:
+            models_list = generation_config["generator"].list()
+            logging.info(f"Connected to Ollama server. Total available models: {len(models_list['models'])}")
+        except Exception as e:
+            logging.warning(f"Could not verify Ollama connection: {e}")
+
+    elif model_type == "openai":
+        from openai import OpenAI
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set.")
+        generation_config["generator"] = OpenAI(api_key=api_key)
+        generation_config["model_name"] = config_dict["model_name"]
+        logging.info(f"Configured OpenAI client for model: {generation_config['model_name']}")
+
+    elif model_type == "gemini":
+        from google import genai
+        from google.genai import types
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable is not set.")
+        client = genai.Client(api_key=api_key)
+        generation_config["generator"] = client
+        generation_config["model_name"] = config_dict["model_name"]
+        generation_config["gen_config"] = types.GenerateContentConfig(
+            candidate_count=1,
+            max_output_tokens=config_dict.get("generation_config", {}).get("gen_length", 4096),
+            temperature=1.0
+        )
+        logging.info(f"Configured Gemini client for model: {config_dict['model_name']}")
+
+    return generation_config

@@ -19,8 +19,6 @@ import config_ops
 import generation_ops as genops
 from repl import REPL
 
-from transformers import pipeline # after genops including unsloth
-
 # DFS OPERATIONS
 
 def save_proof(repl, prf):
@@ -366,31 +364,10 @@ def process_logic(logic, thys, dfs_config, loop_state):
 # MAIN LOOP
 
 def configure(config_dict):
-    model_type = genops.get_model_type(config_dict)
-    data_format = config_dict["data_format"]
-    tokenizer, model = genops.load_tok_model(config_dict)
-
-    if model_type == "t5":
-        generation_task = "text2text-generation"
-    elif model_type == "gemma":
-        generation_task = "text-generation"
-    
-    # setup configuration
-    dfs_config = config_dict["dfs_config"].copy()
-
-    for key, value in config_dict["generation_config"].items():
-        dfs_config[key] = value
-
-    # extensions to the configuration
-    dfs_config["use_unsloth"] = genops.using_unsloth()
-    dfs_config["data_format"] = data_format
-    dfs_config["model_type"] = model_type
-    dfs_config["generator"] = pipeline(
-        generation_task,
-        model=model, 
-        tokenizer=tokenizer
-        # device=config_dict["dfs_config"]["device"] # -1 for CPU, N for GPU N
-    )
+    # merge dfs_config with generation settings from configure_generator
+    dfs_config = config_dict.get("dfs_config", {}).copy()
+    generation_config = genops.configure_generator(config_dict)
+    dfs_config.update(generation_config)
     return dfs_config
 
 def init_loop_state(dfs_config):

@@ -84,7 +84,7 @@ def get_trained_tokenizer(config_dict, making_dirs=False):
         else:
             raise ValueError(
                 f"Undefined task '{task}' for retrieving a tokenizer."
-                f"Expected one of: {list(config_ops.save_hf_tokenizer, config_ops.train_hf_tokenizer)}"
+                f"Expected one of: {[config_ops.save_hf_tokenizer, config_ops.train_hf_tokenizer]}"
             )
         save_ops.save_in(tokenizer, tokenizers_dir)
     return tokenizer

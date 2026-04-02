@@ -26,7 +26,12 @@ class REPL:
         self.port = self._acquire_port()
         if self.port is None:
             raise RuntimeError("REPL: No available Py4j gateway found!")
-        self._initialize_repl()
+        try:
+            self._initialize_repl()
+        except Exception:
+            self._release_port(self.port)
+            self.port = None
+            raise
 
         log_file = f'repl_error_{self.port}.log'
         logging.basicConfig(filename=log_file, level=logging.ERROR,
@@ -152,7 +157,8 @@ class REPL:
             self._minion = None
             self._repl = None
 
-    def shutdown(self):
+    def shutdown_gateway(self):
+        """Stop the shared Scala gateway server explicitly."""
         self.shutdown_isabelle()
         try:
             if self._gateway:
@@ -164,6 +170,15 @@ class REPL:
             self._gateway = None
             self._minion = None
             self._repl = None
+
+    def shutdown(self):
+        """
+        Close the client-side REPL session and free the port entry.
+
+        The gateway process itself is shared and is typically started in a
+        separate terminal, so client shutdown must not terminate it.
+        """
+        self.disconnect()
 
 
     # INFORMATION RETRIEVAL

@@ -117,67 +117,7 @@ def handle_client(conn: BinaryIO, addr: tuple, generation_config):
         logging.info(f"[{addr}] Disconnected.")
 
 def configure_generation(config_dict):
-    model_type = genops.get_model_type(config_dict)
-    data_format = config_dict["data_format"]
-
-    logging.info(f"Configuring generation for model type: {model_type}")
-    if model_type == "t5":
-        generation_task = "text2text-generation"
-    elif model_type == "gemma":
-        generation_task = "text-generation"
-    else:
-        generation_task = None # ollama uses its own API
-
-    generation_config = config_dict.get("generation_config", {}).copy()
-    generation_config["data_format"] = data_format
-    generation_config["model_type"] = model_type
-    generation_config["use_unsloth"] = genops.using_unsloth()
-
-    if generation_config["use_unsloth"] or model_type == "t5":
-        from transformers import pipeline # after genops including unsloth
-        tokenizer, model = genops.load_tok_model(config_dict)
-        generation_config["generator"] = pipeline(
-            generation_task,
-            model=model,
-            tokenizer=tokenizer
-        )
-        print(f"Loaded {model_type} model with HF pipeline")
-        
-    elif model_type == "ollama":
-        ollama_model = config_dict["model_name"].removeprefix("ollama/")
-        generation_config["generator"] = ollama.Client()
-        generation_config["ollama_model"] = ollama_model
-
-        try:
-            models_list = generation_config["generator"].list()
-            print(f"Connected to Ollama server. Total available models: {len(models_list['models'])}")
-        except Exception as e:
-            print(f"Could not verify Ollama connection: {e}")
-            
-        logging.info(f"Configured Ollama client for model: {ollama_model}")
-    
-    elif model_type == "openai":
-        from openai import OpenAI
-        generation_config["generator"] = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        generation_config["model_name"] = config_dict["model_name"]
-        logging.info(f"Configured OpenAI client for model: {generation_config['model_name']}")
-
-    elif model_type == "gemini":
-        from google import genai
-        from google.genai import types
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-        generation_config["generator"] = client
-        generation_config["model_name"] = config_dict["model_name"]
-        generation_config["gen_config"] = types.GenerateContentConfig(
-            candidate_count=1,
-            max_output_tokens=config_dict.get("generation_config", {}).get("gen_length", 4096),
-            temperature=1.0
-        )
-        logging.info(f"Configured Gemini client for model: {config_dict['model_name']}")
-    else:
-        tokenizer, model = genops.load_tok_model(config_dict)
-        generation_config["generator"] = model
-    return generation_config
+    return genops.configure_generator(config_dict)
 
 def launch_server(config_dict):
     generation_config = configure_generation(config_dict)

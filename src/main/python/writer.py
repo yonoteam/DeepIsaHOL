@@ -26,7 +26,12 @@ class Writer:
         if self.port is None:
             raise RuntimeError("No available Py4j gateway found!")
         self._mark_port_unavailable(self.port)
-        self._initialize_writer()
+        try:
+            self._initialize_writer()
+        except Exception:
+            self._mark_port_available(self.port)
+            self.port = None
+            raise
 
         os.makedirs(write_dir, exist_ok=True)
         log_file = os.path.join(write_dir, 'error.log')
