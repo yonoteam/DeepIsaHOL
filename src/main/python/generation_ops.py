@@ -135,19 +135,28 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         # print(f"Generated {len(predicts)} sequences.")
         predicts = [p["generated_text"] for p in predicts]
     elif model_type == "ollama":
-        response = generation_config["generator"].generate(
-            model=generation_config["ollama_model"],
-            prompt=tokops.llm_prompt.format(context=x),
-            options={
-                "num_predict": gen_length,
-                "temperature": 1.0,
-                "top_p": 0.95,
-                "top_k": 64,
-            }
-        )
-        generated_text = response.get("response", "")
-        extracted_suggestion = extract_suggestion(generated_text)
-        predicts = [extracted_suggestion] if extracted_suggestion is not None else ["No suggestion generated."]
+        ollama_prompt = tokops.llm_prompt.format(context=x)
+        ollama_options = {
+            "num_predict": gen_length,
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 64,
+        }
+        seen = set()
+        predicts = []
+        for _ in range(num_return_sequences):
+            response = generation_config["generator"].generate(
+                model=generation_config["ollama_model"],
+                prompt=ollama_prompt,
+                options=ollama_options,
+            )
+            generated_text = response.get("response", "")
+            extracted = extract_suggestion(generated_text)
+            if extracted and extracted not in seen:
+                seen.add(extracted)
+                predicts.append(extracted)
+        if not predicts:
+            predicts = ["No suggestion generated."]
     elif model_type == "gemma":
         if using_unsloth:
             conversation = tokops.to_gemma_format(x, "")
@@ -195,12 +204,15 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         if not response.candidates:
             logging.error("Gemini returned no candidates.")
             predicts = [None]
-        elif not response.candidates[0].content.parts:
-            finish_reason = response.candidates[0].finish_reason
-            logging.error(f"Gemini returned empty content. Finish Reason: {finish_reason}")
-            predicts = [None]
         else:
-            predicts = [extract_suggestion(response.text)]
+            predicts = []
+            for candidate in response.candidates:
+                if candidate.content and candidate.content.parts:
+                    predicts.append(extract_suggestion(candidate.content.parts[0].text))
+                else:
+                    logging.warning(f"Gemini candidate with empty content. Finish Reason: {candidate.finish_reason}")
+            if not predicts:
+                predicts = [None]
 
     # print(f"Prediction from model:\n{predicts[0]}")
     return x, predicts
@@ -264,8 +276,9 @@ def configure_generator(config_dict):
         client = genai.Client(api_key=api_key)
         generation_config["generator"] = client
         generation_config["model_name"] = config_dict["model_name"]
+        num_seqs = config_dict.get("generation_config", {}).get("num_return_sequences", 1)
         generation_config["gen_config"] = types.GenerateContentConfig(
-            candidate_count=1,
+            candidate_count=num_seqs,
             max_output_tokens=config_dict.get("generation_config", {}).get("gen_length", 4096),
             temperature=1.0
         )
