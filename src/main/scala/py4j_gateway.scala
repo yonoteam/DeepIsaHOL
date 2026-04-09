@@ -142,3 +142,25 @@ object Py4j_Gateway_Main {
     gateway.start()
   }
 }
+
+object Py4j_Multi_Gateway_Main {
+  def main(args: Array[String]): Unit = {
+    val num_workers = if (args.length > 0) args(0).toInt else 1
+    println(s"Starting $num_workers gateway(s)...")
+
+    // Generate unique ports and register them sequentially (no race)
+    val ports = (0 until num_workers).map(_ => 25333 + Random.nextInt(1000)).distinct.toList
+    ports.foreach(Py4j_Gateway_Main.register_to_ports_json)
+
+    // Launch each gateway in its own thread; start() blocks on a latch
+    val threads = ports.map { port =>
+      val gw = new Py4j_Gateway(port)
+      val t = new Thread(() => gw.start(), s"gateway-$port")
+      t.start()
+      t
+    }
+
+    // Main thread waits for all gateway threads (they unblock on JVM shutdown)
+    threads.foreach(_.join())
+  }
+}

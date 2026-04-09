@@ -10,17 +10,16 @@ import fcntl
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
 class REPL:
-    _gateway = None
-    _minion = None
-    _repl = None
-
     MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
     DEEPISAHOL_DIR = os.path.dirname(os.path.dirname(os.path.dirname(MAIN_DIR)))
     PORTS_FILE = os.path.join(DEEPISAHOL_DIR, "ports.json")
 
-    # INITIALIZATION 
+    # INITIALIZATION
 
     def __init__(self, logic="HOL", thy_name="Scratch.thy"):
+        self._gateway = None
+        self._minion = None
+        self._repl = None
         self.logic = logic
         self.thy_name = thy_name
         self.port = self._acquire_port()
@@ -38,16 +37,19 @@ class REPL:
                             format='%(asctime)s - %(levelname)s - %(message)s')
         
     def _acquire_port(self):
-        """Read gateway_registry.json, find available port, mark it busy, and return it. Thread-safe."""
+        """Read ports.json, find available port, mark it busy, and return it. Thread-safe."""
         if not os.path.exists(self.PORTS_FILE):
             return None
-        
+
         with open(self.PORTS_FILE, "r+") as f:
             try:
                 fcntl.flock(f, fcntl.LOCK_EX)
                 ports = json.load(f)
                 for port, available in ports.items():
                     if available:
+                        if not self._port_is_alive(int(port)):
+                            print(f"Port {port} marked available but not responding; skipping.")
+                            continue
                         print(f"Connecting to Py4j Gateway on port {port}")
                         ports[port] = False
                         f.seek(0)
@@ -59,6 +61,16 @@ class REPL:
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
         return None
+
+    @staticmethod
+    def _port_is_alive(port, timeout=2.0):
+        """Check if a TCP server is listening on localhost:port."""
+        import socket
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+                return True
+        except (ConnectionRefusedError, OSError, socket.timeout):
+            return False
     
     def _release_port(self, port):
         """Mark the port as available again (for shutting down). Thread-safe."""
@@ -134,7 +146,12 @@ class REPL:
         return self._repl.undoN(n)
     
     def call_hammer(self, params):
-        return self._repl.call_hammer(params)
+        # Py4J cannot auto-convert Python tuples/lists to Scala Tuple2. Built an ArrayList of scala.Tuple2 explicitly via the JVM.
+        jvm = self._gateway.jvm
+        java_params = jvm.java.util.ArrayList()
+        for k, v in params:
+            java_params.add(jvm.scala.Tuple2(k, v))
+        return self._repl.call_hammer(java_params)
     
     def shutdown_isabelle(self):
         try:
@@ -174,11 +191,15 @@ class REPL:
     def shutdown(self):
         """
         Close the client-side REPL session and free the port entry.
-
-        The gateway process itself is shared and is typically started in a
-        separate terminal, so client shutdown must not terminate it.
         """
         self.disconnect()
+
+    def is_alive(self):
+        """Check whether the gateway connection and Isabelle process are responsive."""
+        try:
+            return self._repl is not None and self._repl.isabelle_exists()
+        except Exception:
+            return False
 
 
     # INFORMATION RETRIEVAL

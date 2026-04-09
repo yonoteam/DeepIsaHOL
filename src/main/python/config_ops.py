@@ -89,6 +89,7 @@ finetune_model = "finetune_model"
 eval_model = "eval_model"
 dfs_eval = "dfs_eval"
 deploy_server = "deploy_server"
+hammer_eval = "hammer_eval"
 
 EXAMPLE_CONFIG_DICT = {
     "task": pretrain_model,
@@ -272,7 +273,7 @@ def parse_path(
         parser = argparse.ArgumentParser(description=tool_explanation)
         parser.add_argument("config_path", type=str, help="Path to the JSON configuration file.")
         args = parser.parse_args()
-        path = args.config_path
+        path = os.path.abspath(args.config_path)
         if not ancester_dir_exists(path):
             raise ValueError(f"Not a path: {path}")
         config_dict = dicts.load_json(path)

@@ -135,7 +135,6 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         # print(f"Generated {len(predicts)} sequences.")
         predicts = [p["generated_text"] for p in predicts]
     elif model_type == "ollama":
-        ollama_prompt = tokops.llm_prompt.format(context=x)
         ollama_options = {
             "num_predict": gen_length,
             "temperature": 1.0,
@@ -147,7 +146,7 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         for _ in range(num_return_sequences):
             response = generation_config["generator"].generate(
                 model=generation_config["ollama_model"],
-                prompt=ollama_prompt,
+                prompt=tokops.llm_prompt.format(context=x),
                 options=ollama_options,
             )
             generated_text = response.get("response", "")
@@ -185,7 +184,7 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
             )
             predicts = [extract_suggestion(p["text"]) for p in predicts["choices"]]
     elif model_type == "openai":
-        prompt = tokops.llm_prompt2.format(context=x)
+        prompt = tokops.llm_prompt.format(context=x)
         response = generation_config["generator"].chat.completions.create(
             model=generation_config["model_name"],
             messages=[{"role": "user", "content": prompt}],
@@ -195,7 +194,7 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         )
         predicts = [extract_suggestion(choice.message.content) for choice in response.choices]
     elif model_type == "gemini":
-        prompt = tokops.llm_prompt2.format(context=x)
+        prompt = tokops.llm_prompt.format(context=x)
         response = generation_config["generator"].models.generate_content(
             model=generation_config["model_name"],
             contents=prompt,
