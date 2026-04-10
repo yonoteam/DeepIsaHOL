@@ -109,6 +109,17 @@ def extract_suggestion(text: str) -> Optional[str]:
     logging.warning(f"No suggestion found in generated text: {text}")
     return None
 
+def _deduplicate(predicts):
+    """Remove duplicate suggestions while preserving order."""
+    seen = set()
+    unique = []
+    for p in predicts:
+        if p and p not in seen:
+            seen.add(p)
+            unique.append(p)
+    return unique
+
+
 def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, list[Optional[str]]]:
     data_format = generation_config["data_format"]
     model_type = generation_config["model_type"]
@@ -116,6 +127,11 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
     num_return_sequences = generation_config.get("num_return_sequences", 1)
     num_beams = generation_config.get("num_beams", 1)
     using_unsloth = generation_config["use_unsloth"]
+
+    # sampling parameters (configurable via generation_config in the JSON config)
+    temperature = generation_config.get("temperature", 1.0)
+    top_p = generation_config.get("top_p", 0.95)
+    top_k = generation_config.get("top_k", 64)
 
     x_dict = {}
     x_dict["proof_so_far"] = prf_info.get("proof_so_far", "")
@@ -125,23 +141,20 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
 
     if model_type == "t5":
         x = "isabelle next step: " + x if "finetune" in data_format else x
-        # print(f"Generating for prompt: '{x}'...")
         predicts = generation_config["generator"](
             x,
             max_new_tokens=gen_length,
             num_return_sequences=num_return_sequences,
             num_beams=num_beams
         )
-        # print(f"Generated {len(predicts)} sequences.")
         predicts = [p["generated_text"] for p in predicts]
     elif model_type == "ollama":
         ollama_options = {
             "num_predict": gen_length,
-            "temperature": 1.0,
-            "top_p": 0.95,
-            "top_k": 64,
+            "temperature": temperature,
+            "top_p": top_p,
+            "top_k": top_k,
         }
-        seen = set()
         predicts = []
         for _ in range(num_return_sequences):
             response = generation_config["generator"].generate(
@@ -151,9 +164,9 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
             )
             generated_text = response.get("response", "")
             extracted = extract_suggestion(generated_text)
-            if extracted and extracted not in seen:
-                seen.add(extracted)
+            if extracted:
                 predicts.append(extracted)
+        predicts = _deduplicate(predicts)
         if not predicts:
             predicts = ["No suggestion generated."]
     elif model_type == "gemma":
@@ -166,33 +179,38 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
                 max_new_tokens=gen_length,
                 num_return_sequences=num_return_sequences,
                 num_beams=num_beams,
-                temperature = 1.0,
-                top_p = 0.95,
-                top_k = 64
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k
             )
             predicts = [extract_suggestion(p["generated_text"][1]["content"]) for p in predicts]
         else:
             prompt = f"<start_of_turn>user\n{tokops.llm_prompt.format(context=x)}<end_of_turn>\n<start_of_turn>model"
-            # print(f"Prompt to Gemma:\n{prompt}")
             predicts = generation_config["generator"](
                 prompt,
                 max_tokens=gen_length,
-                temperature=1.0,
-                top_p=0.95,
-                top_k=64,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
                 echo=False
             )
             predicts = [extract_suggestion(p["text"]) for p in predicts["choices"]]
     elif model_type == "openai":
         prompt = tokops.llm_prompt.format(context=x)
+        presence_penalty = generation_config.get("presence_penalty", 0.0)
+        frequency_penalty = generation_config.get("frequency_penalty", 0.0)
         response = generation_config["generator"].chat.completions.create(
             model=generation_config["model_name"],
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=gen_length,
             n=num_return_sequences,
-            temperature=1.0
+            temperature=temperature,
+            top_p=top_p,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty
         )
         predicts = [extract_suggestion(choice.message.content) for choice in response.choices]
+        predicts = _deduplicate(predicts)
     elif model_type == "gemini":
         prompt = tokops.llm_prompt.format(context=x)
         response = generation_config["generator"].models.generate_content(
@@ -210,10 +228,10 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
                     predicts.append(extract_suggestion(candidate.content.parts[0].text))
                 else:
                     logging.warning(f"Gemini candidate with empty content. Finish Reason: {candidate.finish_reason}")
+            predicts = _deduplicate(predicts)
             if not predicts:
                 predicts = [None]
 
-    # print(f"Prediction from model:\n{predicts[0]}")
     return x, predicts
 
 
@@ -275,11 +293,14 @@ def configure_generator(config_dict):
         client = genai.Client(api_key=api_key)
         generation_config["generator"] = client
         generation_config["model_name"] = config_dict["model_name"]
-        num_seqs = config_dict.get("generation_config", {}).get("num_return_sequences", 1)
+        gen_cfg = config_dict.get("generation_config", {})
+        num_seqs = gen_cfg.get("num_return_sequences", 1)
         generation_config["gen_config"] = types.GenerateContentConfig(
             candidate_count=num_seqs,
-            max_output_tokens=config_dict.get("generation_config", {}).get("gen_length", 4096),
-            temperature=1.0
+            max_output_tokens=gen_cfg.get("gen_length", 4096),
+            temperature=gen_cfg.get("temperature", 1.0),
+            top_p=gen_cfg.get("top_p", 0.95),
+            top_k=gen_cfg.get("top_k", 64)
         )
         logging.info(f"Configured Gemini client for model: {config_dict['model_name']}")
 
