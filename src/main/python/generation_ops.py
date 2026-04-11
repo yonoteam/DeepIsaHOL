@@ -213,24 +213,66 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         predicts = _deduplicate(predicts)
     elif model_type == "gemini":
         prompt = tokops.llm_prompt.format(context=x)
-        response = generation_config["generator"].models.generate_content(
-            model=generation_config["model_name"],
-            contents=prompt,
-            config=generation_config["gen_config"]
-        )
-        if not response.candidates:
-            logging.error("Gemini returned no candidates.")
-            predicts = [None]
-        else:
-            predicts = []
-            for candidate in response.candidates:
-                if candidate.content and candidate.content.parts:
-                    predicts.append(extract_suggestion(candidate.content.parts[0].text))
+        num_seqs = generation_config.get("num_return_sequences", 1)
+        client = generation_config["generator"]
+        model_name = generation_config["model_name"]
+
+        def _extract(response):
+            out = []
+            if not response.candidates:
+                return out
+            for cand in response.candidates:
+                if cand.content and cand.content.parts:
+                    out.append(extract_suggestion(cand.content.parts[0].text))
                 else:
-                    logging.warning(f"Gemini candidate with empty content. Finish Reason: {candidate.finish_reason}")
-            predicts = _deduplicate(predicts)
-            if not predicts:
-                predicts = [None]
+                    logging.warning(
+                        f"Gemini candidate with empty content. Finish Reason: {cand.finish_reason}"
+                    )
+            return out
+
+        predicts = []
+        # Preferred path: single multi-candidate call (1× input token cost).
+        if generation_config.get("supports_multi_candidate", False):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=generation_config["gen_config_multi"]
+                )
+                predicts = _extract(response)
+            except Exception as e:
+                msg = str(e)
+                if "Multiple candidates is not enabled" in msg or "candidate_count" in msg.lower():
+                    # Only thinking/pro models reject candidate_count > 1. Empirically, these
+                    # models are near-deterministic: N looped calls produce ~1 unique
+                    # suggestion after deduplication, so we also collapse num_return_sequences
+                    # to 1 to avoid wasting N× input + thinking token cost per DFS step.
+                    logging.info(
+                        f"Model {model_name} does not support candidate_count > 1; "
+                        f"treating as thinking model and forcing num_return_sequences=1 "
+                        f"(thinking models are near-deterministic, extra calls waste tokens)."
+                    )
+                    generation_config["supports_multi_candidate"] = False
+                    generation_config["num_return_sequences"] = 1
+                    num_seqs = 1
+                else:
+                    raise
+
+        # Fallback path: single-candidate call(s). For thinking models num_seqs has been
+        # collapsed to 1 above; for other rare cases that end up here (e.g. num_seqs==1
+        # from the start), the loop degenerates to a single call.
+        if not generation_config.get("supports_multi_candidate", False):
+            for _ in range(num_seqs):
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=generation_config["gen_config_single"]
+                )
+                predicts.extend(_extract(response))
+
+        predicts = _deduplicate(predicts)
+        if not predicts:
+            predicts = [None]
 
     return x, predicts
 
@@ -295,13 +337,31 @@ def configure_generator(config_dict):
         generation_config["model_name"] = config_dict["model_name"]
         gen_cfg = config_dict.get("generation_config", {})
         num_seqs = gen_cfg.get("num_return_sequences", 1)
-        generation_config["gen_config"] = types.GenerateContentConfig(
-            candidate_count=num_seqs,
-            max_output_tokens=gen_cfg.get("gen_length", 4096),
-            temperature=gen_cfg.get("temperature", 1.0),
-            top_p=gen_cfg.get("top_p", 0.95),
-            top_k=gen_cfg.get("top_k", 64)
+        generation_config["num_return_sequences"] = num_seqs
+
+        # Build two configs: one multi-candidate (preferred), one single-candidate (fallback).
+        # Flash models bill the prompt once per request, so multi-candidate is ~N× cheaper on
+        # input tokens. Pro/thinking models reject candidate_count > 1 and must be looped.
+        # generate_predicts tries multi first and flips "supports_multi_candidate" to False on
+        # the specific INVALID_ARGUMENT error, caching the decision per generation_config.
+        base_kwargs = {
+            "temperature": gen_cfg.get("temperature", 1.0),
+            "top_p": gen_cfg.get("top_p", 0.95),
+            "top_k": gen_cfg.get("top_k", 64),
+        }
+        if "gen_length" in gen_cfg:
+            base_kwargs["max_output_tokens"] = gen_cfg["gen_length"]
+        if "thinking_budget" in gen_cfg:
+            base_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=gen_cfg["thinking_budget"]
+            )
+        generation_config["gen_config_multi"] = types.GenerateContentConfig(
+            candidate_count=num_seqs, **base_kwargs
         )
+        generation_config["gen_config_single"] = types.GenerateContentConfig(
+            candidate_count=1, **base_kwargs
+        )
+        generation_config["supports_multi_candidate"] = num_seqs > 1
         logging.info(f"Configured Gemini client for model: {config_dict['model_name']}")
 
     return generation_config
