@@ -201,13 +201,16 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
         model_name = generation_config["model_name"]
 
         # Responses API does not accept n, presence_penalty, or frequency_penalty.
-        # Multiple samples must be obtained by looping the call.
+        # Some models (e.g. gpt-5.3-chat-latest) also reject temperature/top_p,
+        # so only include sampling params when explicitly configured.
         kwargs = dict(
             model=model_name,
             input=prompt,
-            temperature=temperature,
-            top_p=top_p,
         )
+        if "temperature" in generation_config:
+            kwargs["temperature"] = temperature
+        if "top_p" in generation_config:
+            kwargs["top_p"] = top_p
         if "gen_length" in generation_config:
             kwargs["max_output_tokens"] = generation_config["gen_length"]
         if "reasoning" in generation_config:
