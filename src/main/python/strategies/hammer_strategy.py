@@ -61,7 +61,10 @@ def attempt_proof(repl, prf_info, eval_config, metrics):
             metrics["finished_proofs"] += 1
             metrics["successful_hammers"] += 1
             if eval_config.get("saving", False):
-                save_proof(repl, prf_info)
+                try:
+                    save_proof(repl, prf_info)
+                except Exception as e:
+                    logging.warning(f"Failed to save proof {prf_info['path']}: {e}")
         elif progress:
             logging.info(f"Hammer PROGRESSED for {prf_info['path']}: '{result_msg}'")
             metrics["successful_hammers"] += 1

@@ -225,7 +225,10 @@ def _dfs(repl, metrics, pos, max_depth, prf, dfs_config):
                 metrics["proof_durations"].append(_make_prf_record(prf, duration))
                 if dfs_config.get("saving", False):
                     logging.info("trying to save proof")
-                    save_proof(repl, prf)
+                    try:
+                        save_proof(repl, prf)
+                    except Exception as e:
+                        logging.warning(f"Failed to save proof {prf['path']}: {e}")
                 repl.reset()
                 return metrics
 
