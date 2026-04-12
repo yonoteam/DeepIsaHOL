@@ -155,12 +155,14 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
             "top_p": top_p,
             "top_k": top_k,
         }
+        ollama_think = generation_config.get("think")
         predicts = []
         for _ in range(num_return_sequences):
             response = generation_config["generator"].generate(
                 model=generation_config["ollama_model"],
                 prompt=tokops.llm_prompt.format(context=x),
                 options=ollama_options,
+                think=ollama_think,
             )
             generated_text = response.get("response", "")
             extracted = extract_suggestion(generated_text)
@@ -329,6 +331,9 @@ def configure_generator(config_dict):
         ollama_model = config_dict["model_name"].removeprefix("ollama/")
         generation_config["generator"] = ollama.Client()
         generation_config["ollama_model"] = ollama_model
+        gen_cfg = config_dict.get("generation_config", {})
+        if "think" in gen_cfg:
+            generation_config["think"] = gen_cfg["think"]
         try:
             models_list = generation_config["generator"].list()
             logging.info(f"Connected to Ollama server. Total available models: {len(models_list['models'])}")
