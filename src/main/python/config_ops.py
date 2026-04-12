@@ -60,22 +60,32 @@ EXAMPLE_TRAINING_ARGS = {
 }
 
 GENERATION_CONFIG = {
-    "gen_length": 64,
-    "num_return_sequences": 5,
-    "num_beams": 5,
-    "temperature": 1.0,
-    "top_p": 0.95,
-    "top_k": 64,
-    "reasoning": {"effort": "medium"},   # OpenAI reasoning models (e.g. gpt-5)
-    "thinking_budget": 1024,             # Gemini thinking models (e.g. gemini-2.5-pro)
-    "allowed_depth": 5,
-    "proof_timeout_seconds": 30
+    # --- shared across all backends ---
+    "gen_length": 64,                    # max new tokens to generate
+    "num_return_sequences": 5,           # candidates per proof step
+    "num_beams": 5,                      # beam search width (T5/Gemma-unsloth only)
+    "temperature": 1.0,                  # sampling temperature (all backends)
+    "top_p": 0.95,                       # nucleus sampling (all backends)
+    "top_k": 64,                         # top-k sampling (all backends except OpenAI)
+    # --- Ollama-specific ---
+    "think": False,                      # enable extended thinking (no effect on small models like E4B)
+    "system": "You are proving ...",     # system prompt passed to ollama.generate()
+    "keep_alive": "5m",                  # how long Ollama keeps the model loaded after a request
+    "max_prompt_length": 4000,           # truncate prompt to this many chars (useful for small models)
+    # --- OpenAI-specific ---
+    "reasoning": {"effort": "medium"},   # reasoning config for OpenAI reasoning models (e.g. gpt-5)
+    "presence_penalty": 0.0,             # penalise tokens already present in the text
+    "frequency_penalty": 0.0,            # penalise tokens by frequency in the text
+    # --- Gemini-specific ---
+    "thinking_budget": 1024,             # token budget for Gemini thinking models (e.g. gemini-2.5-pro)
 }
 
 DFS_CONFIG = {
-    "device": -1,
-    "saving": False,
-    "max_prf_attempts": 5
+    "device": -1,                        # -1 for CPU, 0+ for CUDA device index
+    "saving": False,                     # save completed proofs to .thy files
+    "max_prf_attempts": 5,               # max total proof attempts per theorem
+    "allowed_depth": 5,                  # max DFS tree depth
+    "proof_timeout_seconds": 120         # timeout per individual proof attempt
 }
 
 def get_device_str(config_dict):
