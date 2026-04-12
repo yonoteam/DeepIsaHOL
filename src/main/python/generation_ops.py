@@ -155,14 +155,25 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
             "top_p": top_p,
             "top_k": top_k,
         }
-        ollama_think = generation_config.get("think")
+        ollama_kwargs = {}
+        if "think" in generation_config:
+            ollama_kwargs["think"] = generation_config["think"]
+        if "system" in generation_config:
+            ollama_kwargs["system"] = generation_config["system"]
+        if "keep_alive" in generation_config:
+            ollama_kwargs["keep_alive"] = generation_config["keep_alive"]
+        prompt = tokops.llm_prompt.format(context=x)
+        max_prompt_length = generation_config.get("max_prompt_length")
+        if max_prompt_length and len(prompt) > max_prompt_length:
+            logging.info(f"Truncating Ollama prompt from {len(prompt)} to {max_prompt_length} chars")
+            prompt = prompt[:max_prompt_length]
         predicts = []
         for _ in range(num_return_sequences):
             response = generation_config["generator"].generate(
                 model=generation_config["ollama_model"],
-                prompt=tokops.llm_prompt.format(context=x),
+                prompt=prompt,
                 options=ollama_options,
-                think=ollama_think,
+                **ollama_kwargs,
             )
             generated_text = response.get("response", "")
             extracted = extract_suggestion(generated_text)
@@ -334,6 +345,10 @@ def configure_generator(config_dict):
         gen_cfg = config_dict.get("generation_config", {})
         if "think" in gen_cfg:
             generation_config["think"] = gen_cfg["think"]
+        if "system" in gen_cfg:
+            generation_config["system"] = gen_cfg["system"]
+        if "keep_alive" in gen_cfg:
+            generation_config["keep_alive"] = gen_cfg["keep_alive"]
         try:
             models_list = generation_config["generator"].list()
             logging.info(f"Connected to Ollama server. Total available models: {len(models_list['models'])}")
