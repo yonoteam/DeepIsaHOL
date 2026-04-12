@@ -63,6 +63,11 @@ GENERATION_CONFIG = {
     "gen_length": 64,
     "num_return_sequences": 5,
     "num_beams": 5,
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "reasoning": {"effort": "medium"},   # OpenAI reasoning models (e.g. gpt-5)
+    "thinking_budget": 1024,             # Gemini thinking models (e.g. gemini-2.5-pro)
     "allowed_depth": 5,
     "proof_timeout_seconds": 30
 }

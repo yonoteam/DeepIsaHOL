@@ -197,20 +197,35 @@ def generate_predicts(prf_info: dict, generation_config: dict) -> tuple[str, lis
             predicts = [extract_suggestion(p["text"]) for p in predicts["choices"]]
     elif model_type == "openai":
         prompt = tokops.llm_prompt.format(context=x)
-        presence_penalty = generation_config.get("presence_penalty", 0.0)
-        frequency_penalty = generation_config.get("frequency_penalty", 0.0)
-        response = generation_config["generator"].chat.completions.create(
-            model=generation_config["model_name"],
-            messages=[{"role": "user", "content": prompt}],
-            max_completion_tokens=gen_length,
-            n=num_return_sequences,
+        client = generation_config["generator"]
+        model_name = generation_config["model_name"]
+
+        # Responses API does not accept n, presence_penalty, or frequency_penalty.
+        # Multiple samples must be obtained by looping the call.
+        kwargs = dict(
+            model=model_name,
+            input=prompt,
             temperature=temperature,
             top_p=top_p,
-            presence_penalty=presence_penalty,
-            frequency_penalty=frequency_penalty
         )
-        predicts = [extract_suggestion(choice.message.content) for choice in response.choices]
+        if "gen_length" in generation_config:
+            kwargs["max_output_tokens"] = generation_config["gen_length"]
+        if "reasoning" in generation_config:
+            kwargs["reasoning"] = generation_config["reasoning"]
+
+        predicts = []
+        for _ in range(num_return_sequences):
+            r = client.responses.create(**kwargs)
+            predicts.extend(
+                extract_suggestion(item.content[0].text)
+                for item in r.output
+                if item.type == "message"
+                and item.content
+                and item.content[0].type == "output_text"
+            )
         predicts = _deduplicate(predicts)
+        if not predicts:
+            predicts = [None]
     elif model_type == "gemini":
         prompt = tokops.llm_prompt.format(context=x)
         num_seqs = generation_config.get("num_return_sequences", 1)
