@@ -129,7 +129,7 @@ In case of connections issues, you can manage your ports in the (automatically c
 
 ## Data interaction
 
-You can see the REPL's methods in this project's `/src/main/scala/repl.scala`. For an example of how these methods are used, you can check the script `/src/main/python/dfs.py` that uses T5 models for interacting with Isabelle via the Python REPL. The functionality is analogous to that of the `Writer` object above.
+You can see the REPL's methods in this project's `/src/main/scala/repl.scala`. For an example of how these methods are used, you can check `/src/main/python/eval.py` together with `/src/main/python/strategies/dfs_strategy.py`, which use models for interacting with Isabelle via the Python REPL. The functionality is analogous to that of the `Writer` object above.
 
 **Scala**:
 
@@ -252,14 +252,14 @@ Finally, the project provides Python classes in `writer.py` and `repl.py` with t
     |   │   ├── environment.yml       # lists python packages for training without CUDA
     |   │   ├── isa_generation.yml    # lists python packages for calling genAI models from Isabelle
     |   │   ├── config_ops.py     # for the configuration file of the training of models
-    │   │   ├── dfs.py            # depth-first-search loop for automated theorem proving
+    │   │   ├── eval.py           # unified evaluation loop for DFS and Hammer strategies
     │   │   ├── dicts.py          # operations manipulating Python dictionaries
     │   │   ├── distrib.py        # operations for distributed model training and evaluation
     │   │   ├── eval_t5.py        # evaluation loops for the LLMs
     │   │   ├── generation_ops.py # frequently used model generation functions
     │   │   ├── llm_server.py     # a server hosting a genAI model
     │   │   ├── ops.py            # frequently used operations
-    │   │   ├── proofs.py
+    │   │   ├── proofs            # proof-data preprocessing package
     │   │   │   ├── __init__.py   # methods for data-retrieval from the generated proof-JSONs
     │   │   │   ├── data_dir.py   # methods on the generated proof-JSONs directory
     │   │   │   ├── data_stats.py # statistics from the generated proof-JSONs
@@ -267,6 +267,11 @@ Finally, the project provides Python classes in `writer.py` and `repl.py` with t
     │   │   ├── repl.py           # implementation of the Python REPL
     │   │   ├── save_ops.py       # methods for saving tokenizers, datasets, and models
     │   │   ├── tokenizer_ops.py  # frequently used tokenizer operations
+    │   │   ├── strategies        # proof-search strategies used by eval.py
+    │   │   │   ├── __init__.py
+    │   │   │   ├── dfs_strategy.py
+    │   │   │   ├── hammer_strategy.py
+    │   │   │   └── shared.py
     │   │   ├── train_t5.py       # training loop for the T5 models
     │   │   ├── train_gemma.py    # training loop for the Gemma models with HuggingFace
     │   │   ├── train_unsloth_gemma.py # loop for training the Gemma models with Unsloth
